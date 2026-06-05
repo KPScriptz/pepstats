@@ -1,0 +1,21 @@
+# Node / Electron
+node_modules/
+/dist/
+/out/
+/build/
+*.log
+
+# macOS
+.DS_Store
+
+# Python backend
+backend/venv/
+backend/__pycache__/
+backend/build/
+*.pyc
+# Keep the dist folder (extraResources target) but ignore the built binary in it
+backend/dist/*
+!backend/dist/.gitkeep
+
+# Local secrets — Anthropic key, dev/AI config. NEVER commit this.
+config.json

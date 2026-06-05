@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; script-src 'self';" />
+    <link rel="stylesheet" href="styles.css" />
+    <title>PepStats — Pre-Game</title>
+  </head>
+  <body>
+    <header class="titlebar">
+      <span class="brand">PEPSTATS<span class="sub"> · PRE-GAME</span></span>
+      <button id="close" class="close">✕</button>
+    </header>
+
+    <main class="dash">
+      <p id="phase" class="phase">Connecting to the League client…</p>
+
+      <section class="grid">
+        <div class="panel">
+          <h2>Your Team</h2>
+          <div id="ally" class="comp"><span class="muted">Enter champ select to see picks.</span></div>
+        </div>
+        <div class="panel">
+          <h2>Enemy Team</h2>
+          <div id="enemy" class="comp"><span class="muted">Enter champ select to see picks.</span></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Draft Notes</h2>
+        <ul class="notes">
+          <li>Team-comp score, win-rate context, and pick/ban hints render here from public data.</li>
+          <li>Rune/build import uses the LCU API (tolerated, not officially supported — use read-style imports only).</li>
+        </ul>
+        <button id="import" class="btn">Import optimal runes</button>
+        <span id="import-status" class="muted"></span>
+      </section>
+    </main>
+
+    <script src="pregame.js"></script>
+  </body>
+</html>

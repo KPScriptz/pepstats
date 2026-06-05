@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; script-src 'self';" />
+    <link rel="stylesheet" href="styles.css" />
+    <title>PepStats Overlay</title>
+  </head>
+  <body>
+    <div id="widget" class="widget hidden">
+      <div id="header" class="brand">PEPSTATS CS TRACKER</div>
+
+      <div class="stat"><span class="label">CS</span><span id="cs" class="value">0</span></div>
+      <div class="stat"><span class="label">CS / MIN</span><span id="cspm" class="value">0.0</span></div>
+      <div class="stat"><span class="label">GOLD</span><span id="gold" class="value">0</span></div>
+
+      <div class="divider"></div>
+
+      <div class="timer"><span class="label">DRAGON</span><span id="t-dragon" class="tval">UP</span></div>
+      <div class="timer"><span class="label">BARON</span><span id="t-baron" class="tval">--</span></div>
+      <div class="timer"><span class="label">GRUBS</span><span id="t-grubs" class="tval">--</span></div>
+
+      <div id="status" class="status">Waiting for a live game…</div>
+    </div>
+    <script src="ingame.js"></script>
+  </body>
+</html>

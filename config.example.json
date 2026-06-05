@@ -1,0 +1,5 @@
+{
+  "_comment": "Copy this file to config.json (which is gitignored) and fill in your key. config.json is read at runtime by the post-game AI coach.",
+  "anthropicApiKey": "sk-ant-...",
+  "coachModel": "claude-sonnet-4-6"
+}

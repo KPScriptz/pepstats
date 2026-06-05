@@ -1,0 +1,53 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  background: #0f1117;
+  color: #d7dbe2;
+  font-family: "Segoe UI", "Inter", Arial, sans-serif;
+  -webkit-user-select: none; user-select: none;
+}
+
+.titlebar {
+  -webkit-app-region: drag;
+  display: flex; align-items: center; justify-content: space-between;
+  height: 38px; padding: 0 14px;
+  background: #12141a; border-bottom: 1px solid rgba(200, 170, 90, 0.25);
+}
+.brand { font-family: Georgia, serif; font-weight: 700; letter-spacing: 3px; color: #c8aa5a; font-size: 14px; }
+.brand .sub { color: #6f7787; letter-spacing: 2px; }
+.close { -webkit-app-region: no-drag; background: transparent; border: none; color: #8a93a2; font-size: 14px; cursor: pointer; padding: 6px 10px; border-radius: 6px; }
+.close:hover { background: rgba(255, 80, 80, 0.18); color: #ff6b6b; }
+
+.dash { padding: 18px 20px; overflow-y: auto; height: calc(100% - 38px); }
+
+.cards { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin-bottom: 18px; }
+.card {
+  background: linear-gradient(160deg, #181b24, #12141a);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px; padding: 14px;
+}
+.card .k { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: #8a93a2; margin-bottom: 8px; }
+.card .v { font-size: 20px; font-weight: 700; color: #e8e8e8; font-variant-numeric: tabular-nums; }
+
+.panel {
+  background: linear-gradient(160deg, #181b24, #12141a);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px; padding: 16px 18px;
+}
+.panel h2 { font-size: 12px; letter-spacing: 2px; text-transform: uppercase; color: #c8aa5a; margin-bottom: 6px; font-weight: 600; }
+.muted { color: #6f7787; font-size: 13px; margin-bottom: 12px; }
+
+.btn {
+  -webkit-app-region: no-drag;
+  background: linear-gradient(180deg, #c8aa5a, #a8863f);
+  color: #1a1205; border: none; border-radius: 8px;
+  padding: 9px 16px; font-weight: 700; font-size: 13px; cursor: pointer;
+}
+.btn:hover { filter: brightness(1.08); }
+.btn:disabled { opacity: 0.6; cursor: default; }
+
+.coach-out {
+  margin-top: 14px; white-space: pre-wrap; line-height: 1.5;
+  font-family: "Segoe UI", Arial, sans-serif; font-size: 14px; color: #cdd3dc;
+}

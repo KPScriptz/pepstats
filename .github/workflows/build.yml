@@ -1,0 +1,52 @@
+name: Build Windows Installer
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # --- Optional Python backend (disabled by default) -----------------
+      # The app runs fully on Node. To ship the bundled Python sidecar,
+      # uncomment this block: it builds backend/dist/pepstats-backend.exe,
+      # which package.json's extraResources then packs into the installer.
+      #
+      # - uses: actions/setup-python@v5
+      #   with:
+      #     python-version: "3.12"
+      # - name: Build Python backend
+      #   run: |
+      #     pip install pyinstaller
+      #     pyinstaller backend/pepstats_backend.spec --distpath backend/dist
+      # -------------------------------------------------------------------
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build installer
+        run: npm run dist
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PepStats-Setup
+          path: dist/*.exe
+
+      - name: Publish to "latest" release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Latest build
+          files: dist/*.exe

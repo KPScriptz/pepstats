@@ -1,0 +1,4 @@
+# The compliant backend uses only the Python standard library (urllib, ssl, json).
+# The only build-time tool needed is PyInstaller, installed in CI:
+#   pip install pyinstaller
+#   pyinstaller backend/pepstats_backend.spec --distpath backend/dist
