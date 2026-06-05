@@ -113,6 +113,13 @@ coachBtn.addEventListener("click", () => {
 });
 
 window.pepstats.onCoachChunk((text) => {
+  // A stream can arrive without a button click (e.g. the dev mock pipes tokens
+  // straight over IPC). Enter streaming mode on the first chunk so the caret
+  // shows and the button locks regardless of who started the stream.
+  if (!out.classList.contains("streaming")) {
+    coachBtn.disabled = true;
+    out.classList.add("streaming");
+  }
   out.textContent += text;
   out.scrollTop = out.scrollHeight;
 });
