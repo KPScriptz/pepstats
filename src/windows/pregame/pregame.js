@@ -2,41 +2,149 @@
 
 document.getElementById("close").addEventListener("click", () => window.close());
 
-const phaseEl = document.getElementById("phase");
-const allyEl = document.getElementById("ally");
-const enemyEl = document.getElementById("enemy");
-const importStatus = document.getElementById("import-status");
+const el = {
+  phase: document.getElementById("phase"),
+  phaseDot: document.getElementById("phase-dot"),
+  ally: document.getElementById("ally"),
+  enemy: document.getElementById("enemy"),
+  gaugeArc: document.getElementById("gauge-arc"),
+  synergyScore: document.getElementById("synergy-score"),
+  synergyNote: document.getElementById("synergy-note"),
+  chipPhase: document.getElementById("chip-phase"),
+  chipPick: document.getElementById("chip-pick"),
+  chipLocked: document.getElementById("chip-locked"),
+  importDot: document.getElementById("import-dot"),
+  importLabel: document.getElementById("import-label"),
+  importStatus: document.getElementById("import-status"),
+  importBtn: document.getElementById("import"),
+};
 
-function renderTeam(el, members) {
+const GAUGE_CIRCUMFERENCE = 2 * Math.PI * 52; // r=52 in the SVG
+const ROLE_SHORT = { TOP: "TOP", JUNGLE: "JNG", MIDDLE: "MID", BOTTOM: "BOT", UTILITY: "SUP" };
+
+function setDot(node, kind) {
+  node.className = "dot dot-" + kind;
+}
+
+// Draft completeness drives the gauge as an honest placeholder for the full
+// synergy model (which would need champion data we don't pull yet).
+function setGauge(lockedCount, total) {
+  const frac = total > 0 ? lockedCount / total : 0;
+  el.gaugeArc.setAttribute(
+    "stroke-dasharray",
+    `${(frac * GAUGE_CIRCUMFERENCE).toFixed(1)} ${GAUGE_CIRCUMFERENCE.toFixed(1)}`
+  );
+  if (lockedCount === 0) {
+    el.synergyScore.textContent = "—";
+  } else {
+    el.synergyScore.textContent = Math.round(frac * 100);
+  }
+}
+
+function champLabel(championId) {
+  if (championId && championId > 0) return "Champion #" + championId;
+  return "Picking…";
+}
+
+function statChip(label) {
+  const chip = document.createElement("div");
+  chip.className = "stat-chip placeholder";
+  const v = document.createElement("span");
+  v.className = "sv";
+  v.textContent = "—";
+  const k = document.createElement("span");
+  k.className = "sk";
+  k.textContent = label;
+  chip.append(v, k);
+  return chip;
+}
+
+function renderTeam(container, members, localCellId, withStats) {
   if (!members || !members.length) return;
-  el.innerHTML = "";
+  container.innerHTML = "";
   for (const m of members) {
     const row = document.createElement("div");
-    row.className = "row";
-    const name = document.createElement("span");
-    name.textContent = m.assignedPosition || "—";
+    row.className = "player-row" + (m.cellId === localCellId ? " is-you" : "");
+
+    const role = document.createElement("div");
+    role.className = "role-badge";
+    role.textContent = ROLE_SHORT[m.assignedPosition] || "—";
+
+    const main = document.createElement("div");
+    main.className = "player-main";
     const champ = document.createElement("span");
-    champ.textContent = m.championId ? "Champion #" + m.championId : "picking…";
-    row.append(name, champ);
-    el.append(row);
+    champ.className = "player-champ";
+    champ.textContent = champLabel(m.championId);
+    const sub = document.createElement("span");
+    sub.className = "player-sub";
+    sub.textContent = m.cellId === localCellId ? "You" : (m.assignedPosition ? ROLE_SHORT[m.assignedPosition] + " lane" : "Assigned role");
+    main.append(champ, sub);
+
+    row.append(role, main);
+
+    if (withStats) {
+      const stats = document.createElement("div");
+      stats.className = "player-stats";
+      stats.append(statChip("WR"), statChip("MAIN"));
+      row.append(stats);
+    }
+
+    container.append(row);
   }
+}
+
+function resetIdle(message) {
+  el.phase.textContent = message;
+  setDot(el.phaseDot, "idle");
+  el.chipPhase.textContent = "Idle";
+  el.chipPick.textContent = "—";
+  el.chipLocked.textContent = "0 / 5";
+  setGauge(0, 5);
+  setDot(el.importDot, "idle");
+  el.importLabel.textContent = "Standby";
 }
 
 async function refresh() {
-  const session = await window.pepstats.getPregame();
+  let session = null;
+  try {
+    session = await window.pepstats.getPregame();
+  } catch (_) {
+    session = null;
+  }
+
   if (!session) {
-    phaseEl.textContent = "League client not detected. Open League on this PC and enter champ select.";
+    resetIdle("League client not detected. Open League and enter champ select.");
     return;
   }
-  phaseEl.textContent = "Champ select in progress.";
-  renderTeam(allyEl, session.myTeam);
-  renderTeam(enemyEl, session.theirTeam);
+
+  el.phase.textContent = "Champ select in progress.";
+  setDot(el.phaseDot, "active");
+  el.chipPhase.textContent = "Champ Select";
+
+  const myTeam = session.myTeam || [];
+  const theirTeam = session.theirTeam || [];
+  const localCellId = session.localPlayerCellId;
+
+  renderTeam(el.ally, myTeam, localCellId, true);
+  renderTeam(el.enemy, theirTeam, localCellId, false);
+
+  const locked = myTeam.filter((m) => m.championId && m.championId > 0).length;
+  el.chipLocked.textContent = `${locked} / ${Math.max(myTeam.length, 5)}`;
+  setGauge(locked, Math.max(myTeam.length, 5));
+
+  const me = myTeam.find((m) => m.cellId === localCellId);
+  el.chipPick.textContent = me ? champLabel(me.championId) : "—";
+
+  setDot(el.importDot, locked === myTeam.length && myTeam.length > 0 ? "active" : "warn");
+  el.importLabel.textContent = locked === myTeam.length && myTeam.length > 0 ? "Ready" : "Waiting on locks";
 }
 
-document.getElementById("import").addEventListener("click", () => {
+el.importBtn.addEventListener("click", () => {
   // Rune import would POST a rune page to the LCU here. Left as an explicit
-  // opt-in stub — wire src/shared/lcu.request("/lol-perks/v1/pages", ...) when ready.
-  importStatus.textContent = "Rune import is stubbed — see src/shared/lcu.js.";
+  // opt-in stub — wire src/shared/lcu request to /lol-perks/v1/pages when ready.
+  el.importStatus.textContent = "Rune import is stubbed — see src/shared/lcu.js.";
+  setDot(el.importDot, "active");
+  el.importLabel.textContent = "Imported (stub)";
 });
 
 refresh();

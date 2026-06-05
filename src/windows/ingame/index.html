@@ -10,15 +10,53 @@
     <div id="widget" class="widget hidden">
       <div id="header" class="brand">PEPSTATS CS TRACKER</div>
 
-      <div class="stat"><span class="label">CS</span><span id="cs" class="value">0</span></div>
-      <div class="stat"><span class="label">CS / MIN</span><span id="cspm" class="value">0.0</span></div>
-      <div class="stat"><span class="label">GOLD</span><span id="gold" class="value">0</span></div>
+      <div class="metrics">
+        <div class="metric">
+          <span id="cs" class="value">0</span>
+          <span class="label">CS</span>
+        </div>
+        <div class="metric">
+          <span id="cspm" class="value">0.0</span>
+          <span class="label">CS / MIN</span>
+        </div>
+        <div class="metric">
+          <span id="gold" class="value">0</span>
+          <span class="label">GOLD</span>
+        </div>
+      </div>
 
-      <div class="divider"></div>
+      <div class="section-label">EPIC OBJECTIVES</div>
 
-      <div class="timer"><span class="label">DRAGON</span><span id="t-dragon" class="tval">UP</span></div>
-      <div class="timer"><span class="label">BARON</span><span id="t-baron" class="tval">--</span></div>
-      <div class="timer"><span class="label">GRUBS</span><span id="t-grubs" class="tval">--</span></div>
+      <div class="timeline" id="timeline">
+        <div class="rail"></div>
+
+        <div class="node" id="n-grubs" data-key="grubs">
+          <span class="node-dot"></span>
+          <div class="node-body">
+            <span class="node-name">Voidgrubs</span>
+            <span class="node-meta" id="m-grubs">—</span>
+          </div>
+          <span class="node-time" id="t-grubs">--</span>
+        </div>
+
+        <div class="node" id="n-dragon" data-key="dragon">
+          <span class="node-dot"></span>
+          <div class="node-body">
+            <span class="node-name">Dragon</span>
+            <span class="node-meta" id="m-dragon">—</span>
+          </div>
+          <span class="node-time" id="t-dragon">--</span>
+        </div>
+
+        <div class="node" id="n-baron" data-key="baron">
+          <span class="node-dot"></span>
+          <div class="node-body">
+            <span class="node-name">Baron</span>
+            <span class="node-meta" id="m-baron">—</span>
+          </div>
+          <span class="node-time" id="t-baron">--</span>
+        </div>
+      </div>
 
       <div id="status" class="status">Waiting for a live game…</div>
     </div>

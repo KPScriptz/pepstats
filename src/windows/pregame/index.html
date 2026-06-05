@@ -2,38 +2,82 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; script-src 'self';" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self' data:;" />
     <link rel="stylesheet" href="styles.css" />
     <title>PepStats — Pre-Game</title>
   </head>
   <body>
     <header class="titlebar">
       <span class="brand">PEPSTATS<span class="sub"> · PRE-GAME</span></span>
-      <button id="close" class="close">✕</button>
+      <div class="lobby-state">
+        <span id="phase-dot" class="dot dot-idle"></span>
+        <span id="phase" class="phase">Connecting to the League client…</span>
+      </div>
+      <button id="close" class="close" title="Close">✕</button>
     </header>
 
     <main class="dash">
-      <p id="phase" class="phase">Connecting to the League client…</p>
+      <!-- Hero: Team Comp Synergy Score -->
+      <section class="synergy">
+        <div class="synergy-gauge">
+          <svg viewBox="0 0 120 120" class="gauge-svg" aria-hidden="true">
+            <circle class="gauge-track" cx="60" cy="60" r="52" />
+            <circle id="gauge-arc" class="gauge-arc" cx="60" cy="60" r="52" />
+          </svg>
+          <div class="gauge-center">
+            <span id="synergy-score" class="gauge-num">—</span>
+            <span class="gauge-unit">SYNERGY</span>
+          </div>
+        </div>
+        <div class="synergy-meta">
+          <h2>Team Comp Synergy Score</h2>
+          <p id="synergy-note" class="muted">
+            A blended read of engage, peel, wave-clear and scaling across your five picks.
+            Updates live as champions lock in.
+          </p>
+          <div class="synergy-tags" id="synergy-tags">
+            <span class="tag tag-ghost">Engage —</span>
+            <span class="tag tag-ghost">Front-line —</span>
+            <span class="tag tag-ghost">Scaling —</span>
+            <span class="tag tag-ghost">Wave-clear —</span>
+          </div>
+        </div>
+      </section>
 
+      <!-- Draft lobby indicators -->
+      <section class="lobby-strip" id="lobby-strip">
+        <div class="chip"><span class="chip-k">Phase</span><span id="chip-phase" class="chip-v">Idle</span></div>
+        <div class="chip"><span class="chip-k">Your pick</span><span id="chip-pick" class="chip-v">—</span></div>
+        <div class="chip"><span class="chip-k">Locked</span><span id="chip-locked" class="chip-v">0 / 5</span></div>
+        <div class="chip">
+          <span class="chip-k">Rune import</span>
+          <span class="chip-v import-state"><span id="import-dot" class="dot dot-idle"></span><span id="import-label">Standby</span></span>
+        </div>
+      </section>
+
+      <!-- Teams -->
       <section class="grid">
-        <div class="panel">
-          <h2>Your Team</h2>
+        <div class="panel team-panel">
+          <h2>Your Team <span class="pill pill-ally">Allies</span></h2>
           <div id="ally" class="comp"><span class="muted">Enter champ select to see picks.</span></div>
         </div>
-        <div class="panel">
-          <h2>Enemy Team</h2>
+        <div class="panel team-panel">
+          <h2>Enemy Team <span class="pill pill-enemy">Enemies</span></h2>
           <div id="enemy" class="comp"><span class="muted">Enter champ select to see picks.</span></div>
         </div>
       </section>
 
+      <!-- Rune import -->
       <section class="panel">
-        <h2>Draft Notes</h2>
-        <ul class="notes">
-          <li>Team-comp score, win-rate context, and pick/ban hints render here from public data.</li>
-          <li>Rune/build import uses the LCU API (tolerated, not officially supported — use read-style imports only).</li>
-        </ul>
-        <button id="import" class="btn">Import optimal runes</button>
-        <span id="import-status" class="muted"></span>
+        <h2>Automatic Rune Import</h2>
+        <p class="muted">
+          Pushes an optimal rune page to the client over the LCU API (tolerated, not
+          officially supported — standard rune-page writes only).
+        </p>
+        <div class="import-row">
+          <button id="import" class="btn">Import optimal runes</button>
+          <span id="import-status" class="muted">Detected role drives the recommended page.</span>
+        </div>
       </section>
     </main>
 
