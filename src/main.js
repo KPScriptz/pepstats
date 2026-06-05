@@ -40,8 +40,8 @@ function preload() {
 // GPU keeps compositing the overlay for ~0% in-game FPS impact.
 function createOverlay() {
   const win = new BrowserWindow({
-    width: 240,
-    height: 360,
+    width: 220,
+    height: 320,
     show: false,
     frame: false,
     transparent: true,
@@ -56,7 +56,7 @@ function createOverlay() {
   win.setAlwaysOnTop(true, "screen-saver");
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   const area = screen.getPrimaryDisplay().workArea;
-  win.setPosition(area.x + area.width - 240 - 20, area.y + 20);
+  win.setPosition(area.x + area.width - 220 - 20, area.y + 20);
   win.loadFile(path.join(__dirname, "windows/ingame/index.html"));
   win.on("closed", () => (windows.ingame = null));
   return win;
@@ -155,6 +155,7 @@ async function poll() {
     // A match is in progress.
     sawLiveGame = true;
     const scores = liveClient.activeScores(live);
+    const compare = liveClient.compareStats(live);
     lastSnapshot = scores;
     const timers = computeTimers(scores.gameTime, scores.events);
     if (appState !== STATE.INGAME) {
@@ -163,7 +164,7 @@ async function poll() {
       showOnly("ingame");
       setDesignMode(false); // matches go live (click-through) by default
     }
-    sendTo("ingame", "overlay", { scores, timers, mode: designMode ? "design" : "live" });
+    sendTo("ingame", "overlay", { scores, compare, timers, mode: designMode ? "design" : "live" });
     return;
   }
 

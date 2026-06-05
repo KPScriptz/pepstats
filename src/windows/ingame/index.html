@@ -2,33 +2,73 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; script-src 'self';" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; script-src 'self'; font-src 'self';" />
     <link rel="stylesheet" href="styles.css" />
     <title>PepStats Overlay</title>
   </head>
   <body>
     <div id="widget" class="widget hidden">
-      <div id="header" class="brand">PEPSTATS CS TRACKER</div>
+      <div class="brand-row">
+        <span class="brand">PEPSTATS</span>
+        <span id="live-dot" class="live-dot"></span>
+      </div>
 
-      <div class="metrics">
-        <div class="metric">
-          <span id="cs" class="value">0</span>
-          <span class="label">CS</span>
+      <div class="stats">
+        <div class="stat-row" id="row-csm">
+          <span class="stat-label">CSM</span>
+          <span class="stat-vals">
+            <span id="csm" class="v-you">—</span>
+            <svg id="spark" class="spark" viewBox="0 0 64 22" preserveAspectRatio="none" aria-hidden="true">
+              <polyline id="spark-line" class="spark-line" points="" />
+              <circle id="spark-dot" class="spark-dot" cx="-9" cy="0" r="2.1" />
+            </svg>
+          </span>
         </div>
-        <div class="metric">
-          <span id="cspm" class="value">0.0</span>
-          <span class="label">CS / MIN</span>
+
+        <div class="stat-row" id="row-gpm">
+          <span class="stat-label">GPM</span>
+          <span class="stat-vals"><span id="gpm" class="v-you">—</span></span>
         </div>
-        <div class="metric">
-          <span id="gold" class="value">0</span>
-          <span class="label">GOLD</span>
+
+        <div class="stat-row" id="row-vision">
+          <span class="stat-label">VIS</span>
+          <span class="stat-vals">
+            <span id="vis-you" class="v-you">—</span>
+            <span class="v-sep">/</span>
+            <span id="vis-opp" class="v-opp">—</span>
+          </span>
+        </div>
+
+        <div class="stat-row" id="row-kp">
+          <span class="stat-label">KP%</span>
+          <span class="stat-vals">
+            <span id="kp-you" class="v-you">—</span>
+            <span class="v-sep">/</span>
+            <span id="kp-opp" class="v-opp">—</span>
+          </span>
+        </div>
+
+        <div class="stat-row" id="row-kda">
+          <span class="stat-label">KDA</span>
+          <span class="stat-vals">
+            <span id="kda-you" class="v-you">—</span>
+            <span class="v-sep">/</span>
+            <span id="kda-opp" class="v-opp">—</span>
+          </span>
+        </div>
+
+        <div class="stat-row" id="row-lvl">
+          <span class="stat-label">LVL</span>
+          <span class="stat-vals">
+            <span id="lvl-you" class="v-you">—</span>
+            <span class="v-sep">/</span>
+            <span id="lvl-opp" class="v-opp">—</span>
+          </span>
         </div>
       </div>
 
-      <div class="section-label">EPIC OBJECTIVES</div>
-
+      <div class="divider"></div>
       <div class="timeline" id="timeline">
-        <div class="rail"></div>
         <!-- Objective nodes are rendered from the timers array in ingame.js -->
       </div>
 

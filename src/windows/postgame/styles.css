@@ -1,3 +1,19 @@
+@font-face {
+  font-family: "SF Pro Display";
+  src: url("../fonts/SFProDisplay-Regular.otf") format("opentype");
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "SF Pro Display";
+  src: url("../fonts/SFProDisplay-Medium.otf") format("opentype");
+  font-weight: 500; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "SF Pro Display";
+  src: url("../fonts/SFProDisplay-Bold.otf") format("opentype");
+  font-weight: 600 900; font-style: normal; font-display: swap;
+}
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
@@ -17,7 +33,7 @@ html, body {
   height: 100%;
   background: var(--bg);
   color: var(--text);
-  font-family: "Segoe UI", "Inter", Arial, sans-serif;
+  font-family: "SF Pro Display", "Segoe UI", "Inter", Arial, sans-serif;
   -webkit-user-select: none; user-select: none;
 }
 
@@ -128,7 +144,7 @@ html, body {
 
 .coach-out {
   margin-top: 14px; white-space: pre-wrap; line-height: 1.5;
-  font-family: "Segoe UI", Arial, sans-serif; font-size: 14px; color: #cdd3dc;
+  font-family: "SF Pro Display", "Segoe UI", Arial, sans-serif; font-size: 14px; color: #cdd3dc;
 }
 /* Blinking caret while tokens stream in (typewriter effect). */
 .coach-out.streaming::after {
