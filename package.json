@@ -5,6 +5,7 @@
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
+    "dev:mock": "PEPSTATS_MOCK=1 electron .",
     "dist": "electron-builder --win nsis --publish never"
   },
   "author": "KPScriptz",
@@ -21,6 +22,7 @@
     "productName": "PepStats",
     "files": [
       "src/**/*",
+      "!src/shared/mock_simulator.js",
       "package.json"
     ],
     "extraResources": [

@@ -354,11 +354,21 @@ app.whenReady().then(() => {
   globalShortcut.register("CommandOrControl+Shift+3", () => showOnly("postgame"));
   globalShortcut.register("CommandOrControl+Shift+Q", () => app.quit());
 
-  startLcuSocket();
-  pollProcess();
-  setInterval(pollProcess, PROC_POLL_MS);
-  setInterval(poll, POLL_MS);
-  poll();
+  if (process.env.PEPSTATS_MOCK === "1") {
+    // Dev smoke test: a local simulator drives the windows + a mock :2999
+    // server. Skip the real LCU socket / process watcher (no League running)
+    // but keep the production poll() loop, which consumes the mock server.
+    const { startMockSimulation } = require("./shared/mock_simulator");
+    startMockSimulation({ ensure, showOnly, sendTo });
+    setInterval(poll, POLL_MS);
+    poll();
+  } else {
+    startLcuSocket();
+    pollProcess();
+    setInterval(pollProcess, PROC_POLL_MS);
+    setInterval(poll, POLL_MS);
+    poll();
+  }
 });
 
 app.on("will-quit", () => {

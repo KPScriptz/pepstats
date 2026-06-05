@@ -3,14 +3,26 @@
 // Riot-sanctioned in-game data. Only serves data while a match is live
 // (incl. Practice Tool / customs). Self-signed cert -> rejectUnauthorized:false.
 const https = require("https");
+const http = require("http");
 
-const BASE = "https://127.0.0.1:2999/liveclientdata";
+const DEFAULT_BASE = "https://127.0.0.1:2999/liveclientdata";
+
+// PEPSTATS_LIVE_BASE lets the local mock simulator point this at a plain-http
+// loopback server. Production never sets it, so the default is unchanged.
+function liveBase() {
+  return process.env.PEPSTATS_LIVE_BASE || DEFAULT_BASE;
+}
 
 function getJson(pathname, timeoutMs = 2000) {
   return new Promise((resolve, reject) => {
-    const req = https.get(
-      BASE + pathname,
-      { rejectUnauthorized: false, timeout: timeoutMs },
+    const url = liveBase() + pathname;
+    const isHttps = url.startsWith("https:");
+    const mod = isHttps ? https : http;
+    const opts = { timeout: timeoutMs };
+    if (isHttps) opts.rejectUnauthorized = false; // Riot's self-signed loopback cert
+    const req = mod.get(
+      url,
+      opts,
       (res) => {
         if (res.statusCode !== 200) {
           res.resume();
