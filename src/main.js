@@ -6,7 +6,16 @@ const fs = require("fs");
 
 const liveClient = require("./shared/liveClient");
 const lcu = require("./shared/lcu");
+const { LcuSocket } = require("./shared/lcuSocket");
 const { computeTimers } = require("./shared/timers");
+const processWatch = require("./shared/process");
+const replays = require("./shared/replays");
+
+// ----- Tunables ----------------------------------------------------------
+const POLL_MS = 1000;          // live-game heartbeat (1 Hz)
+const LIVE_TIMEOUT_MS = 800;   // tight enough to never lag the poll, loose
+                               // enough not to flap on a busy machine
+const PROC_POLL_MS = 5000;     // process watcher cadence (low overhead)
 
 // ----- App state machine -------------------------------------------------
 // idle -> pregame (champ select) -> ingame (match live) -> postgame (match ended)
@@ -16,17 +25,23 @@ const windows = { ingame: null, pregame: null, postgame: null };
 let appState = STATE.IDLE;
 let designMode = false;
 let lastSnapshot = null; // most recent live-game data, for the post-game coach
+let lastReplay = null;   // newest .rofl metadata captured at match end
 let sawLiveGame = false;
+let clientUp = false;    // LeagueClient.exe seen by the process watcher
+let lcuSocket = null;
 
 // ----- Window factories --------------------------------------------------
 function preload() {
   return path.join(__dirname, "preload.js");
 }
 
+// Engine 3: transparent, click-through overlay over Borderless League.
+// NOTE: app.disableHardwareAcceleration() is intentionally NOT called, so the
+// GPU keeps compositing the overlay for ~0% in-game FPS impact.
 function createOverlay() {
   const win = new BrowserWindow({
     width: 240,
-    height: 320,
+    height: 360,
     show: false,
     frame: false,
     transparent: true,
@@ -88,21 +103,50 @@ function showOnly(role) {
   }
 }
 
-// ----- Overlay design / live mode ---------------------------------------
+function sendTo(role, channel, payload) {
+  const w = windows[role];
+  if (w && !w.isDestroyed()) w.webContents.send(channel, payload);
+}
+
+// ----- Engine 3: overlay design / live mode ------------------------------
 function setDesignMode(on) {
   designMode = on;
   const w = windows.ingame;
   if (!w || w.isDestroyed()) return;
-  if (on) w.setIgnoreMouseEvents(false);
-  else w.setIgnoreMouseEvents(true, { forward: true });
+  if (on) {
+    // Design Mode: capture the mouse so the HUD can be dragged/repositioned.
+    w.setIgnoreMouseEvents(false);
+  } else {
+    // Live Mode: absolute click-through — zero gameplay mouse interception.
+    w.setIgnoreMouseEvents(true, { forward: true });
+  }
   w.webContents.send("mode-change", on ? "design" : "live");
 }
 
-// ----- Phase detection loop ---------------------------------------------
+// ----- Engine 1: LCU event socket (champ select) -------------------------
+function startLcuSocket() {
+  if (lcuSocket) return;
+  lcuSocket = new LcuSocket();
+  lcuSocket.on("champ-select", (data) => {
+    if (appState === STATE.INGAME) return; // a live game takes priority
+    if (appState !== STATE.PREGAME) {
+      appState = STATE.PREGAME;
+      ensure("pregame");
+      showOnly("pregame");
+    }
+    sendTo("pregame", "champ-select", data);
+  });
+  lcuSocket.on("champ-select-end", () => {
+    if (appState === STATE.PREGAME) appState = STATE.IDLE;
+  });
+  lcuSocket.start();
+}
+
+// ----- Engine 2: phase-detection heartbeat -------------------------------
 async function poll() {
   let live = null;
   try {
-    live = await liveClient.getAllGameData();
+    live = await liveClient.getAllGameData(LIVE_TIMEOUT_MS);
   } catch (_) {
     live = null;
   }
@@ -119,23 +163,28 @@ async function poll() {
       showOnly("ingame");
       setDesignMode(false); // matches go live (click-through) by default
     }
-    const w = windows.ingame;
-    if (w && !w.isDestroyed()) {
-      w.webContents.send("overlay", { scores, timers, mode: designMode ? "design" : "live" });
-    }
+    sendTo("ingame", "overlay", { scores, timers, mode: designMode ? "design" : "live" });
     return;
   }
 
   // No live game. Was one just running? -> post-game.
   if (sawLiveGame && appState === STATE.INGAME) {
     appState = STATE.POSTGAME;
+    try {
+      lastReplay = replays.latestReplay();
+    } catch (_) {
+      lastReplay = null;
+    }
     ensure("postgame");
     showOnly("postgame");
+    sendTo("postgame", "last-game", { scores: lastSnapshot, replay: lastReplay });
     sawLiveGame = false;
     return;
   }
 
-  // Otherwise check the client for champ select (gray-area LCU).
+  // Otherwise, if the client is up, check for champ select via polling. The LCU
+  // socket pushes updates too; this is the resilient fallback.
+  if (!clientUp) return;
   let phase = "None";
   try {
     phase = await lcu.getGameflowPhase();
@@ -149,7 +198,22 @@ async function poll() {
   }
 }
 
-// ----- Post-game AI coach (your own match data only) --------------------
+// ----- Process watcher (start/stop socket, gate LCU polling) -------------
+async function pollProcess() {
+  try {
+    clientUp = await processWatch.isClientRunning();
+  } catch (_) {
+    clientUp = false;
+  }
+}
+
+// ----- Engine 4: post-game AI coach (streaming, your own data only) ------
+const COACH_SYSTEM =
+  "You are a Challenger-level League of Legends coach. Given a player's own " +
+  "post-match data, give a concise Tactical Post-Match Review: 3-5 macro " +
+  "takeaways (wave management, recall timing, objective routing) with specific, " +
+  "actionable fixes. Be direct and kind.";
+
 function loadConfig() {
   const candidates = [
     path.join(app.getPath("userData"), "config.json"),
@@ -165,11 +229,14 @@ function loadConfig() {
   return {};
 }
 
-function buildCoachPayload(s) {
+function buildCoachPayload(s, replay) {
   if (!s) return "No match data was captured this game.";
-  const deaths = s.events
+  const timeline = (s.events || [])
     .filter((e) => e.EventName === "ChampionKill")
-    .map((e) => `- ${Math.floor(e.EventTime / 60)}:${String(Math.floor(e.EventTime % 60)).padStart(2, "0")} ${e.EventName}`)
+    .map(
+      (e) =>
+        `- ${Math.floor(e.EventTime / 60)}:${String(Math.floor(e.EventTime % 60)).padStart(2, "0")} ChampionKill`
+    )
     .join("\n");
   return [
     "# Post-match data (my own game)",
@@ -178,20 +245,29 @@ function buildCoachPayload(s) {
     `- KDA: ${s.kda.k}/${s.kda.d}/${s.kda.a}`,
     `- CS: ${Math.round(s.cs)} (${s.csPerMin.toFixed(1)} / min)`,
     `- Gold: ${Math.round(s.gold)}`,
+    replay ? `- Replay file: ${replay.name}` : "",
     "",
-    "## Event timeline",
-    deaths || "(no kill events recorded)",
-  ].join("\n");
+    "## Kill-event timeline (this match)",
+    timeline || "(no kill events recorded)",
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
-async function requestCoach() {
+async function streamCoach(sender) {
+  const send = (ch, v) => {
+    if (sender && !sender.isDestroyed()) sender.send(ch, v);
+  };
+
   const cfg = loadConfig();
   if (!cfg.anthropicApiKey || cfg.anthropicApiKey.startsWith("sk-ant-...")) {
-    return { ok: false, text: "Add your Anthropic API key to config.json to enable the AI coach." };
+    send("coach-error", "Add your Anthropic API key to config.json to enable the AI coach.");
+    return;
   }
-  const payload = buildCoachPayload(lastSnapshot);
+
+  let res;
   try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
+    res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
         "x-api-key": cfg.anthropicApiKey,
@@ -201,27 +277,63 @@ async function requestCoach() {
       body: JSON.stringify({
         model: cfg.coachModel || "claude-sonnet-4-6",
         max_tokens: 1024,
-        system: [
-          {
-            type: "text",
-            text: "You are a Challenger-level League of Legends coach. Given a player's own post-match data, give a concise Tactical Post-Match Review: 3-5 macro takeaways (wave management, recall timing, objective routing) with specific, actionable fixes. Be direct and kind.",
-            cache_control: { type: "ephemeral" },
-          },
-        ],
-        messages: [{ role: "user", content: payload }],
+        stream: true,
+        system: [{ type: "text", text: COACH_SYSTEM, cache_control: { type: "ephemeral" } }],
+        messages: [{ role: "user", content: buildCoachPayload(lastSnapshot, lastReplay) }],
       }),
     });
-    const data = await res.json();
-    if (!res.ok) return { ok: false, text: "Coach error: " + (data.error?.message || res.status) };
-    return { ok: true, text: (data.content && data.content[0] && data.content[0].text) || "(empty)" };
   } catch (e) {
-    return { ok: false, text: "Coach request failed: " + e.message };
+    send("coach-error", "Coach request failed: " + e.message);
+    return;
+  }
+
+  if (!res.ok) {
+    let detail = String(res.status);
+    try {
+      const j = await res.json();
+      detail = (j.error && j.error.message) || detail;
+    } catch (_) {
+      /* keep status */
+    }
+    send("coach-error", "Coach error: " + detail);
+    return;
+  }
+
+  // Parse the Anthropic SSE stream line-by-line; forward each text delta.
+  try {
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      let nl;
+      while ((nl = buf.indexOf("\n")) >= 0) {
+        const line = buf.slice(0, nl).trim();
+        buf = buf.slice(nl + 1);
+        if (!line.startsWith("data:")) continue;
+        const data = line.slice(5).trim();
+        if (!data || data === "[DONE]") continue;
+        try {
+          const ev = JSON.parse(data);
+          if (ev.type === "content_block_delta" && ev.delta && typeof ev.delta.text === "string") {
+            send("coach-chunk", ev.delta.text);
+          }
+        } catch (_) {
+          /* keepalive / partial line — ignore */
+        }
+      }
+    }
+    send("coach-done", {});
+  } catch (e) {
+    send("coach-error", "Coach stream interrupted: " + e.message);
   }
 }
 
 // ----- IPC ---------------------------------------------------------------
-ipcMain.handle("request-coach", requestCoach);
-ipcMain.handle("get-last-game", () => lastSnapshot);
+ipcMain.on("coach-start", (e) => streamCoach(e.sender));
+ipcMain.handle("get-last-game", () => ({ scores: lastSnapshot, replay: lastReplay }));
 ipcMain.handle("get-pregame", async () => {
   try {
     return await lcu.getChampSelectSession();
@@ -242,9 +354,15 @@ app.whenReady().then(() => {
   globalShortcut.register("CommandOrControl+Shift+3", () => showOnly("postgame"));
   globalShortcut.register("CommandOrControl+Shift+Q", () => app.quit());
 
-  setInterval(poll, 1000);
+  startLcuSocket();
+  pollProcess();
+  setInterval(pollProcess, PROC_POLL_MS);
+  setInterval(poll, POLL_MS);
   poll();
 });
 
-app.on("will-quit", () => globalShortcut.unregisterAll());
+app.on("will-quit", () => {
+  globalShortcut.unregisterAll();
+  if (lcuSocket) lcuSocket.stop();
+});
 app.on("window-all-closed", () => app.quit());

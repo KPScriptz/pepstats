@@ -4,6 +4,7 @@ document.getElementById("close").addEventListener("click", () => window.close())
 
 const out = document.getElementById("coach-out");
 const coachBtn = document.getElementById("coach");
+const replayLine = document.getElementById("replay-line");
 
 /* ---- Summary cards ---- */
 function fillCards(s) {
@@ -18,6 +19,24 @@ function fillCards(s) {
   set("c-cspm", s.csPerMin.toFixed(1));
   set("c-gold", Math.round(s.gold).toLocaleString());
   set("c-dur", Math.floor(s.gameTime / 60) + " min");
+}
+
+function showReplay(replay) {
+  if (replay && replay.name) {
+    const mb = (replay.sizeBytes / (1024 * 1024)).toFixed(1);
+    replayLine.textContent = `Replay: ${replay.name} · ${mb} MB · ${new Date(replay.modified).toLocaleString()}`;
+  } else {
+    replayLine.textContent = "No replay file detected for this match.";
+  }
+}
+
+function applyLastGame(data) {
+  if (!data) {
+    fillCards(null);
+    return;
+  }
+  fillCards(data.scores);
+  showReplay(data.replay);
 }
 
 /* ---- Placeholder gold-differential timeline ----
@@ -37,7 +56,6 @@ function drawGraph() {
   const line = GOLD_DIFF.map((v, i) => `${xAt(i).toFixed(1)},${yAt(v).toFixed(1)}`).join(" ");
   document.getElementById("graph-line").setAttribute("points", line);
 
-  // Filled envelopes: green above the zero line, red below it.
   const posPts = [`0,${ZERO_Y}`, ...GOLD_DIFF.map((v, i) => `${xAt(i).toFixed(1)},${Math.min(yAt(v), ZERO_Y).toFixed(1)}`), `${VB_W},${ZERO_Y}`];
   const negPts = [`0,${ZERO_Y}`, ...GOLD_DIFF.map((v, i) => `${xAt(i).toFixed(1)},${Math.max(yAt(v), ZERO_Y).toFixed(1)}`), `${VB_W},${ZERO_Y}`];
   document.getElementById("graph-area-pos").setAttribute("points", posPts.join(" "));
@@ -69,22 +87,32 @@ function wireGraphHover() {
   });
 }
 
-/* ---- Claude tactical review ---- */
-coachBtn.addEventListener("click", async () => {
+/* ---- Streaming Claude tactical review (typewriter) ---- */
+coachBtn.addEventListener("click", () => {
   coachBtn.disabled = true;
-  out.textContent = "Analyzing your match…";
-  try {
-    const res = await window.pepstats.requestCoach();
-    out.textContent = res.text;
-  } catch (e) {
-    out.textContent = "Coach request failed: " + e.message;
-  }
+  out.textContent = "";
+  out.classList.add("streaming");
+  window.pepstats.startCoach();
+});
+
+window.pepstats.onCoachChunk((text) => {
+  out.textContent += text;
+  out.scrollTop = out.scrollHeight;
+});
+window.pepstats.onCoachDone(() => {
   coachBtn.disabled = false;
+  out.classList.remove("streaming");
+});
+window.pepstats.onCoachError((msg) => {
+  out.textContent = msg;
+  coachBtn.disabled = false;
+  out.classList.remove("streaming");
 });
 
 /* ---- Init ---- */
 drawGraph();
 wireGraphHover();
+window.pepstats.onLastGame(applyLastGame); // pushed when a match ends
 (async () => {
-  fillCards(await window.pepstats.getLastGame());
+  applyLastGame(await window.pepstats.getLastGame());
 })();

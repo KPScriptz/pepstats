@@ -6,11 +6,7 @@ const els = {
   cspm: document.getElementById("cspm"),
   gold: document.getElementById("gold"),
   status: document.getElementById("status"),
-  nodes: {
-    grubs: { node: document.getElementById("n-grubs"), time: document.getElementById("t-grubs"), meta: document.getElementById("m-grubs") },
-    dragon: { node: document.getElementById("n-dragon"), time: document.getElementById("t-dragon"), meta: document.getElementById("m-dragon") },
-    baron: { node: document.getElementById("n-baron"), time: document.getElementById("t-baron"), meta: document.getElementById("m-baron") },
-  },
+  timeline: document.getElementById("timeline"),
 };
 
 let mode = "design"; // "design" | "live"
@@ -27,13 +23,45 @@ const STATUS_VIEW = {
   gone: { cls: "gone", meta: "Taken" },
 };
 
-function paintNode(key, t) {
-  const ref = els.nodes[key];
-  if (!ref || !t) return;
-  const view = STATUS_VIEW[t.status] || { cls: "", meta: "" };
-  ref.node.className = "node " + view.cls;
-  ref.time.textContent = t.display;
-  ref.meta.textContent = view.meta;
+// Cache node elements by objective key so updates don't rebuild the DOM.
+const nodeEls = new Map();
+
+function nodeFor(key, label) {
+  let ref = nodeEls.get(key);
+  if (ref) return ref;
+
+  const node = document.createElement("div");
+  node.className = "node";
+  const dot = document.createElement("span");
+  dot.className = "node-dot";
+  const body = document.createElement("div");
+  body.className = "node-body";
+  const name = document.createElement("span");
+  name.className = "node-name";
+  name.textContent = label;
+  const meta = document.createElement("span");
+  meta.className = "node-meta";
+  const time = document.createElement("span");
+  time.className = "node-time";
+
+  body.append(name, meta);
+  node.append(dot, body, time);
+  els.timeline.append(node);
+
+  ref = { node, meta, time };
+  nodeEls.set(key, ref);
+  return ref;
+}
+
+function renderTimers(timers) {
+  if (!Array.isArray(timers)) return;
+  for (const t of timers) {
+    const ref = nodeFor(t.key, t.label);
+    const view = STATUS_VIEW[t.status] || { cls: "", meta: "" };
+    ref.node.className = "node " + view.cls;
+    ref.time.textContent = t.display;
+    ref.meta.textContent = view.meta;
+  }
 }
 
 function render() {
@@ -53,9 +81,7 @@ window.pepstats.onOverlay(({ scores, timers, mode: m }) => {
   els.cspm.textContent = scores.csPerMin.toFixed(1);
   els.gold.textContent = fmtInt(scores.gold);
 
-  paintNode("grubs", timers.grubs);
-  paintNode("dragon", timers.dragon);
-  paintNode("baron", timers.baron);
+  renderTimers(timers);
 
   gameActive = true;
   clearTimeout(watchdog);

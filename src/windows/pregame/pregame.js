@@ -104,14 +104,7 @@ function resetIdle(message) {
   el.importLabel.textContent = "Standby";
 }
 
-async function refresh() {
-  let session = null;
-  try {
-    session = await window.pepstats.getPregame();
-  } catch (_) {
-    session = null;
-  }
-
+function renderSession(session) {
   if (!session) {
     resetIdle("League client not detected. Open League and enter champ select.");
     return;
@@ -138,6 +131,19 @@ async function refresh() {
   setDot(el.importDot, locked === myTeam.length && myTeam.length > 0 ? "active" : "warn");
   el.importLabel.textContent = locked === myTeam.length && myTeam.length > 0 ? "Ready" : "Waiting on locks";
 }
+
+async function refresh() {
+  let session = null;
+  try {
+    session = await window.pepstats.getPregame();
+  } catch (_) {
+    session = null;
+  }
+  renderSession(session);
+}
+
+// Live push from the LCU event socket (instant updates between polls).
+window.pepstats.onChampSelect((session) => renderSession(session));
 
 el.importBtn.addEventListener("click", () => {
   // Rune import would POST a rune page to the LCU here. Left as an explicit

@@ -34,7 +34,7 @@ function getJson(pathname, timeoutMs = 2000) {
   });
 }
 
-const getAllGameData = () => getJson("/allgamedata");
+const getAllGameData = (timeoutMs) => getJson("/allgamedata", timeoutMs);
 
 function activeScores(data) {
   const players = (data && data.allPlayers) || [];

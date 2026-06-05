@@ -112,7 +112,16 @@ html, body {
   55%, 100% { transform: translateX(120%); }
 }
 
+.replay-line { margin: -4px 0 16px; }
+
 .coach-out {
   margin-top: 14px; white-space: pre-wrap; line-height: 1.5;
   font-family: "Segoe UI", Arial, sans-serif; font-size: 14px; color: #cdd3dc;
 }
+/* Blinking caret while tokens stream in (typewriter effect). */
+.coach-out.streaming::after {
+  content: "▋";
+  color: var(--gold);
+  animation: caret 1s steps(1) infinite;
+}
+@keyframes caret { 50% { opacity: 0; } }
