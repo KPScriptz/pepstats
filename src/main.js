@@ -205,6 +205,9 @@ async function pollProcess() {
   } catch (_) {
     clientUp = false;
   }
+  // League may have launched (or been installed) after us; re-probe its install
+  // dir so the LCU socket can find the lockfile. init() no-ops once resolved.
+  if (clientUp) lcu.init();
 }
 
 // ----- Engine 4: post-game AI coach (streaming, your own data only) ------
@@ -376,6 +379,7 @@ app.whenReady().then(() => {
   globalShortcut.register("CommandOrControl+Shift+3", () => showOnly("postgame"));
   globalShortcut.register("CommandOrControl+Shift+Q", () => app.quit());
 
+  lcu.init();           // resolve the (possibly non-default) install dir
   startLcuSocket();
   pollProcess();
   setInterval(pollProcess, PROC_POLL_MS);

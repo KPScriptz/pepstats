@@ -13,9 +13,34 @@
 const fs = require("fs");
 const path = require("path");
 const https = require("https");
+const { findInstallDir } = require("./lockfileFinder");
+
+// Resilient install dir (default-path probe + registry), resolved at startup.
+// Until set, we fall back to the hardcoded default candidates below.
+let _installDir = null;
+let _initInFlight = null;
+
+// Resolve and cache the League install directory. Idempotent and concurrency-
+// safe; keeps re-probing only while still unresolved (e.g. client not up yet).
+function init() {
+  if (_installDir) return Promise.resolve(_installDir);
+  if (_initInFlight) return _initInFlight;
+  _initInFlight = findInstallDir()
+    .then((dir) => {
+      _installDir = dir;
+      if (dir) console.log("[lcu] League install dir:", dir);
+      return dir;
+    })
+    .catch(() => null)
+    .finally(() => {
+      _initInFlight = null;
+    });
+  return _initInFlight;
+}
 
 function lockfilePaths() {
   const candidates = [];
+  if (_installDir) candidates.push(path.join(_installDir, "lockfile"));
   if (process.platform === "win32") {
     candidates.push("C:/Riot Games/League of Legends/lockfile");
     if (process.env.LOCALAPPDATA) {
@@ -93,4 +118,4 @@ const getGameflowPhase = () =>
 const getChampSelectSession = () =>
   request("/lol-champ-select/v1/session").catch(() => null);
 
-module.exports = { request, getGameflowPhase, getChampSelectSession, readLockfile };
+module.exports = { request, getGameflowPhase, getChampSelectSession, readLockfile, init };
