@@ -177,7 +177,7 @@ async function poll() {
     }
     ensure("postgame");
     showOnly("postgame");
-    sendTo("postgame", "last-game", { scores: lastSnapshot, replay: lastReplay });
+    sendTo("postgame", "last-game", { scores: lastSnapshot, replay: lastReplay, coach: coachConfigStatus() });
     sawLiveGame = false;
     return;
   }
@@ -229,6 +229,27 @@ function loadConfig() {
   return {};
 }
 
+// Single source of truth for whether the Claude coach can run. Drives both the
+// stream gate and the proactive post-game warning, so a missing config.json or
+// absent API key degrades to a friendly banner instead of an unhandled error.
+function coachConfigStatus() {
+  let cfg = {};
+  try {
+    cfg = loadConfig();
+  } catch (_) {
+    cfg = {};
+  }
+  const key = cfg && cfg.anthropicApiKey;
+  if (!key || typeof key !== "string" || key.startsWith("sk-ant-...")) {
+    return {
+      ready: false,
+      message:
+        "Claude coach unavailable — add your Anthropic API key to config.json to enable AI tactical reviews.",
+    };
+  }
+  return { ready: true, message: "" };
+}
+
 function buildCoachPayload(s, replay) {
   if (!s) return "No match data was captured this game.";
   const timeline = (s.events || [])
@@ -259,11 +280,12 @@ async function streamCoach(sender) {
     if (sender && !sender.isDestroyed()) sender.send(ch, v);
   };
 
-  const cfg = loadConfig();
-  if (!cfg.anthropicApiKey || cfg.anthropicApiKey.startsWith("sk-ant-...")) {
-    send("coach-error", "Add your Anthropic API key to config.json to enable the AI coach.");
+  const status = coachConfigStatus();
+  if (!status.ready) {
+    send("coach-error", status.message);
     return;
   }
+  const cfg = loadConfig();
 
   let res;
   try {
@@ -333,7 +355,7 @@ async function streamCoach(sender) {
 
 // ----- IPC ---------------------------------------------------------------
 ipcMain.on("coach-start", (e) => streamCoach(e.sender));
-ipcMain.handle("get-last-game", () => ({ scores: lastSnapshot, replay: lastReplay }));
+ipcMain.handle("get-last-game", () => ({ scores: lastSnapshot, replay: lastReplay, coach: coachConfigStatus() }));
 ipcMain.handle("get-pregame", async () => {
   try {
     return await lcu.getChampSelectSession();

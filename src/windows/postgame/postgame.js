@@ -4,6 +4,7 @@ document.getElementById("close").addEventListener("click", () => window.close())
 
 const out = document.getElementById("coach-out");
 const coachBtn = document.getElementById("coach");
+const coachWarn = document.getElementById("coach-warning");
 const replayLine = document.getElementById("replay-line");
 
 /* ---- Summary cards ---- */
@@ -30,6 +31,21 @@ function showReplay(replay) {
   }
 }
 
+// Proactively reflect whether the AI coach is configured. Main reports this in
+// every last-game payload; if config.json / the API key is missing we show a
+// banner and lock the button instead of letting the user click into an error.
+function renderCoachStatus(coach) {
+  if (coach && coach.ready === false) {
+    coachWarn.textContent =
+      coach.message || "Claude coach unavailable — add your Anthropic API key to config.json.";
+    coachWarn.hidden = false;
+    coachBtn.disabled = true;
+  } else if (coach && coach.ready === true) {
+    coachWarn.hidden = true;
+    if (!out.classList.contains("streaming")) coachBtn.disabled = false;
+  }
+}
+
 function applyLastGame(data) {
   if (!data) {
     fillCards(null);
@@ -37,6 +53,7 @@ function applyLastGame(data) {
   }
   fillCards(data.scores);
   showReplay(data.replay);
+  renderCoachStatus(data.coach);
 }
 
 /* ---- Placeholder gold-differential timeline ----

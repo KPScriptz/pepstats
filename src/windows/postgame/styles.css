@@ -83,6 +83,18 @@ html, body {
 }
 .graph-note { margin-top: 10px; }
 
+/* ---- Coach config warning (missing config.json / API key) ---- */
+.coach-warning {
+  margin: 2px 0 12px;
+  padding: 10px 12px;
+  font-size: 13px; line-height: 1.45;
+  color: #ffd9a0;
+  background: rgba(255, 173, 80, 0.10);
+  border: 1px solid rgba(255, 173, 80, 0.35);
+  border-radius: 8px;
+}
+.coach-warning[hidden] { display: none; }
+
 /* ---- Glowing Claude review button ---- */
 .coach-panel { padding-bottom: 20px; }
 .btn-coach {
