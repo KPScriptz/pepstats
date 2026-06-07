@@ -163,3 +163,26 @@ html, body {
 }
 .btn:hover { filter: brightness(1.08); }
 .btn:active { transform: translateY(1px); }
+.btn:disabled { opacity: 0.55; cursor: default; filter: none; transform: none; }
+
+.hidden { display: none !important; }
+
+/* ---- Curated build panel ---- */
+.build { display: flex; flex-direction: column; gap: 10px; margin: 4px 0 10px; }
+.build-row { display: grid; grid-template-columns: 84px 1fr; align-items: center; gap: 12px; }
+.build-row .bl {
+  font-size: 10px; letter-spacing: 1px; text-transform: uppercase;
+  color: var(--muted); font-weight: 700;
+}
+.b-icons { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.b-icon {
+  width: 30px; height: 30px; border-radius: 7px;
+  background: rgba(255, 255, 255, 0.05); object-fit: cover;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+.b-icon.rune { width: 24px; height: 24px; border-radius: 50%; }
+.b-icon.key { width: 34px; height: 34px; border-radius: 50%; border-color: rgba(200, 170, 90, 0.5); }
+.b-icon.missing { visibility: hidden; }
+.b-sep { width: 1px; height: 24px; background: rgba(255, 255, 255, 0.12); margin: 0 4px; }
+.b-arrow { color: var(--muted); font-size: 14px; font-weight: 700; }
+.b-skills { font-size: 14px; font-weight: 700; color: #e8e8e8; letter-spacing: 1px; }

@@ -15,6 +15,8 @@ contextBridge.exposeInMainWorld("pepstats", {
   // Pre-game (poll + live push from the LCU socket)
   getPregame: () => ipcRenderer.invoke("get-pregame"),
   getChampions: () => ipcRenderer.invoke("get-champions"),
+  getBuild: (championId) => ipcRenderer.invoke("get-build", championId),
+  importRunes: (championId) => ipcRenderer.invoke("import-runes", championId),
   onChampSelect: (cb) => ipcRenderer.on("champ-select", (_e, data) => cb(data)),
 
   // Post-game

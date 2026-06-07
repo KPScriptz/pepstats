@@ -118,4 +118,16 @@ const getGameflowPhase = () =>
 const getChampSelectSession = () =>
   request("/lol-champ-select/v1/session").catch(() => null);
 
-module.exports = { request, getGameflowPhase, getChampSelectSession, readLockfile, init };
+// Import a rune page into the client (tolerated LCU write). Frees a slot by
+// deleting a deletable page (preferring the current one), then creates + selects
+// the new page. `page` = { name, primaryStyleId, subStyleId, selectedPerkIds }.
+async function importRunePage(page) {
+  let pages = [];
+  try { pages = await request("/lol-perks/v1/pages"); } catch (_) { pages = []; }
+  const deletable = (Array.isArray(pages) ? pages : []).filter((p) => p && p.isDeletable);
+  const victim = deletable.find((p) => p.current) || deletable[0];
+  if (victim) { try { await request("/lol-perks/v1/pages/" + victim.id, { method: "DELETE" }); } catch (_) {} }
+  return request("/lol-perks/v1/pages", { method: "POST", body: { ...page, current: true } });
+}
+
+module.exports = { request, getGameflowPhase, getChampSelectSession, importRunePage, readLockfile, init };

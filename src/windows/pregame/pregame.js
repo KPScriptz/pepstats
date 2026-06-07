@@ -17,7 +17,17 @@ const el = {
   importLabel: document.getElementById("import-label"),
   importStatus: document.getElementById("import-status"),
   importBtn: document.getElementById("import"),
+  buildChamp: document.getElementById("build-champ"),
+  buildEmpty: document.getElementById("build-empty"),
+  buildBody: document.getElementById("build-body"),
+  bRunes: document.getElementById("b-runes"),
+  bSpells: document.getElementById("b-spells"),
+  bSkills: document.getElementById("b-skills"),
+  bStart: document.getElementById("b-start"),
+  bCore: document.getElementById("b-core"),
 };
+
+let pickedChampId = 0; // the local player's locked champion (for rune import)
 
 const GAUGE_CIRCUMFERENCE = 2 * Math.PI * 52; // r=52 in the SVG
 const ROLE_SHORT = { TOP: "TOP", JUNGLE: "JNG", MIDDLE: "MID", BOTTOM: "BOT", UTILITY: "SUP" };
@@ -144,6 +154,52 @@ function renderSession(session) {
 
   setDot(el.importDot, locked === myTeam.length && myTeam.length > 0 ? "active" : "warn");
   el.importLabel.textContent = locked === myTeam.length && myTeam.length > 0 ? "Ready" : "Waiting on locks";
+
+  loadBuild(me ? me.championId : 0);
+}
+
+// ----- Curated build panel -----
+function iconImg(url, cls) {
+  const i = document.createElement("img");
+  i.className = "b-icon" + (cls ? " " + cls : "");
+  if (url) { i.src = url; i.onerror = () => i.classList.add("missing"); }
+  else i.classList.add("missing");
+  return i;
+}
+
+function renderBuild(b) {
+  if (!b || b.none || b.error || !b.runes) {
+    el.buildBody.classList.add("hidden");
+    el.buildEmpty.classList.remove("hidden");
+    el.buildEmpty.textContent = b && b.champion
+      ? `No curated build for ${b.champion} yet.`
+      : "Lock in a champion to see a curated build.";
+    el.buildChamp.textContent = (b && b.champion) || "";
+    return;
+  }
+  el.buildEmpty.classList.add("hidden");
+  el.buildBody.classList.remove("hidden");
+  el.buildChamp.textContent = b.champion + (b.role ? " · " + b.role : "");
+
+  el.bRunes.innerHTML = "";
+  el.bRunes.append(iconImg(b.runes.keystone, "key"));
+  for (const u of b.runes.perks) el.bRunes.append(iconImg(u, "rune"));
+  const sep = document.createElement("span"); sep.className = "b-sep"; el.bRunes.append(sep);
+  el.bRunes.append(iconImg(b.runes.sub, "rune"));
+  for (const u of b.runes.sec) el.bRunes.append(iconImg(u, "rune"));
+
+  el.bSpells.innerHTML = ""; for (const u of b.spells) el.bSpells.append(iconImg(u));
+  el.bSkills.textContent = (b.skills || []).join(" → ");
+  el.bStart.innerHTML = ""; for (const u of b.start) el.bStart.append(iconImg(u));
+  el.bCore.innerHTML = "";
+  b.core.forEach((u, i) => { if (i) { const a = document.createElement("span"); a.className = "b-arrow"; a.textContent = "›"; el.bCore.append(a); } el.bCore.append(iconImg(u)); });
+}
+
+async function loadBuild(championId) {
+  pickedChampId = championId || 0;
+  if (!pickedChampId || !window.pepstats.getBuild) { renderBuild(null); return; }
+  try { renderBuild(await window.pepstats.getBuild(pickedChampId)); }
+  catch (_) { renderBuild(null); }
 }
 
 async function refresh() {
@@ -159,12 +215,33 @@ async function refresh() {
 // Live push from the LCU event socket (instant updates between polls).
 window.pepstats.onChampSelect((session) => renderSession(session));
 
-el.importBtn.addEventListener("click", () => {
-  // Rune import would POST a rune page to the LCU here. Left as an explicit
-  // opt-in stub — wire src/shared/lcu request to /lol-perks/v1/pages when ready.
-  el.importStatus.textContent = "Rune import is stubbed — see src/shared/lcu.js.";
-  setDot(el.importDot, "active");
-  el.importLabel.textContent = "Imported (stub)";
+el.importBtn.addEventListener("click", async () => {
+  if (!pickedChampId) {
+    el.importStatus.textContent = "Lock in a champion first.";
+    return;
+  }
+  if (!window.pepstats.importRunes) {
+    el.importStatus.textContent = "Rune import unavailable.";
+    return;
+  }
+  el.importBtn.disabled = true;
+  el.importStatus.textContent = "Importing rune page…";
+  try {
+    const res = await window.pepstats.importRunes(pickedChampId);
+    if (res && res.ok) {
+      el.importStatus.textContent = "Rune page imported — check your client.";
+      setDot(el.importDot, "active");
+      el.importLabel.textContent = "Imported";
+    } else {
+      el.importStatus.textContent = (res && res.error) || "Import failed (is the client open?).";
+      setDot(el.importDot, "warn");
+    }
+  } catch (err) {
+    el.importStatus.textContent = "Import failed: " + (err && err.message ? err.message : "unknown error");
+    setDot(el.importDot, "warn");
+  } finally {
+    el.importBtn.disabled = false;
+  }
 });
 
 refresh();

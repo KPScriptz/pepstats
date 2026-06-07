@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self' data: https://ddragon.leagueoflegends.com; font-src 'self';" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self' data: https://ddragon.leagueoflegends.com https://raw.communitydragon.org; font-src 'self';" />
     <link rel="stylesheet" href="styles.css" />
     <title>PepStats — Pre-Game</title>
   </head>
@@ -67,16 +67,20 @@
         </div>
       </section>
 
-      <!-- Rune import -->
+      <!-- Build (curated) + rune import -->
       <section class="panel">
-        <h2>Automatic Rune Import</h2>
-        <p class="muted">
-          Pushes an optimal rune page to the client over the LCU API (tolerated, not
-          officially supported — standard rune-page writes only).
-        </p>
+        <h2>Build <span id="build-champ" class="pill pill-ally"></span></h2>
+        <div id="build-empty" class="muted">Lock in a champion to see a curated build (runes, spells, items, skill order).</div>
+        <div id="build-body" class="build hidden">
+          <div class="build-row"><span class="bl">Runes</span><div id="b-runes" class="b-icons"></div></div>
+          <div class="build-row"><span class="bl">Spells</span><div id="b-spells" class="b-icons"></div></div>
+          <div class="build-row"><span class="bl">Skill order</span><div id="b-skills" class="b-skills"></div></div>
+          <div class="build-row"><span class="bl">Starting</span><div id="b-start" class="b-icons"></div></div>
+          <div class="build-row"><span class="bl">Core build</span><div id="b-core" class="b-icons"></div></div>
+        </div>
         <div class="import-row">
-          <button id="import" class="btn">Import optimal runes</button>
-          <span id="import-status" class="muted">Detected role drives the recommended page.</span>
+          <button id="import" class="btn">Import runes</button>
+          <span id="import-status" class="muted">Pushes the curated rune page to your client.</span>
         </div>
       </section>
     </main>

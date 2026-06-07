@@ -11,6 +11,7 @@ const { computeTimers } = require("./shared/timers");
 const rankBaseline = require("./shared/rankBaseline");
 const rankProgress = require("./shared/rankProgress");
 const riotApi = require("./shared/riotApi");
+const builds = require("./shared/builds");
 const processWatch = require("./shared/process");
 const replays = require("./shared/replays");
 
@@ -725,6 +726,57 @@ ipcMain.handle("save-theme", (_e, patch) => {
 });
 
 ipcMain.handle("get-champions", () => riotApi.championIndex());
+
+// Curated build for a champion (numeric championId), with icon URLs resolved.
+ipcMain.handle("get-build", async (_e, championId) => {
+  try {
+    const idx = await riotApi.championIndex();
+    const champ = idx.byId[String(championId)];
+    if (!champ) return null;
+    const b = builds.getBuild(champ.id);
+    if (!b) return { champion: champ.name, none: true };
+    const ver = idx.version;
+    const rm = await riotApi.perkMaps();
+    const perk = (id) => (rm.perks && rm.perks[id]) || null;
+    const style = (id) => (rm.styles && rm.styles[id]) || null;
+    const spell = (id) => (builds.SUMMONER_SPELLS[id] ? `https://ddragon.leagueoflegends.com/cdn/${ver}/img/spell/${builds.SUMMONER_SPELLS[id]}.png` : null);
+    const item = (id) => `https://ddragon.leagueoflegends.com/cdn/${ver}/img/item/${id}.png`;
+    const ids = b.runes.ids;
+    return {
+      champion: champ.name,
+      role: b.role,
+      runes: {
+        primary: style(b.runes.primary), sub: style(b.runes.sub),
+        keystone: perk(ids[0]), perks: [perk(ids[1]), perk(ids[2]), perk(ids[3])], sec: [perk(ids[4]), perk(ids[5])],
+      },
+      spells: b.spells.map(spell),
+      skills: b.skills,
+      start: b.start.map(item),
+      core: b.core.map(item),
+    };
+  } catch (e) {
+    return { error: e.message };
+  }
+});
+
+// Import the curated rune page for a champion into the client via the LCU.
+ipcMain.handle("import-runes", async (_e, championId) => {
+  try {
+    const idx = await riotApi.championIndex();
+    const champ = idx.byId[String(championId)];
+    const b = champ && builds.getBuild(champ.id);
+    if (!b) return { ok: false, error: "No curated build for this champion yet." };
+    await lcu.importRunePage({
+      name: "PepStats: " + champ.name,
+      primaryStyleId: b.runes.primary,
+      subStyleId: b.runes.sub,
+      selectedPerkIds: b.runes.ids,
+    });
+    return { ok: true, name: champ.name };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
 ipcMain.handle("match-filters", () => riotApi.filterList());
 ipcMain.handle("get-matches", async (_e, filter, count) => {
   const cfg = loadConfig();
