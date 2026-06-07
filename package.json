@@ -1,6 +1,6 @@
 {
   "name": "pepstats",
-  "version": "0.1.3",
+  "version": "0.2.0",
   "description": "PepStats — League of Legends companion, overlay, and AI coach",
   "main": "src/main.js",
   "scripts": {
