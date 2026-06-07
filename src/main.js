@@ -76,11 +76,16 @@ function createOverlay() {
 }
 
 function createDashboard(file, role, opts = {}) {
+  // Clamp the requested size to the monitor's usable area so a large default
+  // (e.g. 1920x1080) never opens taller/wider than the screen (taskbar, DPI).
+  const work = screen.getPrimaryDisplay().workAreaSize;
+  const width = Math.min(opts.width || 1000, work.width);
+  const height = Math.min(opts.height || 660, work.height);
   const win = new BrowserWindow({
-    width: opts.width || 1000,
-    height: opts.height || 660,
-    minWidth: opts.minWidth || 0,
-    minHeight: opts.minHeight || 0,
+    width,
+    height,
+    minWidth: Math.min(opts.minWidth || 0, work.width),
+    minHeight: Math.min(opts.minHeight || 0, work.height),
     center: true,
     show: false,
     frame: false,
@@ -111,7 +116,7 @@ function ensure(role) {
     });
   if (role === "home")
     windows.home = createDashboard(path.join(__dirname, "windows/home/index.html"), "home", {
-      width: 1280, height: 720, minWidth: 1280, minHeight: 720,
+      width: 1920, height: 1080, minWidth: 1280, minHeight: 720,
     });
   return windows[role];
 }
