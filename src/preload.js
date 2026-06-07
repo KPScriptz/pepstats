@@ -34,7 +34,7 @@ contextBridge.exposeInMainWorld("pepstats", {
 
   // Match history
   getMatchFilters: () => ipcRenderer.invoke("match-filters"),
-  getMatches: (filter) => ipcRenderer.invoke("get-matches", filter),
+  getMatches: (filter, count) => ipcRenderer.invoke("get-matches", filter, count),
 
   // Riot account linking (first-run setup)
   getRiotRegions: () => ipcRenderer.invoke("riot-regions"),

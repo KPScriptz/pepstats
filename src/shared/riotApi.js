@@ -44,7 +44,7 @@ function getJson(host, pathname, apiKey, timeoutMs = 6000) {
         res.on("end", () => {
           if (res.statusCode === 200) {
             try {
-              resolve(JSON.parse(body));
+              resolve(JSON.parse(body.replace(/^﻿/, ""))); // some CDN files have a BOM
             } catch (e) {
               reject(Object.assign(new Error("Bad JSON from Riot API"), { status: 0 }));
             }
@@ -186,15 +186,49 @@ async function ddragonVersion() {
 
 const matchCache = new Map(); // matchId -> processed (avoids refetch on filter toggles)
 
+function keystoneOf(p) {
+  const s = p.perks && p.perks.styles;
+  return s && s[0] && s[0].selections && s[0].selections[0] ? s[0].selections[0].perk : null;
+}
+function secondaryStyleOf(p) {
+  const s = p.perks && p.perks.styles;
+  return s && s[1] ? s[1].style : null;
+}
+function pStats(p, puuid) {
+  return {
+    champion: p.championName,
+    champKey: champKey(p.championName),
+    name: p.riotIdGameName || p.summonerName || "",
+    teamId: p.teamId,
+    me: p.puuid === puuid,
+    win: !!p.win,
+    k: p.kills || 0, d: p.deaths || 0, a: p.assists || 0,
+    cs: (p.totalMinionsKilled || 0) + (p.neutralMinionsKilled || 0),
+    champLevel: p.champLevel || 0,
+    items: [p.item0, p.item1, p.item2, p.item3, p.item4, p.item5, p.item6],
+    spells: [p.summoner1Id, p.summoner2Id],
+    keystone: keystoneOf(p),
+    dmg: p.totalDamageDealtToChampions || 0,
+    gold: p.goldEarned || 0,
+    vision: p.visionScore || 0,
+  };
+}
+
 function processMatch(m, puuid) {
   const info = m && m.info;
   if (!info) return null;
-  const me = (info.participants || []).find((p) => p.puuid === puuid);
+  const parts = info.participants || [];
+  const me = parts.find((p) => p.puuid === puuid);
   if (!me) return null;
   const cs = (me.totalMinionsKilled || 0) + (me.neutralMinionsKilled || 0);
   const durSec = info.gameDuration || 0;
   const durMin = durSec / 60;
   const k = me.kills || 0, d = me.deaths || 0, a = me.assists || 0;
+
+  const teamKills = { 100: 0, 200: 0 };
+  for (const p of parts) teamKills[p.teamId] = (teamKills[p.teamId] || 0) + (p.kills || 0);
+  const kp = teamKills[me.teamId] ? Math.round(((k + a) / teamKills[me.teamId]) * 100) : 0;
+
   return {
     id: m.metadata && m.metadata.matchId,
     queueId: info.queueId,
@@ -208,19 +242,39 @@ function processMatch(m, puuid) {
     kda: d ? +(((k + a) / d).toFixed(2)) : k + a,
     cs,
     csPerMin: durMin > 0 ? +(cs / durMin).toFixed(1) : 0,
+    kp, vision: me.visionScore || 0, dmg: me.totalDamageDealtToChampions || 0,
     durationSec: durSec,
     endTs: info.gameEndTimestamp || info.gameCreation || 0,
     items: [me.item0, me.item1, me.item2, me.item3, me.item4, me.item5, me.item6],
     spells: [me.summoner1Id, me.summoner2Id],
+    keystone: keystoneOf(me),
+    secondaryStyle: secondaryStyleOf(me),
     position: me.teamPosition || me.individualPosition || "",
-    // The full lobby (two teams of 5) for the op.gg-style participant columns.
-    participants: (info.participants || []).map((p) => ({
-      champKey: champKey(p.championName),
-      name: p.riotIdGameName || p.summonerName || "",
-      teamId: p.teamId,
-      me: p.puuid === puuid,
-    })),
+    // Full lobby for the participant columns + the expandable scoreboard.
+    participants: parts.map((p) => pStats(p, puuid)),
   };
+}
+
+// Rune/style icon maps (perk id -> URL). CommunityDragon, fetched once.
+function cdragonUrl(iconPath) {
+  return "https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/" +
+    String(iconPath).replace(/^\/lol-game-data\/assets\//i, "").toLowerCase();
+}
+let _perkMaps = null;
+async function perkMaps() {
+  if (_perkMaps) return _perkMaps;
+  const perks = {}, styles = {};
+  const base = "/latest/plugins/rcp-be-lol-game-data/global/default/v1";
+  try {
+    const pj = await getJson("raw.communitydragon.org", base + "/perks.json");
+    for (const p of pj || []) if (p.id && p.iconPath) perks[p.id] = cdragonUrl(p.iconPath);
+  } catch (_) {}
+  try {
+    const sj = await getJson("raw.communitydragon.org", base + "/perkstyles.json");
+    for (const s of (sj && sj.styles) || []) if (s.id && s.iconPath) styles[s.id] = cdragonUrl(s.iconPath);
+  } catch (_) {}
+  _perkMaps = { perks, styles };
+  return _perkMaps;
 }
 
 // Fetch + process recent matches for the linked account, filtered by `filterKey`.
@@ -268,5 +322,5 @@ async function getMatches(cfg, filterKey, count = 20) {
 
 module.exports = {
   fetchProfile, parseRiotId, regionList, REGIONS,
-  getMatches, ddragonVersion, filterList, queueLabel, champKey,
+  getMatches, ddragonVersion, perkMaps, filterList, queueLabel, champKey,
 };

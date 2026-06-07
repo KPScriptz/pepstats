@@ -32,6 +32,12 @@ const PHASE_LABEL = {
   PreEndOfGame: "Post-game", EndOfGame: "Post-game",
 };
 const signedLp = (n) => (n == null ? "—" : (n >= 0 ? "+" : "−") + Math.abs(n));
+const cap = (t) => (t ? t[0].toUpperCase() + t.slice(1).toLowerCase() : "");
+
+let lastHome = null;
+let ddVersion = null;
+let currentRunes = null;
+let matchCount = 20;
 
 // Real rank emblems (CommunityDragon mini-crests).
 const rankEmblem = (tier) =>
@@ -95,6 +101,7 @@ function render(data) {
   showSetup(false);
   const { summary, status, settings, lastMatch } = data;
   lastSettings = settings;
+  lastHome = data;
 
   const p = (summary && summary.progress) || {};
   const solo = summary && summary.solo;
@@ -138,11 +145,22 @@ function render(data) {
   } else { $("lm-empty").classList.remove("hidden"); $("lm-body").classList.add("hidden"); }
 
   // Progress: ranked summary card (match list loads on demand)
-  progressSummary = { solo, p };
   setEmblem($("rs-em"), solo && solo.tier, "?");
   $("rs-tier").textContent = p.label || "Unranked";
   $("rs-lp").textContent = solo ? `${div.lp} LP` : "—";
   $("rs-wr").textContent = solo ? `${p.winRate != null ? p.winRate + "% WR" : "—"} · ${p.wins}W ${p.losses}L` : "—";
+
+  // Ranked Flex
+  const flex = summary && summary.ranked && summary.ranked.flex;
+  setEmblem($("fx-em"), flex && flex.tier, "?");
+  $("fx-tier").textContent = flex && flex.tier ? cap(flex.tier) + " " + (flex.division || "") : "Unranked";
+  $("fx-lp").textContent = flex ? `${flex.lp} LP · ${flex.wins}W ${flex.losses}L` : "—";
+
+  // Profile header + LP graph
+  $("prof-name").textContent = sm && sm.name ? sm.name + (sm.tagLine ? " #" + sm.tagLine : "") : "—";
+  $("prof-lvl").textContent = "Level " + (sm && sm.level ? sm.level : "—");
+  updateProfileIcon();
+  drawLpGraph(data.history || []);
 
   // Settings: account + AI fields
   $("set-riotid").textContent = (settings && settings.riotId) || "Not linked";
@@ -172,6 +190,30 @@ function timeAgo(ts) {
   return Math.floor(d / 7) + "w ago";
 }
 const dur = (s) => Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+const kFmt = (n) => (n >= 1000 ? (n / 1000).toFixed(1) + "k" : String(n));
+
+function updateProfileIcon() {
+  const sm = lastHome && lastHome.summary && lastHome.summary.summoner;
+  const el = $("prof-icon");
+  if (el && sm && sm.profileIconId != null && ddVersion) {
+    el.src = `https://ddragon.leagueoflegends.com/cdn/${ddVersion}/img/profileicon/${sm.profileIconId}.png`;
+    el.style.visibility = "visible";
+  } else if (el) { el.style.visibility = "hidden"; }
+}
+
+function drawLpGraph(history) {
+  const pts = (history || []).filter((e) => typeof e.score === "number");
+  const empty = $("lp-graph-empty"), svg = $("lp-graph"), line = $("lp-line");
+  if (pts.length < 2) { empty.classList.remove("hidden"); svg.classList.add("hidden"); return; }
+  empty.classList.add("hidden"); svg.classList.remove("hidden");
+  const scores = pts.map((e) => e.score);
+  let min = Math.min(...scores), max = Math.max(...scores);
+  if (max === min) { max += 1; min -= 1; }
+  const W = 240, H = 90, pad = 8, n = pts.length;
+  const xs = (i) => pad + (i / (n - 1)) * (W - 2 * pad);
+  const ys = (v) => pad + (1 - (v - min) / (max - min)) * (H - 2 * pad);
+  line.setAttribute("points", pts.map((e, i) => `${xs(i).toFixed(1)},${ys(e.score).toFixed(1)}`).join(" "));
+}
 
 async function buildFilters() {
   if (filtersBuilt || !api.getMatchFilters) return;
@@ -180,27 +222,57 @@ async function buildFilters() {
     const sel = $("mh-filter"); sel.innerHTML = "";
     for (const f of fs || []) { const o = document.createElement("option"); o.value = f.key; o.textContent = f.label; sel.append(o); }
     sel.value = matchFilter;
-    sel.addEventListener("change", () => { matchFilter = sel.value; loadMatches(); });
+    sel.addEventListener("change", () => { matchFilter = sel.value; matchCount = 20; loadMatches(); });
     filtersBuilt = true;
   } catch (_) {}
+  const more = $("mh-more");
+  if (more && !more._wired) { more._wired = true; more.addEventListener("click", () => { matchCount += 10; loadMatches(); }); }
 }
 
 async function loadMatches() {
   await buildFilters();
-  const loading = $("mh-loading"), empty = $("mh-empty"), list = $("mh-list");
-  loading.classList.remove("hidden"); empty.classList.add("hidden"); list.classList.add("hidden");
+  const loading = $("mh-loading"), empty = $("mh-empty"), list = $("mh-list"), more = $("mh-more");
+  loading.classList.remove("hidden"); empty.classList.add("hidden");
+  more.disabled = true;
   try {
-    const res = await api.getMatches(matchFilter);
-    loading.classList.add("hidden");
-    if (!res || !res.ok) { empty.classList.remove("hidden"); empty.textContent = (res && res.error) || "Couldn't load matches."; return; }
+    const res = await api.getMatches(matchFilter, matchCount);
+    loading.classList.add("hidden"); more.disabled = false;
+    if (!res || !res.ok) { list.classList.add("hidden"); more.classList.add("hidden"); empty.classList.remove("hidden"); empty.textContent = (res && res.error) || "Couldn't load matches."; return; }
     renderMatches(res);
     matchesLoaded = true;
-  } catch (e) { loading.classList.add("hidden"); empty.classList.remove("hidden"); empty.textContent = "Couldn't load matches."; }
+  } catch (e) { loading.classList.add("hidden"); list.classList.add("hidden"); more.classList.add("hidden"); empty.classList.remove("hidden"); empty.textContent = "Couldn't load matches."; }
+}
+
+const mkImg = (src, cls, onerr) => { const i = document.createElement("img"); if (cls) i.className = cls; i.src = src; i.onerror = onerr; return i; };
+
+function buildDetail(m, ver) {
+  const wrap = document.createElement("div"); wrap.className = "m-detail hidden";
+  for (const tid of [100, 200]) {
+    const team = document.createElement("div"); team.className = "d-team " + (tid === 100 ? "blue" : "red");
+    const won = (m.participants.find((p) => p.teamId === tid) || {}).win;
+    const head = document.createElement("div"); head.className = "d-head"; head.textContent = (tid === 100 ? "Blue" : "Red") + " team · " + (won ? "Victory" : "Defeat");
+    team.append(head);
+    for (const p of m.participants.filter((x) => x.teamId === tid)) {
+      const r = document.createElement("div"); r.className = "d-row" + (p.me ? " me" : "");
+      r.append(mkImg(champImg(ver, p.champKey), "d-champ", function () { this.style.visibility = "hidden"; }));
+      const nm = document.createElement("span"); nm.className = "d-name"; nm.textContent = p.name || p.champion;
+      const kda = document.createElement("span"); kda.className = "d-kda"; kda.textContent = `${p.k}/${p.d}/${p.a}`;
+      const cs = document.createElement("span"); cs.className = "d-cs"; cs.textContent = `${p.cs} CS`;
+      const dmg = document.createElement("span"); dmg.className = "d-dmg"; dmg.textContent = kFmt(p.dmg);
+      const its = document.createElement("span"); its.className = "d-items";
+      for (const it of (p.items || [])) { const c = document.createElement("span"); c.className = "d-item"; if (it) c.append(mkImg(itemImg(ver, it), "", function () { c.classList.add("empty"); })); else c.classList.add("empty"); its.append(c); }
+      r.append(nm, kda, cs, dmg, its); team.append(r);
+    }
+    wrap.append(team);
+  }
+  return wrap;
 }
 
 function renderMatches(res) {
   const ver = res.version, list = $("mh-list");
-  // summary line
+  ddVersion = ver; currentRunes = res.runes || { perks: {}, styles: {} };
+  updateProfileIcon();
+
   const s = res.summary || { w: 0, l: 0, games: 0, kda: 0 };
   $("mh-summary").textContent = s.games ? `Last ${s.games} · ${s.w}W ${s.l}L · ${s.kda} KDA` : "No ranked games";
 
@@ -211,36 +283,36 @@ function renderMatches(res) {
   cp.classList.toggle("hidden", champs.length === 0);
   for (const c of champs) {
     const li = document.createElement("li");
-    const img = document.createElement("img"); img.className = "cp-icon"; img.src = champImg(ver, c.champKey); img.onerror = () => (img.style.visibility = "hidden");
+    li.append(mkImg(champImg(ver, c.champKey), "cp-icon", function () { this.style.visibility = "hidden"; }));
     const name = document.createElement("div"); name.className = "cp-name"; name.innerHTML = `${c.champion}<span class="cp-sub">${c.games} games · ${c.kda} KDA</span>`;
     const wr = document.createElement("div"); wr.className = "cp-wr " + (c.wr >= 50 ? "pos" : "neg"); wr.textContent = c.wr + "%";
-    li.append(img, name, wr); cp.append(li);
+    li.append(name, wr); cp.append(li);
   }
 
   // matches
   list.innerHTML = "";
   const matches = res.matches || [];
-  if (matches.length === 0) { $("mh-empty").classList.remove("hidden"); $("mh-empty").textContent = "No matches found for this filter."; return; }
+  $("mh-more").classList.toggle("hidden", matches.length < matchCount);
+  if (matches.length === 0) { list.classList.add("hidden"); $("mh-empty").classList.remove("hidden"); $("mh-empty").textContent = "No matches found for this filter."; return; }
   $("mh-empty").classList.add("hidden"); list.classList.remove("hidden");
-  const mkImg = (src, cls, onerr) => { const i = document.createElement("img"); i.className = cls; i.src = src; i.onerror = onerr; return i; };
+
   for (const m of matches) {
     const li = document.createElement("li");
     li.className = "match " + (m.remake ? "remake" : m.win ? "win" : "loss");
 
-    // champ icon (+ level badge) and summoner spells
     const idCol = document.createElement("div"); idCol.className = "m-id";
     const champWrap = document.createElement("div"); champWrap.className = "m-champwrap";
-    const icon = mkImg(champImg(ver, m.champKey), "m-champ", function () { this.style.visibility = "hidden"; });
+    champWrap.append(mkImg(champImg(ver, m.champKey), "m-champ", function () { this.style.visibility = "hidden"; }));
     const lvl = document.createElement("span"); lvl.className = "m-lvl"; lvl.textContent = m.champLevel || "";
-    champWrap.append(icon, lvl);
+    champWrap.append(lvl);
     const spells = document.createElement("div"); spells.className = "m-spells";
-    for (const sid of (m.spells || [])) {
-      const sp = document.createElement("span"); sp.className = "m-spell";
-      const su = spellImg(ver, sid);
-      if (su) sp.append(mkImg(su, "", function () { sp.classList.add("empty"); })); else sp.classList.add("empty");
-      spells.append(sp);
-    }
-    idCol.append(champWrap, spells);
+    for (const sid of (m.spells || [])) { const sp = document.createElement("span"); sp.className = "m-spell"; const su = spellImg(ver, sid); if (su) sp.append(mkImg(su, "", function () { sp.classList.add("empty"); })); else sp.classList.add("empty"); spells.append(sp); }
+    const runes = document.createElement("div"); runes.className = "m-runes";
+    const kImg = currentRunes.perks && currentRunes.perks[m.keystone];
+    const sImg = currentRunes.styles && currentRunes.styles[m.secondaryStyle];
+    const rk = document.createElement("span"); rk.className = "m-rune key"; if (kImg) rk.append(mkImg(kImg, "", function () { rk.classList.add("empty"); })); else rk.classList.add("empty"); runes.append(rk);
+    const rs = document.createElement("span"); rs.className = "m-rune"; if (sImg) rs.append(mkImg(sImg, "", function () { rs.classList.add("empty"); })); else rs.classList.add("empty"); runes.append(rs);
+    idCol.append(champWrap, spells, runes);
 
     const main = document.createElement("div"); main.className = "m-main";
     main.innerHTML =
@@ -251,16 +323,12 @@ function renderMatches(res) {
     const stats = document.createElement("div"); stats.className = "m-stats";
     stats.innerHTML =
       `<div class="m-kda"><b>${m.k} / <span class="d">${m.d}</span> / ${m.a}</b><span class="m-kdar">${m.kda} KDA</span></div>` +
-      `<div class="m-cs">${m.cs} CS · ${m.csPerMin}/min</div>`;
+      `<div class="m-cs">${m.cs} CS · ${m.csPerMin}/min</div>` +
+      `<div class="m-extra">P/Kill ${m.kp}% · ${kFmt(m.dmg)} dmg</div>`;
 
     const items = document.createElement("div"); items.className = "m-items";
-    for (const it of (m.items || [])) {
-      const cell = document.createElement("span"); cell.className = "m-item";
-      if (it) cell.append(mkImg(itemImg(ver, it), "", function () { cell.classList.add("empty"); })); else cell.classList.add("empty");
-      items.append(cell);
-    }
+    for (const it of (m.items || [])) { const cell = document.createElement("span"); cell.className = "m-item"; if (it) cell.append(mkImg(itemImg(ver, it), "", function () { cell.classList.add("empty"); })); else cell.classList.add("empty"); items.append(cell); }
 
-    // participant columns (two teams of five)
     const parts = document.createElement("div"); parts.className = "m-parts";
     const teams = { 100: document.createElement("div"), 200: document.createElement("div") };
     teams[100].className = teams[200].className = "m-team";
@@ -273,7 +341,13 @@ function renderMatches(res) {
     }
     parts.append(teams[100], teams[200]);
 
-    li.append(idCol, main, stats, items, parts); list.append(li);
+    const caret = document.createElement("button"); caret.className = "m-caret"; caret.textContent = "▾"; caret.title = "Match details";
+    const detail = buildDetail(m, ver);
+    const toggle = () => { const open = detail.classList.toggle("hidden"); caret.classList.toggle("open", !open); };
+    caret.addEventListener("click", (e) => { e.stopPropagation(); toggle(); });
+    li.addEventListener("click", toggle);
+
+    li.append(idCol, main, stats, items, parts, caret, detail); list.append(li);
   }
 }
 

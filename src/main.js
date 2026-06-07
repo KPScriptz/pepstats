@@ -644,13 +644,14 @@ ipcMain.handle("save-theme", (_e, patch) => {
 });
 
 ipcMain.handle("match-filters", () => riotApi.filterList());
-ipcMain.handle("get-matches", async (_e, filter) => {
+ipcMain.handle("get-matches", async (_e, filter, count) => {
   const cfg = loadConfig();
   if (!(cfg.riotId && cfg.region && cfg.riotApiKey)) return { ok: false, error: "Link your account first." };
   try {
     const account = { riotId: cfg.riotId, region: cfg.region, riotApiKey: cfg.riotApiKey };
-    const matches = await riotApi.getMatches(account, filter || "all", 20);
+    const matches = await riotApi.getMatches(account, filter || "all", count || 20);
     const version = await riotApi.ddragonVersion();
+    const runes = await riotApi.perkMaps();
 
     // Aggregate champion performance + a "last N" summary (remakes excluded).
     const champs = {};
@@ -666,7 +667,7 @@ ipcMain.handle("get-matches", async (_e, filter) => {
       .sort((a, b) => b.games - a.games).slice(0, 6);
     const summary = { w, l, games, kda: dS ? +(((kS + aS) / dS).toFixed(2)) : kS + aS, avgK: games ? +(kS / games).toFixed(1) : 0, avgD: games ? +(dS / games).toFixed(1) : 0, avgA: games ? +(aS / games).toFixed(1) : 0 };
 
-    return { ok: true, matches, champs: champList, summary, version };
+    return { ok: true, matches, champs: champList, summary, version, runes };
   } catch (e) {
     return { ok: false, error: e.message };
   }

@@ -138,14 +138,35 @@
 
           <!-- ===== Progress (op.gg-style match history) ===== -->
           <section class="page hidden" id="page-progress">
+            <!-- Profile header -->
+            <div class="card prof">
+              <img id="prof-icon" class="prof-icon" alt="" />
+              <div class="prof-meta">
+                <div class="prof-name" id="prof-name">—</div>
+                <div class="prof-lvl" id="prof-lvl">Level —</div>
+              </div>
+            </div>
+
             <div class="mh">
-              <!-- Left: ranked summary + champion performance -->
+              <!-- Left: ranked + LP graph + flex + champion performance -->
               <aside class="mh-side">
                 <div class="card">
                   <div class="card-title">Ranked Solo</div>
                   <div class="rs-rank"><span class="rs-em" id="rs-em">?</span>
                     <div><div class="rs-tier" id="rs-tier">Unranked</div><div class="rs-lp" id="rs-lp">—</div></div></div>
                   <div class="rs-wr" id="rs-wr">—</div>
+                </div>
+                <div class="card">
+                  <div class="card-title">LP Graph</div>
+                  <div id="lp-graph-empty" class="muted">Records daily — check back after a few days.</div>
+                  <svg id="lp-graph" class="lp-graph hidden" viewBox="0 0 240 90" preserveAspectRatio="none">
+                    <polyline id="lp-line" class="lp-line" points="" />
+                  </svg>
+                </div>
+                <div class="card">
+                  <div class="card-title">Ranked Flex</div>
+                  <div class="rs-rank"><span class="rs-em sm" id="fx-em">?</span>
+                    <div><div class="rs-tier sm" id="fx-tier">Unranked</div><div class="rs-lp" id="fx-lp">—</div></div></div>
                 </div>
                 <div class="card">
                   <div class="card-title">Champion Performance</div>
@@ -163,6 +184,7 @@
                 <div id="mh-empty" class="card muted hidden">No matches found for this filter.</div>
                 <div id="mh-loading" class="card muted">Loading match history…</div>
                 <ul id="mh-list" class="matches hidden"></ul>
+                <button id="mh-more" class="btn btn-ghost mh-more hidden">Show more</button>
               </div>
             </div>
           </section>
