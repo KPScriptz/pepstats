@@ -127,12 +127,14 @@ html, body {
 
 .comp { min-height: 120px; display: flex; flex-direction: column; gap: 8px; }
 .player-row {
-  display: grid; grid-template-columns: 54px 1fr auto;
+  display: grid; grid-template-columns: 30px 40px 1fr auto;
   align-items: center; gap: 10px;
   padding: 9px 11px; background: rgba(255, 255, 255, 0.03);
   border: 1px solid transparent; border-radius: 9px;
 }
 .player-row.is-you { border-color: rgba(200, 170, 90, 0.45); background: rgba(200, 170, 90, 0.07); }
+.player-icon { width: 30px; height: 30px; border-radius: 7px; background: rgba(255, 255, 255, 0.06); object-fit: cover; }
+.player-icon.empty { visibility: hidden; }
 .role-badge {
   font-size: 10px; letter-spacing: 1px; text-transform: uppercase;
   color: #9aa4b2; text-align: center; font-weight: 700;

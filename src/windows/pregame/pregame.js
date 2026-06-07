@@ -22,6 +22,14 @@ const el = {
 const GAUGE_CIRCUMFERENCE = 2 * Math.PI * 52; // r=52 in the SVG
 const ROLE_SHORT = { TOP: "TOP", JUNGLE: "JNG", MIDDLE: "MID", BOTTOM: "BOT", UTILITY: "SUP" };
 
+// Champion index (numeric id -> name + Data Dragon id) for names + portraits.
+let CHAMPS = { version: null, byId: {} };
+if (window.pepstats.getChampions) {
+  window.pepstats.getChampions().then((c) => { if (c) { CHAMPS = c; refresh(); } }).catch(() => {});
+}
+const champName = (id) => (CHAMPS.byId[id] && CHAMPS.byId[id].name) || (id > 0 ? "Champion #" + id : "Picking…");
+const champIcon = (id) => (CHAMPS.version && CHAMPS.byId[id]) ? `https://ddragon.leagueoflegends.com/cdn/${CHAMPS.version}/img/champion/${CHAMPS.byId[id].id}.png` : null;
+
 function setDot(node, kind) {
   node.className = "dot dot-" + kind;
 }
@@ -42,8 +50,7 @@ function setGauge(lockedCount, total) {
 }
 
 function champLabel(championId) {
-  if (championId && championId > 0) return "Champion #" + championId;
-  return "Picking…";
+  return champName(championId);
 }
 
 function statChip(label) {
@@ -65,6 +72,13 @@ function renderTeam(container, members, localCellId, withStats) {
   for (const m of members) {
     const row = document.createElement("div");
     row.className = "player-row" + (m.cellId === localCellId ? " is-you" : "");
+
+    const icon = document.createElement("img");
+    icon.className = "player-icon";
+    const iurl = champIcon(m.championId);
+    if (iurl) { icon.src = iurl; icon.onerror = () => (icon.style.visibility = "hidden"); }
+    else icon.classList.add("empty");
+    row.append(icon);
 
     const role = document.createElement("div");
     role.className = "role-badge";

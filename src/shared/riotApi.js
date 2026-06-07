@@ -184,6 +184,24 @@ async function ddragonVersion() {
   return _ddv;
 }
 
+// Champion index: numeric championId -> { name, id } (id = Data Dragon key for
+// icon URLs). Used to turn champ-select's numeric IDs into names + portraits.
+let _champIdx = null;
+async function championIndex() {
+  if (_champIdx) return _champIdx;
+  const ver = await ddragonVersion();
+  const byId = {};
+  try {
+    const data = await getJson("ddragon.leagueoflegends.com", `/cdn/${ver}/data/en_US/champion.json`);
+    for (const key of Object.keys((data && data.data) || {})) {
+      const c = data.data[key];
+      if (c && c.key) byId[String(c.key)] = { name: c.name, id: c.id };
+    }
+  } catch (_) {}
+  _champIdx = { version: ver, byId };
+  return _champIdx;
+}
+
 const matchCache = new Map(); // matchId -> processed (avoids refetch on filter toggles)
 
 function keystoneOf(p) {
@@ -331,5 +349,5 @@ async function getMatches(cfg, filterKey, count = 20) {
 
 module.exports = {
   fetchProfile, parseRiotId, regionList, REGIONS,
-  getMatches, ddragonVersion, perkMaps, filterList, queueLabel, champKey,
+  getMatches, ddragonVersion, perkMaps, championIndex, filterList, queueLabel, champKey,
 };

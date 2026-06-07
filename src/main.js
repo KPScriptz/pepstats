@@ -37,6 +37,8 @@ let sawLiveGame = false;
 let clientUp = false;    // LeagueClient.exe seen by the process watcher
 let lcuSocket = null;
 let accountRank = null;  // resolved once from the LCU, then cached for the session
+let liveBaseline = null; // overlay comparison baseline, refreshed off the hot path
+let liveBaselineKey = ""; // mode|role the cached baseline was computed for
 
 // ----- Window factories --------------------------------------------------
 function preload() {
@@ -182,6 +184,24 @@ async function ensureRank() {
   return accountRank;
 }
 
+// Resolve the overlay comparison baseline OFF the poll hot path so live stats
+// (CS/KDA/KP/level) always update at full 1 Hz, even if the rank/LCU/baseline
+// lookups are slow. Only recomputes when the mode or role changes.
+function refreshLiveBaseline(info, role) {
+  const key = (info.gameMode || "") + "|" + (role || "");
+  if (key === liveBaselineKey && liveBaseline) return;
+  liveBaselineKey = key;
+  (async () => {
+    try {
+      const rank = await ensureRank();
+      const cfg = loadConfig();
+      liveBaseline = await rankBaseline.getBaseline({ tier: rank, role, mode: info.gameMode, apiUrl: cfg.baselineApiUrl });
+    } catch (_) {
+      /* keep last baseline */
+    }
+  })();
+}
+
 // ----- Engine 2: phase-detection heartbeat -------------------------------
 async function poll() {
   let live = null;
@@ -197,18 +217,12 @@ async function poll() {
     const scores = liveClient.activeScores(live);
     lastSnapshot = scores;
 
-    // Resolve the rank baseline for this mode/role, then compare against it.
+    // Compare against the rank baseline. The baseline is refreshed in the
+    // background (not awaited) so the overlay's own stats update every tick.
     const info = liveClient.gameInfo(live);
-    const rank = await ensureRank();
     const role = liveClient.activeRole(live);
-    const cfg = loadConfig();
-    const baseline = await rankBaseline.getBaseline({
-      tier: rank,
-      role,
-      mode: info.gameMode,
-      apiUrl: cfg.baselineApiUrl,
-    });
-    const compare = liveClient.compareStats(live, baseline);
+    refreshLiveBaseline(info, role);
+    const compare = liveClient.compareStats(live, liveBaseline);
     const timers = computeTimers(scores.gameTime, scores.events, { isClassic: info.isClassic });
     if (appState !== STATE.INGAME) {
       appState = STATE.INGAME;
@@ -710,6 +724,7 @@ ipcMain.handle("save-theme", (_e, patch) => {
   return resolveTheme();
 });
 
+ipcMain.handle("get-champions", () => riotApi.championIndex());
 ipcMain.handle("match-filters", () => riotApi.filterList());
 ipcMain.handle("get-matches", async (_e, filter, count) => {
   const cfg = loadConfig();
