@@ -12,6 +12,8 @@
 // encrypted summoner id --league-v4--> ranked entries.
 
 const https = require("https");
+const fs = require("fs");
+const path = require("path");
 
 // Platform host + regional routing cluster per selectable region.
 const REGIONS = {
@@ -204,6 +206,32 @@ async function championIndex() {
 
 const matchCache = new Map(); // matchId -> processed (avoids refetch on filter toggles)
 
+// Optional cross-session persistence. main.js calls setCacheDir(userData) at
+// startup; processed match details are then read from / written to disk so
+// re-opening Progress in a later session doesn't re-hit the Riot API.
+let _cacheFile = null;
+let _cacheDirty = false;
+function setCacheDir(dir) {
+  if (!dir) return;
+  _cacheFile = path.join(dir, "match-cache.json");
+  try {
+    const raw = JSON.parse(fs.readFileSync(_cacheFile, "utf8").replace(/^﻿/, ""));
+    if (raw && typeof raw === "object") for (const k of Object.keys(raw)) matchCache.set(k, raw[k]);
+  } catch (_) { /* no cache yet */ }
+}
+function saveCache() {
+  if (!_cacheFile || !_cacheDirty) return;
+  try {
+    // Cap the on-disk cache so it can't grow unbounded (keep most recent 500).
+    const entries = [...matchCache.entries()];
+    const trimmed = entries.slice(Math.max(0, entries.length - 500));
+    const obj = {};
+    for (const [k, v] of trimmed) obj[k] = v;
+    fs.writeFileSync(_cacheFile, JSON.stringify(obj));
+    _cacheDirty = false;
+  } catch (_) { /* non-fatal */ }
+}
+
 function keystoneOf(p) {
   const s = p.perks && p.perks.styles;
   return s && s[0] && s[0].selections && s[0].selections[0] ? s[0].selections[0].perk : null;
@@ -342,12 +370,14 @@ async function getMatches(cfg, filterKey, count = 20) {
     let m;
     try { m = await getJson(host, `/lol/match/v5/matches/${mid}`, key); } catch (_) { continue; }
     const proc = processMatch(m, puuid);
-    if (proc) { matchCache.set(mid, proc); out.push(proc); }
+    if (proc) { matchCache.set(mid, proc); _cacheDirty = true; out.push(proc); }
   }
+  saveCache(); // persist any newly fetched matches for next session
   return out;
 }
 
 module.exports = {
   fetchProfile, parseRiotId, regionList, REGIONS,
   getMatches, ddragonVersion, perkMaps, championIndex, filterList, queueLabel, champKey,
+  setCacheDir,
 };

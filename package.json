@@ -5,7 +5,9 @@
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder --win nsis --publish never"
+    "dist": "electron-builder --win nsis --publish never",
+    "check": "node -e \"const{execSync}=require('child_process');const fs=require('fs');const walk=d=>fs.readdirSync(d,{withFileTypes:true}).flatMap(e=>e.isDirectory()?walk(d+'/'+e.name):(e.name.endsWith('.js')?[d+'/'+e.name]:[]));for(const f of [...walk('src'),...walk('scripts')]){execSync('node --check '+JSON.stringify(f));}console.log('All source files OK');\"",
+    "release": "node scripts/release.js"
   },
   "author": "KPScriptz",
   "license": "MIT",

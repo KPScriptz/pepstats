@@ -1,6 +1,6 @@
 "use strict";
 
-const { app, BrowserWindow, ipcMain, globalShortcut, screen } = require("electron");
+const { app, BrowserWindow, ipcMain, globalShortcut, screen, dialog } = require("electron");
 const path = require("path");
 const fs = require("fs");
 
@@ -888,6 +888,43 @@ ipcMain.handle("get-matches", async (_e, filter, count) => {
   }
 });
 
+// Export the currently loaded match list to a CSV the user picks a path for.
+ipcMain.handle("export-matches", async (e, payload) => {
+  const matches = (payload && payload.matches) || [];
+  if (!matches.length) return { ok: false, error: "No matches to export." };
+
+  const csvCell = (v) => {
+    const s = v == null ? "" : String(v);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+  const cols = ["Date", "Queue", "Champion", "Result", "K", "D", "A", "KDA", "CS", "CS/min", "KP%", "Vision", "Damage", "Position", "Duration(min)"];
+  const rows = matches.map((m) => [
+    m.endTs ? new Date(m.endTs).toISOString().slice(0, 10) : "",
+    m.queue || "",
+    m.champion || "",
+    m.remake ? "Remake" : (m.win ? "Win" : "Loss"),
+    m.k, m.d, m.a, m.kda, m.cs, m.csPerMin, m.kp, m.vision, m.dmg,
+    m.position || "",
+    m.durationSec ? Math.round(m.durationSec / 60) : "",
+  ]);
+  const csv = [cols, ...rows].map((r) => r.map(csvCell).join(",")).join("\r\n");
+
+  const win = BrowserWindow.fromWebContents(e.sender);
+  const suggested = `pepstats-matches-${(payload && payload.filter) || "all"}.csv`;
+  const res = await dialog.showSaveDialog(win, {
+    title: "Export match history",
+    defaultPath: suggested,
+    filters: [{ name: "CSV", extensions: ["csv"] }],
+  });
+  if (res.canceled || !res.filePath) return { ok: false, canceled: true };
+  try {
+    fs.writeFileSync(res.filePath, "﻿" + csv, "utf8"); // BOM => Excel opens UTF-8 cleanly
+    return { ok: true, path: res.filePath, count: matches.length };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
 ipcMain.handle("riot-regions", () => riotApi.regionList());
 ipcMain.handle("connect-riot", async (_e, s) => {
   const cfg = {
@@ -933,6 +970,9 @@ ipcMain.on("win-close", (e) => {
 // ----- Lifecycle ---------------------------------------------------------
 app.whenReady().then(() => {
   if (process.platform === "win32") app.setAppUserModelId("com.kylepeper.pepstats");
+
+  // Persist the match-detail cache across sessions (cuts Riot API calls).
+  riotApi.setCacheDir(app.getPath("userData"));
 
   ensure("ingame");
   // Default to Live (click-through) mode and keep the overlay hidden until a

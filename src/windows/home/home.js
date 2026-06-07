@@ -204,6 +204,7 @@ let progressSummary = null;
 let matchFilter = "all";
 let matchesLoaded = false;
 let filtersBuilt = false;
+let lastMatches = [];
 
 const champImg = (ver, key) => `https://ddragon.leagueoflegends.com/cdn/${ver}/img/champion/${key}.png`;
 const itemImg = (ver, id) => `https://ddragon.leagueoflegends.com/cdn/${ver}/img/item/${id}.png`;
@@ -255,6 +256,19 @@ async function buildFilters() {
   } catch (_) {}
   const more = $("mh-more");
   if (more && !more._wired) { more._wired = true; more.addEventListener("click", () => { matchCount += 10; loadMatches(); }); }
+  const exp = $("mh-export");
+  if (exp && !exp._wired) {
+    exp._wired = true;
+    exp.addEventListener("click", async () => {
+      if (!lastMatches.length || !api.exportMatches) return;
+      const prev = exp.textContent; exp.disabled = true; exp.textContent = "Exporting…";
+      try {
+        const res = await api.exportMatches({ matches: lastMatches, filter: matchFilter });
+        exp.textContent = res && res.ok ? "Exported ✓" : (res && res.canceled ? prev : "Export failed");
+      } catch (_) { exp.textContent = "Export failed"; }
+      finally { exp.disabled = false; setTimeout(() => { exp.textContent = prev; }, 1800); }
+    });
+  }
 }
 
 async function loadMatches() {
@@ -344,6 +358,7 @@ function buildDetail(m, ver) {
 function renderMatches(res) {
   const ver = res.version, list = $("mh-list");
   ddVersion = ver; currentRunes = res.runes || { perks: {}, styles: {} };
+  lastMatches = res.matches || [];
   updateProfileIcon();
 
   const s = res.summary || { w: 0, l: 0, games: 0, kda: 0 };
