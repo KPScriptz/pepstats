@@ -32,10 +32,19 @@ contextBridge.exposeInMainWorld("pepstats", {
   predictRankUp: () => ipcRenderer.invoke("home-predict"),
   saveSettings: (s) => ipcRenderer.invoke("save-settings", s),
 
+  // Match history
+  getMatchFilters: () => ipcRenderer.invoke("match-filters"),
+  getMatches: (filter, count) => ipcRenderer.invoke("get-matches", filter, count),
+
   // Riot account linking (first-run setup)
   getRiotRegions: () => ipcRenderer.invoke("riot-regions"),
   connectRiot: (s) => ipcRenderer.invoke("connect-riot", s),
   skipRiot: () => ipcRenderer.invoke("skip-riot"),
+
+  // Theme / customization
+  getTheme: () => ipcRenderer.invoke("get-theme"),
+  saveTheme: (patch) => ipcRenderer.invoke("save-theme", patch),
+  onTheme: (cb) => ipcRenderer.on("theme", (_e, t) => cb(t)),
   repositionOverlay: () => ipcRenderer.send("overlay-reposition"),
   openReview: () => ipcRenderer.send("open-review"),
 

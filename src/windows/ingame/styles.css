@@ -16,6 +16,10 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* Accent + overlay-size/opacity come from the shared theme (theme.js sets these
+   custom properties). Fallbacks keep the standalone preview working. */
+:root { --accent: #36d6d6; --ov-scale: 1; --ov-opacity: 1; }
+
 html, body {
   width: 100%; height: 100%;
   background: transparent;
@@ -23,6 +27,9 @@ html, body {
   font-family: "SF Pro Display", "Inter", "Segoe UI", Arial, sans-serif;
   -webkit-user-select: none; user-select: none; cursor: default;
 }
+/* Apply user overlay scale/opacity here (not on .widget) so they don't clash
+   with the widget's entrance animation's transform/opacity. */
+body { zoom: var(--ov-scale, 1); opacity: var(--ov-opacity, 1); }
 
 .hidden { display: none !important; }
 
@@ -79,7 +86,7 @@ html, body {
 }
 .v-you {
   font-size: 14px; font-weight: 800; line-height: 1;
-  color: #36d6d6;
+  color: var(--accent);
 }
 .v-you.neg { color: #ff5d6c; }
 /* Right-hand value = the rank-average baseline (muted, secondary). */
@@ -92,11 +99,11 @@ html, body {
 /* ---- CSM sparkline ---- */
 .spark { width: 46px; height: 16px; display: block; }
 .spark-line {
-  fill: none; stroke: #36d6d6; stroke-width: 1.6;
+  fill: none; stroke: var(--accent); stroke-width: 1.6;
   stroke-linejoin: round; stroke-linecap: round;
   vector-effect: non-scaling-stroke;
 }
-.spark-dot { fill: #36d6d6; }
+.spark-dot { fill: var(--accent); }
 
 /* ---- Divider + objective timeline ---- */
 .divider {
@@ -122,8 +129,8 @@ html, body {
 /* status-driven coloring */
 .node.up .node-dot { background: #5dd6a0; box-shadow: 0 0 6px rgba(93, 214, 160, 0.8); }
 .node.up .node-time { color: #5dd6a0; }
-.node.soon .node-dot { background: #36d6d6; box-shadow: 0 0 6px rgba(54, 214, 214, 0.7); }
-.node.soon .node-time { color: #36d6d6; }
+.node.soon .node-dot { background: var(--accent); box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 70%, transparent); }
+.node.soon .node-time { color: var(--accent); }
 .node.gone { opacity: 0.4; }
 .node.gone .node-dot { background: #4a525f; box-shadow: none; }
 .node.gone .node-time { color: #6f7787; }
@@ -134,7 +141,7 @@ html, body {
 }
 
 /* ---- Design mode (placeable) vs live (click-through) ---- */
-.widget.design { border-style: dashed; border-color: rgba(54, 214, 214, 0.9); }
+.widget.design { border-style: dashed; border-color: color-mix(in srgb, var(--accent) 90%, transparent); }
 .widget.design .brand-row { -webkit-app-region: drag; cursor: move; }
 
 /* ---- Smoothness: entrance + animated transitions ---- */

@@ -41,13 +41,17 @@ const ROLE_METRICS = {
   DEFAULT: ["csm", "kp", "kda", "lvl"],
 };
 
+let lastRole = "";
 function applyRole(role) {
+  lastRole = role;
   const keys = ROLE_METRICS[role] || ROLE_METRICS.DEFAULT;
+  const userRows = (window.__pepTheme && window.__pepTheme.overlay && window.__pepTheme.overlay.rows) || {};
   for (const key of Object.keys(rows)) {
     const el = rows[key];
     if (!el) continue;
     const idx = keys.indexOf(key);
-    if (idx === -1) {
+    const userOn = userRows[key] !== false; // user can hide a row regardless of role
+    if (idx === -1 || !userOn) {
       el.classList.add("hidden");
     } else {
       el.classList.remove("hidden");
@@ -55,6 +59,9 @@ function applyRole(role) {
     }
   }
 }
+
+// Re-apply row visibility immediately when the user changes overlay settings.
+document.addEventListener("pep-theme", () => applyRole(lastRole));
 
 let mode = "design"; // "design" | "live"
 let gameActive = false;

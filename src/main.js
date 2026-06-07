@@ -296,7 +296,9 @@ function loadConfig() {
   ];
   for (const p of candidates) {
     try {
-      return JSON.parse(fs.readFileSync(p, "utf8"));
+      // Strip a leading UTF-8 BOM — JSON.parse throws on it, and editors (or
+      // PowerShell's Out-File) can add one to a hand-edited config.json.
+      return JSON.parse(fs.readFileSync(p, "utf8").replace(/^﻿/, ""));
     } catch (_) {
       /* try next */
     }
@@ -318,6 +320,44 @@ function saveConfig(patch) {
   const next = { ...cur, ...patch };
   fs.writeFileSync(file, JSON.stringify(next, null, 2));
   return next;
+}
+
+// ----- Theme / customization -------------------------------------------------
+const THEME_DEFAULTS = {
+  theme: "dark", // "dark" | "light"
+  accent: "#36d6d6",
+  density: "comfortable", // "comfortable" | "compact"
+  fontScale: 1, // 0.9 .. 1.15
+  overlay: {
+    scale: 1, // 0.8 .. 1.3
+    opacity: 1, // 0.5 .. 1
+    rows: { csm: true, gpm: true, vision: true, kp: true, kda: true, lvl: true },
+  },
+};
+
+// Resolve the saved UI settings over the defaults (always returns a full object).
+function resolveTheme() {
+  const ui = (loadConfig() || {}).ui || {};
+  const ov = ui.overlay || {};
+  const num = (v, d, lo, hi) =>
+    typeof v === "number" && isFinite(v) ? Math.min(hi, Math.max(lo, v)) : d;
+  return {
+    theme: ui.theme === "light" ? "light" : "dark",
+    accent: typeof ui.accent === "string" && /^#[0-9a-fA-F]{6}$/.test(ui.accent) ? ui.accent : THEME_DEFAULTS.accent,
+    density: ui.density === "compact" ? "compact" : "comfortable",
+    fontScale: num(ui.fontScale, 1, 0.85, 1.2),
+    overlay: {
+      scale: num(ov.scale, 1, 0.8, 1.3),
+      opacity: num(ov.opacity, 1, 0.4, 1),
+      rows: { ...THEME_DEFAULTS.overlay.rows, ...(ov.rows || {}) },
+    },
+  };
+}
+
+// Push the current theme to every open window so changes apply live.
+function broadcastTheme() {
+  const t = resolveTheme();
+  for (const r of Object.keys(windows)) sendTo(r, "theme", t);
 }
 
 // Current ranked summary from the best available source: the live LCU when the
@@ -432,6 +472,7 @@ async function buildHomeData() {
     },
     lastMatch: lastSnapshot,
     history: rankProgress.history(app.getPath("userData")),
+    theme: resolveTheme(),
   };
 }
 
@@ -450,7 +491,7 @@ function coachConfigStatus() {
     return {
       ready: false,
       message:
-        "Claude coach unavailable — add your Anthropic API key to config.json to enable AI tactical reviews.",
+        "AI coach unavailable — add your AI key in Settings to enable tactical reviews and forecasts.",
     };
   }
   return { ready: true, message: "" };
@@ -584,6 +625,54 @@ ipcMain.handle("save-settings", (_e, s) => {
     return { ok: false, error: e.message };
   }
 });
+ipcMain.handle("get-theme", () => resolveTheme());
+ipcMain.handle("save-theme", (_e, patch) => {
+  const cur = resolveTheme();
+  const p = patch || {};
+  const merged = {
+    ...cur,
+    ...p,
+    overlay: {
+      ...cur.overlay,
+      ...(p.overlay || {}),
+      rows: { ...cur.overlay.rows, ...((p.overlay && p.overlay.rows) || {}) },
+    },
+  };
+  saveConfig({ ui: merged });
+  broadcastTheme();
+  return resolveTheme();
+});
+
+ipcMain.handle("match-filters", () => riotApi.filterList());
+ipcMain.handle("get-matches", async (_e, filter, count) => {
+  const cfg = loadConfig();
+  if (!(cfg.riotId && cfg.region && cfg.riotApiKey)) return { ok: false, error: "Link your account first." };
+  try {
+    const account = { riotId: cfg.riotId, region: cfg.region, riotApiKey: cfg.riotApiKey };
+    const matches = await riotApi.getMatches(account, filter || "all", count || 20);
+    const version = await riotApi.ddragonVersion();
+    const runes = await riotApi.perkMaps();
+
+    // Aggregate champion performance + a "last N" summary (remakes excluded).
+    const champs = {};
+    let w = 0, l = 0, games = 0, kS = 0, dS = 0, aS = 0;
+    for (const m of matches) {
+      if (m.remake) continue;
+      games++; m.win ? w++ : l++; kS += m.k; dS += m.d; aS += m.a;
+      const c = champs[m.champion] || (champs[m.champion] = { champion: m.champion, champKey: m.champKey, games: 0, wins: 0, k: 0, d: 0, a: 0 });
+      c.games++; if (m.win) c.wins++; c.k += m.k; c.d += m.d; c.a += m.a;
+    }
+    const champList = Object.values(champs)
+      .map((c) => ({ champion: c.champion, champKey: c.champKey, games: c.games, wins: c.wins, wr: Math.round((c.wins / c.games) * 100), kda: c.d ? +(((c.k + c.a) / c.d).toFixed(2)) : c.k + c.a }))
+      .sort((a, b) => b.games - a.games).slice(0, 6);
+    const summary = { w, l, games, kda: dS ? +(((kS + aS) / dS).toFixed(2)) : kS + aS, avgK: games ? +(kS / games).toFixed(1) : 0, avgD: games ? +(dS / games).toFixed(1) : 0, avgA: games ? +(aS / games).toFixed(1) : 0 };
+
+    return { ok: true, matches, champs: champList, summary, version, runes };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+
 ipcMain.handle("riot-regions", () => riotApi.regionList());
 ipcMain.handle("connect-riot", async (_e, s) => {
   const cfg = {
