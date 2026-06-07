@@ -33,6 +33,32 @@ const PHASE_LABEL = {
 };
 const signedLp = (n) => (n == null ? "—" : (n >= 0 ? "+" : "−") + Math.abs(n));
 
+// Real rank emblems (CommunityDragon mini-crests).
+const rankEmblem = (tier) =>
+  tier ? `https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-static-assets/global/default/images/ranked-mini-crests/${tier.toLowerCase()}.png` : null;
+function setEmblem(el, tier, fallback) {
+  if (!el) return;
+  el.textContent = "";
+  if (tier) {
+    const img = document.createElement("img");
+    img.className = "emblem-img";
+    img.src = rankEmblem(tier);
+    img.onerror = () => { el.textContent = tier[0] || fallback || "?"; };
+    el.appendChild(img);
+  } else {
+    el.textContent = fallback || "?";
+  }
+}
+
+// Summoner spell id -> Data Dragon image name.
+const SPELLS = {
+  1: "SummonerBoost", 3: "SummonerExhaust", 4: "SummonerFlash", 6: "SummonerHaste",
+  7: "SummonerHeal", 11: "SummonerSmite", 12: "SummonerTeleport", 13: "SummonerMana",
+  14: "SummonerDot", 21: "SummonerBarrier", 30: "SummonerPoroRecall", 31: "SummonerPoroThrow",
+  32: "SummonerSnowball", 39: "SummonerSnowURFSnowball_Mark",
+};
+const spellImg = (ver, id) => (SPELLS[id] ? `https://ddragon.leagueoflegends.com/cdn/${ver}/img/spell/${SPELLS[id]}.png` : null);
+
 // ===== Setup =====
 let regionsLoaded = false;
 async function loadRegions() {
@@ -75,12 +101,12 @@ function render(data) {
   const sm = summary && summary.summoner;
 
   // Rank chip (rail)
-  $("rc-em").textContent = solo && solo.tier ? solo.tier[0] : "?";
+  setEmblem($("rc-em"), solo && solo.tier, "?");
   $("rc-tx").textContent = p.label || "Unranked";
 
   // Hero
   $("rank-now").textContent = p.label || "Unranked";
-  $("emblem-letter").textContent = solo && solo.tier ? solo.tier[0] : "?";
+  setEmblem($("emblem-letter"), solo && solo.tier, "?");
   $("rank-next").textContent = p.next ? "Next: " + p.next : "Play ranked to start tracking";
   const div = p.division || { pct: 0, lp: 0, toNext: 100 };
   $("lp-fill").style.width = (solo ? div.pct : 0) + "%";
@@ -113,7 +139,7 @@ function render(data) {
 
   // Progress: ranked summary card (match list loads on demand)
   progressSummary = { solo, p };
-  $("rs-em").textContent = solo && solo.tier ? solo.tier[0] : "?";
+  setEmblem($("rs-em"), solo && solo.tier, "?");
   $("rs-tier").textContent = p.label || "Unranked";
   $("rs-lp").textContent = solo ? `${div.lp} LP` : "—";
   $("rs-wr").textContent = solo ? `${p.winRate != null ? p.winRate + "% WR" : "—"} · ${p.wins}W ${p.losses}L` : "—";
@@ -196,27 +222,58 @@ function renderMatches(res) {
   const matches = res.matches || [];
   if (matches.length === 0) { $("mh-empty").classList.remove("hidden"); $("mh-empty").textContent = "No matches found for this filter."; return; }
   $("mh-empty").classList.add("hidden"); list.classList.remove("hidden");
+  const mkImg = (src, cls, onerr) => { const i = document.createElement("img"); i.className = cls; i.src = src; i.onerror = onerr; return i; };
   for (const m of matches) {
     const li = document.createElement("li");
     li.className = "match " + (m.remake ? "remake" : m.win ? "win" : "loss");
-    const icon = document.createElement("img"); icon.className = "m-champ"; icon.src = champImg(ver, m.champKey); icon.onerror = () => (icon.style.visibility = "hidden");
+
+    // champ icon (+ level badge) and summoner spells
+    const idCol = document.createElement("div"); idCol.className = "m-id";
+    const champWrap = document.createElement("div"); champWrap.className = "m-champwrap";
+    const icon = mkImg(champImg(ver, m.champKey), "m-champ", function () { this.style.visibility = "hidden"; });
+    const lvl = document.createElement("span"); lvl.className = "m-lvl"; lvl.textContent = m.champLevel || "";
+    champWrap.append(icon, lvl);
+    const spells = document.createElement("div"); spells.className = "m-spells";
+    for (const sid of (m.spells || [])) {
+      const sp = document.createElement("span"); sp.className = "m-spell";
+      const su = spellImg(ver, sid);
+      if (su) sp.append(mkImg(su, "", function () { sp.classList.add("empty"); })); else sp.classList.add("empty");
+      spells.append(sp);
+    }
+    idCol.append(champWrap, spells);
+
     const main = document.createElement("div"); main.className = "m-main";
     main.innerHTML =
       `<div class="m-top"><span class="m-res">${m.remake ? "Remake" : m.win ? "Victory" : "Defeat"}</span>` +
       `<span class="m-q">${m.queue}</span></div>` +
       `<div class="m-bot"><span class="m-when">${timeAgo(m.endTs)} · ${dur(m.durationSec)}</span></div>`;
+
     const stats = document.createElement("div"); stats.className = "m-stats";
     stats.innerHTML =
       `<div class="m-kda"><b>${m.k} / <span class="d">${m.d}</span> / ${m.a}</b><span class="m-kdar">${m.kda} KDA</span></div>` +
       `<div class="m-cs">${m.cs} CS · ${m.csPerMin}/min</div>`;
+
     const items = document.createElement("div"); items.className = "m-items";
     for (const it of (m.items || [])) {
       const cell = document.createElement("span"); cell.className = "m-item";
-      if (it) { const im = document.createElement("img"); im.src = itemImg(ver, it); im.onerror = () => (cell.classList.add("empty")); cell.append(im); }
-      else cell.classList.add("empty");
+      if (it) cell.append(mkImg(itemImg(ver, it), "", function () { cell.classList.add("empty"); })); else cell.classList.add("empty");
       items.append(cell);
     }
-    li.append(icon, main, stats, items); list.append(li);
+
+    // participant columns (two teams of five)
+    const parts = document.createElement("div"); parts.className = "m-parts";
+    const teams = { 100: document.createElement("div"), 200: document.createElement("div") };
+    teams[100].className = teams[200].className = "m-team";
+    for (const pp of (m.participants || [])) {
+      const row = document.createElement("div"); row.className = "m-part" + (pp.me ? " me" : "");
+      row.append(mkImg(champImg(ver, pp.champKey), "m-pico", function () { this.style.visibility = "hidden"; }));
+      const nm = document.createElement("span"); nm.className = "m-pname"; nm.textContent = pp.name;
+      row.append(nm);
+      (teams[pp.teamId] || teams[100]).append(row);
+    }
+    parts.append(teams[100], teams[200]);
+
+    li.append(idCol, main, stats, items, parts); list.append(li);
   }
 }
 

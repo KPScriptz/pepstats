@@ -211,7 +211,15 @@ function processMatch(m, puuid) {
     durationSec: durSec,
     endTs: info.gameEndTimestamp || info.gameCreation || 0,
     items: [me.item0, me.item1, me.item2, me.item3, me.item4, me.item5, me.item6],
+    spells: [me.summoner1Id, me.summoner2Id],
     position: me.teamPosition || me.individualPosition || "",
+    // The full lobby (two teams of 5) for the op.gg-style participant columns.
+    participants: (info.participants || []).map((p) => ({
+      champKey: champKey(p.championName),
+      name: p.riotIdGameName || p.summonerName || "",
+      teamId: p.teamId,
+      me: p.puuid === puuid,
+    })),
   };
 }
 
