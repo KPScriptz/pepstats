@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'self'; script-src 'self'; font-src 'self'; img-src 'self' data:;"
+    />
+    <link rel="stylesheet" href="styles.css" />
+    <title>PepStats</title>
+  </head>
+  <body>
+    <!-- Custom title bar (frameless window) -->
+    <header class="titlebar">
+      <div class="tb-brand">
+        <span class="tb-mark"></span>
+        <span class="tb-name">PEPSTATS</span>
+      </div>
+      <div class="tb-controls">
+        <button id="tb-min" class="tb-btn" title="Minimize" aria-label="Minimize">&#x2013;</button>
+        <button id="tb-close" class="tb-btn tb-close" title="Close" aria-label="Close">&#x2715;</button>
+      </div>
+    </header>
+
+    <!-- ===== First-run: link Riot account ===== -->
+    <section id="setup" class="setup hidden">
+      <div class="setup-card">
+        <div class="setup-mark"></div>
+        <h1 class="setup-title">Connect your Riot account</h1>
+        <p class="setup-sub">
+          PepStats reads your rank and match stats through Riot's official API.
+          Enter your Riot ID and paste a free personal API key — it stays on this
+          PC and is never shared.
+        </p>
+
+        <label class="field">
+          <span>Riot ID</span>
+          <input id="su-riotid" type="text" placeholder="Name#Tag" spellcheck="false" />
+        </label>
+        <label class="field">
+          <span>Region</span>
+          <select id="su-region"></select>
+        </label>
+        <label class="field">
+          <span>Riot personal API key</span>
+          <input id="su-key" type="password" placeholder="RGAPI-…" spellcheck="false" />
+        </label>
+
+        <p class="setup-help">
+          Get a free key: open <b>developer.riotgames.com</b> → sign in with Riot →
+          <b>Register Product → Personal API Key</b>, then paste it above.
+          <i>(A personal key doesn't expire.)</i>
+        </p>
+
+        <div id="su-error" class="setup-error hidden"></div>
+
+        <div class="row">
+          <button id="su-connect" class="btn btn-accent">Connect account</button>
+          <button id="su-skip" class="btn">Use League client only</button>
+        </div>
+      </div>
+    </section>
+
+    <main class="client">
+      <!-- ===== Ranked progression hero ===== -->
+      <section class="hero card">
+        <div class="hero-left">
+          <div class="rank-emblem" id="rank-emblem"><span id="emblem-letter">?</span></div>
+          <div class="rank-meta">
+            <div class="rank-now" id="rank-now">Unranked</div>
+            <div class="rank-next" id="rank-next">—</div>
+            <div class="lp-bar"><div class="lp-fill" id="lp-fill"></div></div>
+            <div class="lp-text" id="lp-text">— LP</div>
+          </div>
+        </div>
+        <div class="hero-right">
+          <div class="kpi">
+            <div class="kpi-val" id="kpi-weekly">—</div>
+            <div class="kpi-lbl">Weekly LP</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-val" id="kpi-level">—</div>
+            <div class="kpi-lbl">Account Lvl</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-val" id="kpi-wr">—</div>
+            <div class="kpi-lbl">Win Rate</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== AI rank-up prediction ===== -->
+      <section class="card predict">
+        <div class="predict-head">
+          <div>
+            <div class="card-title">AI Rank-Up Forecast</div>
+            <div class="card-sub" id="predict-sub">Estimate how fast you can climb at your current pace.</div>
+          </div>
+          <button id="predict-btn" class="btn btn-accent">Predict</button>
+        </div>
+        <div id="predict-out" class="predict-out hidden"></div>
+      </section>
+
+      <!-- ===== Dashboard grid ===== -->
+      <section class="grid">
+        <!-- Status & connection -->
+        <div class="card">
+          <div class="card-title">Status</div>
+          <ul class="kv">
+            <li><span>League client</span><b id="st-client" class="pill">—</b></li>
+            <li><span>Phase</span><b id="st-phase">—</b></li>
+            <li><span>Summoner</span><b id="st-summoner">—</b></li>
+          </ul>
+        </div>
+
+        <!-- Last match review -->
+        <div class="card">
+          <div class="card-title">Last Match</div>
+          <div id="lm-empty" class="muted">No match recorded yet this session.</div>
+          <div id="lm-body" class="hidden">
+            <div class="lm-champ" id="lm-champ">—</div>
+            <ul class="kv">
+              <li><span>KDA</span><b id="lm-kda">—</b></li>
+              <li><span>CS</span><b id="lm-cs">—</b></li>
+            </ul>
+            <button id="lm-review" class="btn">Open AI Review</button>
+          </div>
+        </div>
+
+        <!-- Recent history -->
+        <div class="card">
+          <div class="card-title">Recent Progress</div>
+          <div id="hist-empty" class="muted">Tracking starts now — check back after a few days of ranked.</div>
+          <ul id="hist-list" class="hist hidden"></ul>
+        </div>
+
+        <!-- Settings -->
+        <div class="card">
+          <div class="card-title">Settings</div>
+          <label class="field">
+            <span>Anthropic API key</span>
+            <input id="set-key" type="password" placeholder="sk-ant-…" spellcheck="false" />
+          </label>
+          <label class="field">
+            <span>Baseline API URL <i>(optional)</i></span>
+            <input id="set-baseline" type="text" placeholder="https://…/{rank}/{role}" spellcheck="false" />
+          </label>
+          <div class="row">
+            <button id="set-save" class="btn btn-accent">Save</button>
+            <button id="set-reposition" class="btn">Reposition overlay</button>
+            <span id="set-status" class="set-status"></span>
+          </div>
+        </div>
+      </section>
+
+      <footer class="foot">
+        <span id="foot-refresh" class="muted">—</span>
+      </footer>
+    </main>
+
+    <script src="home.js"></script>
+  </body>
+</html>

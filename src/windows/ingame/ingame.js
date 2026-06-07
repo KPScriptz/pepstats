@@ -2,19 +2,20 @@
 
 const els = {
   widget: document.getElementById("widget"),
+  rankTag: document.getElementById("rank-tag"),
   csm: document.getElementById("csm"),
   sparkLine: document.getElementById("spark-line"),
   sparkDot: document.getElementById("spark-dot"),
   gpm: document.getElementById("gpm"),
   visYou: document.getElementById("vis-you"),
-  visOpp: document.getElementById("vis-opp"),
+  visBase: document.getElementById("vis-base"),
   kpYou: document.getElementById("kp-you"),
-  kpOpp: document.getElementById("kp-opp"),
+  kpBase: document.getElementById("kp-base"),
   kdaYou: document.getElementById("kda-you"),
-  kdaOpp: document.getElementById("kda-opp"),
+  kdaBase: document.getElementById("kda-base"),
   lvlYou: document.getElementById("lvl-you"),
-  lvlOpp: document.getElementById("lvl-opp"),
   status: document.getElementById("status"),
+  divider: document.getElementById("divider"),
   timeline: document.getElementById("timeline"),
 };
 
@@ -146,6 +147,19 @@ function nodeFor(key, label) {
 
 function renderTimers(timers) {
   if (!Array.isArray(timers)) return;
+
+  // No neutral objectives (ARAM / Arena / etc.) -> hide the whole section so
+  // the overlay collapses to just the stat block instead of showing stale or
+  // phantom Rift objectives.
+  const hasTimers = timers.length > 0;
+  if (els.divider) els.divider.classList.toggle("hidden", !hasTimers);
+  els.timeline.classList.toggle("hidden", !hasTimers);
+  if (!hasTimers) {
+    for (const ref of nodeEls.values()) ref.node.remove();
+    nodeEls.clear();
+    return;
+  }
+
   for (const t of timers) {
     const ref = nodeFor(t.key, t.label);
     const view = STATUS_VIEW[t.status] || { cls: "", meta: "" };
@@ -164,11 +178,16 @@ function signed(n) {
 function applyStats(compare) {
   if (!compare) return;
 
-  // Show only the metrics that matter for the lane you queued into.
+  // Show only the metrics that matter for the lane you queued into (or the
+  // generic set off-SR, where role is empty).
   applyRole(compare.role || "");
 
-  // CSM: show the lane differential when an opponent exists, else your own CSM.
-  if (compare.hasOpp && typeof compare.csmDiff === "number") {
+  // Rank baseline label, e.g. "vs GOLD". Empty when no rank is known.
+  els.rankTag.textContent = compare.rank ? "vs " + compare.rank : "";
+
+  // CSM: differential vs your rank's average CS/min when a baseline exists,
+  // else your own CSM. Right column elsewhere is "you / rank average".
+  if (typeof compare.csmDiff === "number") {
     els.csm.textContent = signed(compare.csmDiff);
     els.csm.classList.toggle("neg", compare.csmDiff < 0);
   } else {
@@ -181,22 +200,21 @@ function applyStats(compare) {
   // GPM: your value only (no enemy gold in the sanctioned feed).
   els.gpm.textContent = fmtInt(compare.gpm || 0);
 
-  // VIS / KP% / KDA / LVL: you / opp.
+  // VIS / KP% / KDA: you / rank-average baseline.
   els.visYou.textContent = String(compare.vision ? compare.vision.you : 0);
-  els.visOpp.textContent =
-    compare.vision && compare.vision.opp != null ? String(compare.vision.opp) : DASH;
+  els.visBase.textContent =
+    compare.vision && compare.vision.baseline != null ? String(compare.vision.baseline) : DASH;
 
   els.kpYou.textContent = String(compare.kp ? compare.kp.you : 0);
-  els.kpOpp.textContent =
-    compare.kp && compare.kp.opp != null ? String(compare.kp.opp) : DASH;
+  els.kpBase.textContent =
+    compare.kp && compare.kp.baseline != null ? String(compare.kp.baseline) : DASH;
 
   els.kdaYou.textContent = (compare.kda ? compare.kda.you : 0).toFixed(1);
-  els.kdaOpp.textContent =
-    compare.kda && compare.kda.opp != null ? compare.kda.opp.toFixed(1) : DASH;
+  els.kdaBase.textContent =
+    compare.kda && compare.kda.baseline != null ? compare.kda.baseline.toFixed(1) : DASH;
 
+  // LVL: your value only (level is time-driven, not a rank-average stat).
   els.lvlYou.textContent = String(compare.lvl ? compare.lvl.you : 0);
-  els.lvlOpp.textContent =
-    compare.lvl && compare.lvl.opp != null ? String(compare.lvl.opp) : DASH;
 }
 
 function render() {
@@ -240,15 +258,17 @@ if (window.pepstats && typeof window.pepstats.onOverlay === "function") {
   mode = "design";
   applyOverlay({
     compare: {
-      hasOpp: true,
       role: "MIDDLE",
+      rank: "GOLD",
+      baselineSource: "table",
       csmYou: 7.5,
-      csmDiff: 1.9,
+      csmBaseline: 6.1,
+      csmDiff: 1.4,
       gpm: 506,
-      kp: { you: 62, opp: 48 },
-      kda: { you: 7.2, opp: 2.8 },
-      lvl: { you: 9, opp: 8 },
-      vision: { you: 12, opp: 9 },
+      kp: { you: 62, baseline: 49 },
+      kda: { you: 7.2, baseline: 2.5 },
+      lvl: { you: 9 },
+      vision: { you: 12, baseline: 9 },
     },
     timers: [
       { key: "grubs", label: "Void Grubs", status: "up", display: "0:00" },

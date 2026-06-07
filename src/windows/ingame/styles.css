@@ -51,6 +51,13 @@ html, body {
   font-weight: 800; font-size: 12px; letter-spacing: 2.5px;
   color: #f2f5f8;
 }
+/* Rank baseline label, e.g. "vs GOLD". Sits between the wordmark and live dot
+   and pushes the dot to the right edge. */
+.rank-tag {
+  flex: 1; margin-left: 7px;
+  font-size: 8.5px; font-weight: 700; letter-spacing: 0.8px;
+  color: #7c8696; text-transform: uppercase; white-space: nowrap;
+}
 .live-dot {
   width: 6px; height: 6px; border-radius: 50%;
   background: #5dd6a0; box-shadow: 0 0 6px rgba(93, 214, 160, 0.85);
@@ -75,7 +82,8 @@ html, body {
   color: #36d6d6;
 }
 .v-you.neg { color: #ff5d6c; }
-.v-opp {
+/* Right-hand value = the rank-average baseline (muted, secondary). */
+.v-base {
   font-size: 14px; font-weight: 700; line-height: 1;
   color: #8b94a3;
 }
@@ -128,3 +136,22 @@ html, body {
 /* ---- Design mode (placeable) vs live (click-through) ---- */
 .widget.design { border-style: dashed; border-color: rgba(54, 214, 214, 0.9); }
 .widget.design .brand-row { -webkit-app-region: drag; cursor: move; }
+
+/* ---- Smoothness: entrance + animated transitions ---- */
+.widget:not(.hidden) { animation: widgetIn 0.3s cubic-bezier(0.22, 1, 0.36, 1) both; }
+@keyframes widgetIn {
+  from { opacity: 0; transform: translateY(-6px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+/* live stat values ease between updates instead of snapping */
+.v-you, .v-base { transition: color 0.25s ease; }
+.stat-row { transition: opacity 0.2s ease; }
+/* objective nodes glide between spawning/up/gone states */
+.node { transition: opacity 0.35s ease; }
+.node-dot { transition: background 0.35s ease, box-shadow 0.35s ease; }
+.node-time, .node-meta { transition: color 0.35s ease; }
+.spark-line, .spark-dot { transition: fill 0.25s ease, stroke 0.25s ease; }
+@media (prefers-reduced-motion: reduce) {
+  .widget:not(.hidden) { animation: none; }
+  * { transition: none !important; }
+}

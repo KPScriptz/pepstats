@@ -1,6 +1,6 @@
 {
   "name": "pepstats",
-  "version": "0.1.3",
+  "version": "0.2.0",
   "description": "PepStats — League of Legends companion, overlay, and AI coach",
   "main": "src/main.js",
   "scripts": {
@@ -19,8 +19,13 @@
   "build": {
     "appId": "com.kylepeper.pepstats",
     "productName": "PepStats",
+    "directories": {
+      "buildResources": "build",
+      "output": "dist"
+    },
     "files": [
       "src/**/*",
+      "build/icon.ico",
       "package.json"
     ],
     "extraResources": [
@@ -31,12 +36,16 @@
       }
     ],
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "build/icon.ico"
     },
     "nsis": {
       "oneClick": true,
       "perMachine": false,
-      "artifactName": "PepStats-Setup-${version}.exe"
+      "artifactName": "PepStats-Setup-${version}.exe",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico"
     }
   }
 }

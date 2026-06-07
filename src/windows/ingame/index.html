@@ -10,6 +10,7 @@
     <div id="widget" class="widget hidden">
       <div class="brand-row">
         <span class="brand">PEPSTATS</span>
+        <span id="rank-tag" class="rank-tag"></span>
         <span id="live-dot" class="live-dot"></span>
       </div>
 
@@ -35,7 +36,7 @@
           <span class="stat-vals">
             <span id="vis-you" class="v-you">—</span>
             <span class="v-sep">/</span>
-            <span id="vis-opp" class="v-opp">—</span>
+            <span id="vis-base" class="v-base">—</span>
           </span>
         </div>
 
@@ -44,7 +45,7 @@
           <span class="stat-vals">
             <span id="kp-you" class="v-you">—</span>
             <span class="v-sep">/</span>
-            <span id="kp-opp" class="v-opp">—</span>
+            <span id="kp-base" class="v-base">—</span>
           </span>
         </div>
 
@@ -53,7 +54,7 @@
           <span class="stat-vals">
             <span id="kda-you" class="v-you">—</span>
             <span class="v-sep">/</span>
-            <span id="kda-opp" class="v-opp">—</span>
+            <span id="kda-base" class="v-base">—</span>
           </span>
         </div>
 
@@ -61,13 +62,11 @@
           <span class="stat-label">LVL</span>
           <span class="stat-vals">
             <span id="lvl-you" class="v-you">—</span>
-            <span class="v-sep">/</span>
-            <span id="lvl-opp" class="v-opp">—</span>
           </span>
         </div>
       </div>
 
-      <div class="divider"></div>
+      <div class="divider" id="divider"></div>
       <div class="timeline" id="timeline">
         <!-- Objective nodes are rendered from the timers array in ingame.js -->
       </div>
