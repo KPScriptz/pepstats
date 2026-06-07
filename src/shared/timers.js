@@ -102,7 +102,14 @@ function baronState(t, events) {
 }
 
 // Ordered array for the overlay's vertical timeline.
-function computeTimers(gameTime, events) {
+//
+// `opts.isClassic` gates the whole timeline: grubs/herald/dragon/baron exist
+// ONLY on Summoner's Rift. In ARAM (and Arena/URF/etc.) there is no jungle, so
+// we return an empty array rather than phantom objectives. When `opts` is
+// omitted we default to the SR set (keeps the standalone overlay preview and
+// older callers working).
+function computeTimers(gameTime, events, opts) {
+  if (opts && !opts.isClassic) return [];
   const t = gameTime || 0;
   return [
     grubsState(t, events),

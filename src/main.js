@@ -8,6 +8,7 @@ const liveClient = require("./shared/liveClient");
 const lcu = require("./shared/lcu");
 const { LcuSocket } = require("./shared/lcuSocket");
 const { computeTimers } = require("./shared/timers");
+const rankBaseline = require("./shared/rankBaseline");
 const processWatch = require("./shared/process");
 const replays = require("./shared/replays");
 
@@ -29,6 +30,7 @@ let lastReplay = null;   // newest .rofl metadata captured at match end
 let sawLiveGame = false;
 let clientUp = false;    // LeagueClient.exe seen by the process watcher
 let lcuSocket = null;
+let accountRank = null;  // resolved once from the LCU, then cached for the session
 
 // ----- Window factories --------------------------------------------------
 function preload() {
@@ -111,14 +113,19 @@ function sendTo(role, channel, payload) {
 // ----- Engine 3: overlay design / live mode ------------------------------
 function setDesignMode(on) {
   designMode = on;
-  const w = windows.ingame;
+  const w = ensure("ingame");
   if (!w || w.isDestroyed()) return;
   if (on) {
-    // Design Mode: capture the mouse so the HUD can be dragged/repositioned.
+    // Design Mode: capture the mouse so the HUD can be dragged/repositioned, and
+    // surface the overlay even outside a match so it can be placed any time.
     w.setIgnoreMouseEvents(false);
+    w.show();
   } else {
-    // Live Mode: absolute click-through — zero gameplay mouse interception.
+    // Live Mode: absolute click-through — zero gameplay mouse interception. The
+    // overlay belongs on screen only during a live match, so if no game is in
+    // progress, keep it hidden instead of stuck on the desktop.
     w.setIgnoreMouseEvents(true, { forward: true });
+    if (appState !== STATE.INGAME) w.hide();
   }
   w.webContents.send("mode-change", on ? "design" : "live");
 }
@@ -142,6 +149,15 @@ function startLcuSocket() {
   lcuSocket.start();
 }
 
+// Resolve the account rank once from the LCU, then cache it. Returns null while
+// still unresolved (e.g. client not up yet) so the next poll retries; the
+// baseline falls back to a sensible default tier until then.
+async function ensureRank() {
+  if (accountRank) return accountRank;
+  accountRank = await rankBaseline.getAccountRank(lcu);
+  return accountRank;
+}
+
 // ----- Engine 2: phase-detection heartbeat -------------------------------
 async function poll() {
   let live = null;
@@ -155,9 +171,21 @@ async function poll() {
     // A match is in progress.
     sawLiveGame = true;
     const scores = liveClient.activeScores(live);
-    const compare = liveClient.compareStats(live);
     lastSnapshot = scores;
-    const timers = computeTimers(scores.gameTime, scores.events);
+
+    // Resolve the rank baseline for this mode/role, then compare against it.
+    const info = liveClient.gameInfo(live);
+    const rank = await ensureRank();
+    const role = liveClient.activeRole(live);
+    const cfg = loadConfig();
+    const baseline = await rankBaseline.getBaseline({
+      tier: rank,
+      role,
+      mode: info.gameMode,
+      apiUrl: cfg.baselineApiUrl,
+    });
+    const compare = liveClient.compareStats(live, baseline);
+    const timers = computeTimers(scores.gameTime, scores.events, { isClassic: info.isClassic });
     if (appState !== STATE.INGAME) {
       appState = STATE.INGAME;
       ensure("ingame");
@@ -371,8 +399,10 @@ ipcMain.handle("get-pregame", async () => {
 // ----- Lifecycle ---------------------------------------------------------
 app.whenReady().then(() => {
   ensure("ingame");
-  setDesignMode(true); // start placeable so the user can position the overlay
-  windows.ingame.show();
+  // Default to Live (click-through) mode and keep the overlay hidden until a
+  // match is live — it surfaces automatically from poll()'s in-game branch.
+  // Press Ctrl+Shift+D any time to enter Design Mode and reposition it.
+  setDesignMode(false);
 
   globalShortcut.register("CommandOrControl+Shift+D", () => setDesignMode(!designMode));
   globalShortcut.register("CommandOrControl+Shift+1", () => showOnly("pregame"));
