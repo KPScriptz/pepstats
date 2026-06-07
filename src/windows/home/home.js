@@ -247,21 +247,66 @@ const mkImg = (src, cls, onerr) => { const i = document.createElement("img"); if
 
 function buildDetail(m, ver) {
   const wrap = document.createElement("div"); wrap.className = "m-detail hidden";
+  const maxDmg = Math.max(1, ...m.participants.map((p) => p.dmg || 0));
+  const runes = currentRunes || { perks: {}, styles: {} };
+
   for (const tid of [100, 200]) {
-    const team = document.createElement("div"); team.className = "d-team " + (tid === 100 ? "blue" : "red");
-    const won = (m.participants.find((p) => p.teamId === tid) || {}).win;
-    const head = document.createElement("div"); head.className = "d-head"; head.textContent = (tid === 100 ? "Blue" : "Red") + " team · " + (won ? "Victory" : "Defeat");
+    const teamP = m.participants.filter((p) => p.teamId === tid);
+    if (!teamP.length) continue;
+    const td = (m.teams || []).find((x) => x.teamId === tid) || {};
+    const won = teamP[0].win;
+    const k = teamP.reduce((s, p) => s + p.k, 0);
+    const d = teamP.reduce((s, p) => s + p.d, 0);
+    const a = teamP.reduce((s, p) => s + p.a, 0);
+    const gold = teamP.reduce((s, p) => s + (p.gold || 0), 0);
+
+    const team = document.createElement("div"); team.className = "sb-team " + (won ? "win" : "loss");
+    const head = document.createElement("div"); head.className = "sb-head";
+    const objBits = [];
+    if (td.tower) objBits.push(`⌂ ${td.tower}`);
+    if (td.dragon) objBits.push(`🐉 ${td.dragon}`);
+    if (td.baron) objBits.push(`Ω ${td.baron}`);
+    if (td.grubs) objBits.push(`◆ ${td.grubs}`);
+    head.innerHTML =
+      `<span class="sb-res">${won ? "Victory" : "Defeat"}</span>` +
+      `<span class="sb-tot">${k} / ${d} / ${a}</span>` +
+      (objBits.length ? `<span class="sb-obj">${objBits.join("  ")}</span>` : "") +
+      `<span class="sb-gold">${kFmt(gold)} gold</span>`;
     team.append(head);
-    for (const p of m.participants.filter((x) => x.teamId === tid)) {
-      const r = document.createElement("div"); r.className = "d-row" + (p.me ? " me" : "");
-      r.append(mkImg(champImg(ver, p.champKey), "d-champ", function () { this.style.visibility = "hidden"; }));
-      const nm = document.createElement("span"); nm.className = "d-name"; nm.textContent = p.name || p.champion;
-      const kda = document.createElement("span"); kda.className = "d-kda"; kda.textContent = `${p.k}/${p.d}/${p.a}`;
-      const cs = document.createElement("span"); cs.className = "d-cs"; cs.textContent = `${p.cs} CS`;
-      const dmg = document.createElement("span"); dmg.className = "d-dmg"; dmg.textContent = kFmt(p.dmg);
-      const its = document.createElement("span"); its.className = "d-items";
-      for (const it of (p.items || [])) { const c = document.createElement("span"); c.className = "d-item"; if (it) c.append(mkImg(itemImg(ver, it), "", function () { c.classList.add("empty"); })); else c.classList.add("empty"); its.append(c); }
-      r.append(nm, kda, cs, dmg, its); team.append(r);
+
+    for (const p of teamP) {
+      const row = document.createElement("div"); row.className = "sb-row" + (p.me ? " me" : "");
+
+      const champ = document.createElement("div"); champ.className = "sb-champwrap";
+      champ.append(mkImg(champImg(ver, p.champKey), "sb-champ", function () { this.style.visibility = "hidden"; }));
+      const lvl = document.createElement("span"); lvl.className = "sb-lvl"; lvl.textContent = p.champLevel || "";
+      champ.append(lvl);
+
+      const sr = document.createElement("div"); sr.className = "sb-sr";
+      const spellsCol = document.createElement("div"); spellsCol.className = "sb-col";
+      for (const sid of (p.spells || [])) { const c = document.createElement("span"); c.className = "sb-mini"; const u = spellImg(ver, sid); if (u) c.append(mkImg(u, "", function () { c.classList.add("empty"); })); else c.classList.add("empty"); spellsCol.append(c); }
+      const runeCol = document.createElement("div"); runeCol.className = "sb-col";
+      const kImg = runes.perks && runes.perks[p.keystone];
+      const rc = document.createElement("span"); rc.className = "sb-mini round"; if (kImg) rc.append(mkImg(kImg, "", function () { rc.classList.add("empty"); })); else rc.classList.add("empty"); runeCol.append(rc);
+      sr.append(spellsCol, runeCol);
+
+      const info = document.createElement("div"); info.className = "sb-info";
+      const nm = document.createElement("div"); nm.className = "sb-name"; nm.textContent = p.name || p.champion;
+      const kd = document.createElement("div"); kd.className = "sb-kda";
+      const ratio = p.d ? ((p.k + p.a) / p.d).toFixed(1) : p.k + p.a;
+      kd.innerHTML = `<b>${p.k}/${p.d}/${p.a}</b> <span>${ratio} KDA · ${p.kp}% KP</span>`;
+      info.append(nm, kd);
+
+      const items = document.createElement("div"); items.className = "sb-items";
+      for (const it of (p.items || [])) { const c = document.createElement("span"); c.className = "sb-item"; if (it) c.append(mkImg(itemImg(ver, it), "", function () { c.classList.add("empty"); })); else c.classList.add("empty"); items.append(c); }
+
+      const cs = document.createElement("div"); cs.className = "sb-cs"; cs.textContent = `${p.cs} CS`;
+
+      const dmg = document.createElement("div"); dmg.className = "sb-dmg";
+      dmg.innerHTML = `<div class="sb-dmgnum">${kFmt(p.dmg)}</div><div class="sb-bar"><div class="sb-fill" style="width:${Math.round((p.dmg / maxDmg) * 100)}%"></div></div>`;
+
+      row.append(champ, sr, info, items, cs, dmg);
+      team.append(row);
     }
     wrap.append(team);
   }
@@ -363,6 +408,18 @@ $("predict-btn").addEventListener("click", async () => {
     out.classList.remove("loading");
     out.textContent = res && res.text ? res.text : (res && res.error) || "Couldn't generate a forecast.";
   } catch (e) { out.classList.remove("loading"); out.textContent = "Forecast failed: " + (e && e.message ? e.message : "error"); }
+  finally { btn.disabled = false; }
+});
+
+// ===== AI champion picks =====
+$("champ-btn").addEventListener("click", async () => {
+  const btn = $("champ-btn"), out = $("champ-out");
+  btn.disabled = true; out.classList.remove("hidden"); out.classList.add("loading"); out.textContent = "Finding your best champions to climb…";
+  try {
+    const res = await api.suggestChamps();
+    out.classList.remove("loading");
+    out.textContent = res && res.text ? res.text : (res && res.error) || "Couldn't generate suggestions.";
+  } catch (e) { out.classList.remove("loading"); out.textContent = "Suggestion failed: " + (e && e.message ? e.message : "error"); }
   finally { btn.disabled = false; }
 });
 

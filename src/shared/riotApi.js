@@ -252,6 +252,15 @@ function processMatch(m, puuid) {
     position: me.teamPosition || me.individualPosition || "",
     // Full lobby for the participant columns + the expandable scoreboard.
     participants: parts.map((p) => pStats(p, puuid)),
+    teams: (info.teams || []).map((t) => ({
+      teamId: t.teamId,
+      win: !!t.win,
+      baron: (t.objectives && t.objectives.baron && t.objectives.baron.kills) || 0,
+      dragon: (t.objectives && t.objectives.dragon && t.objectives.dragon.kills) || 0,
+      herald: (t.objectives && t.objectives.riftHerald && t.objectives.riftHerald.kills) || 0,
+      grubs: (t.objectives && t.objectives.horde && t.objectives.horde.kills) || 0,
+      tower: (t.objectives && t.objectives.tower && t.objectives.tower.kills) || 0,
+    })),
   };
 }
 

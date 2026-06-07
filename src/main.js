@@ -442,6 +442,70 @@ async function predictRankUp() {
   }
 }
 
+// One-shot (non-streaming) Claude call that recommends champions to climb with,
+// based on rank, main role, and recent champion performance. { text } | { error }.
+async function champAdvice() {
+  const status = coachConfigStatus();
+  if (!status.ready) return { error: status.message };
+  const cfg = loadConfig();
+
+  let sum = null;
+  try { sum = await getCurrentSummary(); } catch (_) {}
+  const rank = (sum && sum.progress && sum.progress.label) || "Unranked";
+
+  let matches = [];
+  if (cfg.riotId && cfg.region && cfg.riotApiKey) {
+    const acc = { riotId: cfg.riotId, region: cfg.region, riotApiKey: cfg.riotApiKey };
+    try { matches = await riotApi.getMatches(acc, "ranked", 20); } catch (_) {}
+    if (!matches.length) { try { matches = await riotApi.getMatches(acc, "all", 20); } catch (_) {} }
+  }
+  const champs = {}, roles = {};
+  for (const m of matches) {
+    if (m.remake) continue;
+    const c = champs[m.champion] || (champs[m.champion] = { g: 0, w: 0, k: 0, d: 0, a: 0 });
+    c.g++; if (m.win) c.w++; c.k += m.k; c.d += m.d; c.a += m.a;
+    if (m.position) roles[m.position] = (roles[m.position] || 0) + 1;
+  }
+  const champList = Object.entries(champs)
+    .sort((a, b) => b[1].g - a[1].g).slice(0, 8)
+    .map(([n, c]) => `${n}: ${c.g} games, ${Math.round((c.w / c.g) * 100)}% WR, ${c.d ? (((c.k + c.a) / c.d).toFixed(1)) : c.k + c.a} KDA`)
+    .join("\n");
+  const topRole = Object.entries(roles).sort((a, b) => b[1] - a[1])[0];
+  const role = topRole ? topRole[0] : "any role";
+
+  const facts = `Rank: ${rank}\nMain role: ${role}\nRecent champions:\n${champList || "(no recent ranked games on record)"}`;
+  const system =
+    "You are a League of Legends climbing coach. Given a player's rank, main role, " +
+    "and recent champion performance, recommend 4-5 specific champions they should " +
+    "play to rank up. Favor (1) their own strongest performers and (2) reliable, " +
+    "easy-to-climb meta picks for their rank and role. For each champion give one " +
+    "short line on why it helps them climb. Then add 2-3 concrete things to focus on " +
+    "to rank up. Keep it tight and practical, short bullets, no preamble.";
+
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "x-api-key": cfg.anthropicApiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+      body: JSON.stringify({
+        model: cfg.coachModel || "claude-sonnet-4-6",
+        max_tokens: 700,
+        system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
+        messages: [{ role: "user", content: "My profile:\n" + facts }],
+      }),
+    });
+    if (!res.ok) {
+      let detail = String(res.status);
+      try { const j = await res.json(); detail = (j.error && j.error.message) || detail; } catch (_) {}
+      return { error: "Suggestion error: " + detail };
+    }
+    const j = await res.json();
+    const text = (j.content || []).map((b) => (b && b.type === "text" ? b.text : "")).join("").trim();
+    return { text: text || "No suggestions returned." };
+  } catch (e) {
+    return { error: "Suggestion request failed: " + e.message };
+  }
+}
+
 // Assemble everything the home/client window renders.
 async function buildHomeData() {
   const cfg = loadConfig();
@@ -614,9 +678,12 @@ ipcMain.handle("get-pregame", async () => {
 // Home / client window
 ipcMain.handle("get-home", () => buildHomeData());
 ipcMain.handle("home-predict", () => predictRankUp());
+ipcMain.handle("home-champs", () => champAdvice());
 ipcMain.handle("save-settings", (_e, s) => {
   const patch = {};
-  if (s && typeof s.anthropicApiKey === "string") patch.anthropicApiKey = s.anthropicApiKey;
+  // Only overwrite the AI key when a non-empty value is submitted — prevents an
+  // empty Settings field from silently wiping a previously-saved key.
+  if (s && typeof s.anthropicApiKey === "string" && s.anthropicApiKey.trim()) patch.anthropicApiKey = s.anthropicApiKey.trim();
   if (s && typeof s.baselineApiUrl === "string") patch.baselineApiUrl = s.baselineApiUrl;
   try {
     saveConfig(patch);

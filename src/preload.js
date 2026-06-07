@@ -30,6 +30,7 @@ contextBridge.exposeInMainWorld("pepstats", {
   getHome: () => ipcRenderer.invoke("get-home"),
   onHome: (cb) => ipcRenderer.on("home-update", () => cb()),
   predictRankUp: () => ipcRenderer.invoke("home-predict"),
+  suggestChamps: () => ipcRenderer.invoke("home-champs"),
   saveSettings: (s) => ipcRenderer.invoke("save-settings", s),
 
   // Match history
