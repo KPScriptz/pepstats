@@ -111,9 +111,11 @@ async function fetchProfile(cfg) {
       `/lol/summoner/v4/summoners/by-puuid/${encodeURIComponent(account.puuid)}`,
       key
     );
+    // league-v4 is queried by PUUID. Riot removed the encrypted summoner `id`
+    // from summoner-v4 responses, so the old by-summoner/{id} path 403s.
     entries = await getJson(
       reg.platform + ".api.riotgames.com",
-      `/lol/league/v4/entries/by-summoner/${encodeURIComponent(summoner.id)}`,
+      `/lol/league/v4/entries/by-puuid/${encodeURIComponent(account.puuid)}`,
       key
     );
   } catch (err) {
