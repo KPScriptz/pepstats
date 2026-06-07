@@ -1,163 +1,214 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark" data-density="comfortable">
   <head>
     <meta charset="UTF-8" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'none'; style-src 'self'; script-src 'self'; font-src 'self'; img-src 'self' data:;"
+      content="default-src 'none'; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self'; img-src 'self' data:;"
     />
     <link rel="stylesheet" href="styles.css" />
     <title>PepStats</title>
   </head>
   <body>
-    <!-- Custom title bar (frameless window) -->
-    <header class="titlebar">
-      <div class="tb-brand">
-        <span class="tb-mark"></span>
-        <span class="tb-name">PEPSTATS</span>
-      </div>
-      <div class="tb-controls">
-        <button id="tb-min" class="tb-btn" title="Minimize" aria-label="Minimize">&#x2013;</button>
-        <button id="tb-close" class="tb-btn tb-close" title="Close" aria-label="Close">&#x2715;</button>
-      </div>
-    </header>
-
     <!-- ===== First-run: link Riot account ===== -->
     <section id="setup" class="setup hidden">
-      <div class="setup-card">
-        <div class="setup-mark"></div>
-        <h1 class="setup-title">Connect your Riot account</h1>
-        <p class="setup-sub">
-          PepStats reads your rank and match stats through Riot's official API.
-          Enter your Riot ID and paste a free personal API key — it stays on this
-          PC and is never shared.
-        </p>
-
-        <label class="field">
-          <span>Riot ID</span>
-          <input id="su-riotid" type="text" placeholder="Name#Tag" spellcheck="false" />
-        </label>
-        <label class="field">
-          <span>Region</span>
-          <select id="su-region"></select>
-        </label>
-        <label class="field">
-          <span>Riot personal API key</span>
-          <input id="su-key" type="password" placeholder="RGAPI-…" spellcheck="false" />
-        </label>
-
-        <p class="setup-help">
-          Get a free key: open <b>developer.riotgames.com</b> → sign in with Riot →
-          <b>Register Product → Personal API Key</b>, then paste it above.
-          <i>(A personal key doesn't expire.)</i>
-        </p>
-
-        <div id="su-error" class="setup-error hidden"></div>
-
-        <div class="row">
-          <button id="su-connect" class="btn btn-accent">Connect account</button>
-          <button id="su-skip" class="btn">Use League client only</button>
+      <header class="setup-bar">
+        <div class="brand"><span class="brand-mark"></span><span class="brand-name">PEPSTATS</span></div>
+        <div class="winctl">
+          <button id="su-min" class="wc" aria-label="Minimize">&#xE921;</button>
+          <button id="su-close" class="wc wc-close" aria-label="Close">&#xE8BB;</button>
+        </div>
+      </header>
+      <div class="setup-wrap">
+        <div class="setup-card">
+          <div class="setup-mark"></div>
+          <h1 class="setup-title">Connect your Riot account</h1>
+          <p class="setup-sub">
+            PepStats reads your rank and match stats through Riot's official API.
+            Enter your Riot ID and paste a free personal API key — it stays on this
+            PC and is never shared.
+          </p>
+          <label class="field"><span>Riot ID</span>
+            <input id="su-riotid" type="text" placeholder="Name#Tag" spellcheck="false" /></label>
+          <label class="field"><span>Region</span><select id="su-region"></select></label>
+          <label class="field"><span>Riot personal API key</span>
+            <input id="su-key" type="password" placeholder="RGAPI-…" spellcheck="false" /></label>
+          <p class="setup-help">
+            Get a free key: open <b>developer.riotgames.com</b> → sign in with Riot →
+            <b>Register Product → Personal API Key</b>. <i>(A personal key doesn't expire.)</i>
+          </p>
+          <div id="su-error" class="banner-error hidden"></div>
+          <div class="row">
+            <button id="su-connect" class="btn btn-accent">Connect account</button>
+            <button id="su-skip" class="btn btn-ghost">Use League client only</button>
+          </div>
         </div>
       </div>
     </section>
 
-    <main class="client">
-      <!-- ===== Ranked progression hero ===== -->
-      <section class="hero card">
-        <div class="hero-left">
-          <div class="rank-emblem" id="rank-emblem"><span id="emblem-letter">?</span></div>
-          <div class="rank-meta">
-            <div class="rank-now" id="rank-now">Unranked</div>
-            <div class="rank-next" id="rank-next">—</div>
-            <div class="lp-bar"><div class="lp-fill" id="lp-fill"></div></div>
-            <div class="lp-text" id="lp-text">— LP</div>
-          </div>
+    <!-- ===== App shell ===== -->
+    <div id="app" class="app hidden">
+      <!-- Left navigation rail -->
+      <nav class="rail">
+        <div class="rail-logo"><span class="brand-mark lg"></span></div>
+        <div class="nav">
+          <button class="nav-item active" data-page="dashboard" title="Dashboard">
+            <svg viewBox="0 0 24 24" class="ic"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
+            <span>Dashboard</span>
+          </button>
+          <button class="nav-item" data-page="progress" title="Progress">
+            <svg viewBox="0 0 24 24" class="ic"><path d="M3.5 18.5l6-6 4 4L22 6.92 20.59 5.5l-7.09 8-4-4L2 17l1.5 1.5z"/></svg>
+            <span>Progress</span>
+          </button>
+          <button class="nav-item" data-page="settings" title="Settings">
+            <svg viewBox="0 0 24 24" class="ic"><path d="M19.14 12.94a7.49 7.49 0 000-1.88l2.03-1.58a.5.5 0 00.12-.64l-1.92-3.32a.5.5 0 00-.61-.22l-2.39.96a7.3 7.3 0 00-1.62-.94l-.36-2.54a.5.5 0 00-.5-.42h-3.84a.5.5 0 00-.5.42l-.36 2.54c-.58.24-1.12.56-1.62.94l-2.39-.96a.5.5 0 00-.61.22L2.74 8.84a.5.5 0 00.12.64l2.03 1.58a7.49 7.49 0 000 1.88l-2.03 1.58a.5.5 0 00-.12.64l1.92 3.32c.14.24.42.34.68.22l2.39-.96c.5.38 1.04.7 1.62.94l.36 2.54c.05.24.26.42.5.42h3.84c.24 0 .45-.18.5-.42l.36-2.54c.58-.24 1.12-.56 1.62-.94l2.39.96c.26.12.54.02.68-.22l1.92-3.32a.5.5 0 00-.12-.64l-2.03-1.58zM12 15.5A3.5 3.5 0 1112 8.5a3.5 3.5 0 010 7z"/></svg>
+            <span>Settings</span>
+          </button>
         </div>
-        <div class="hero-right">
-          <div class="kpi">
-            <div class="kpi-val" id="kpi-weekly">—</div>
-            <div class="kpi-lbl">Weekly LP</div>
-          </div>
-          <div class="kpi">
-            <div class="kpi-val" id="kpi-level">—</div>
-            <div class="kpi-lbl">Account Lvl</div>
-          </div>
-          <div class="kpi">
-            <div class="kpi-val" id="kpi-wr">—</div>
-            <div class="kpi-lbl">Win Rate</div>
-          </div>
+        <div class="rail-foot">
+          <div class="rank-chip" id="rank-chip"><span class="rc-em" id="rc-em">?</span><span class="rc-tx" id="rc-tx">Unranked</span></div>
         </div>
-      </section>
+      </nav>
 
-      <!-- ===== AI rank-up prediction ===== -->
-      <section class="card predict">
-        <div class="predict-head">
-          <div>
-            <div class="card-title">AI Rank-Up Forecast</div>
-            <div class="card-sub" id="predict-sub">Estimate how fast you can climb at your current pace.</div>
+      <!-- Main column -->
+      <div class="main">
+        <header class="topbar">
+          <div class="tb-titles"><h1 id="page-title">Dashboard</h1><div class="page-sub" id="page-sub">Your ranked snapshot</div></div>
+          <div class="topbar-right">
+            <span class="conn"><i id="conn-dot" class="conn-dot off"></i><span id="conn-tx">Offline</span></span>
+            <div class="winctl">
+              <button id="tb-min" class="wc" aria-label="Minimize">&#xE921;</button>
+              <button id="tb-close" class="wc wc-close" aria-label="Close">&#xE8BB;</button>
+            </div>
           </div>
-          <button id="predict-btn" class="btn btn-accent">Predict</button>
+        </header>
+
+        <div class="scroll">
+          <!-- ===== Dashboard ===== -->
+          <section class="page" id="page-dashboard">
+            <div class="hero card">
+              <div class="hero-left">
+                <div class="rank-emblem" id="rank-emblem"><span id="emblem-letter">?</span></div>
+                <div class="rank-meta">
+                  <div class="rank-now" id="rank-now">Unranked</div>
+                  <div class="rank-next" id="rank-next">Play ranked to start tracking</div>
+                  <div class="lp-bar"><div class="lp-fill" id="lp-fill"></div></div>
+                  <div class="lp-text" id="lp-text">— LP</div>
+                </div>
+              </div>
+              <div class="hero-right">
+                <div class="kpi"><div class="kpi-val" id="kpi-weekly">—</div><div class="kpi-lbl">Weekly LP</div></div>
+                <div class="kpi"><div class="kpi-val" id="kpi-level">—</div><div class="kpi-lbl">Account Lvl</div></div>
+                <div class="kpi"><div class="kpi-val" id="kpi-wr">—</div><div class="kpi-lbl">Win Rate</div></div>
+              </div>
+            </div>
+
+            <div class="card predict">
+              <div class="predict-head">
+                <div><div class="card-title">AI Rank-Up Forecast</div>
+                  <div class="card-sub" id="predict-sub">Estimate how fast you can climb at your current pace.</div></div>
+                <button id="predict-btn" class="btn btn-accent">Predict</button>
+              </div>
+              <div id="predict-out" class="predict-out hidden"></div>
+            </div>
+
+            <div class="grid2">
+              <div class="card">
+                <div class="card-title">Last Match</div>
+                <div id="lm-empty" class="muted">No match recorded yet this session.</div>
+                <div id="lm-body" class="hidden">
+                  <div class="lm-champ" id="lm-champ">—</div>
+                  <ul class="kv">
+                    <li><span>KDA</span><b id="lm-kda">—</b></li>
+                    <li><span>CS</span><b id="lm-cs">—</b></li>
+                  </ul>
+                  <button id="lm-review" class="btn btn-ghost">Open AI Review</button>
+                </div>
+              </div>
+              <div class="card">
+                <div class="card-title">Status</div>
+                <ul class="kv">
+                  <li><span>League client</span><b id="st-client" class="pill off">Offline</b></li>
+                  <li><span>Phase</span><b id="st-phase">Idle</b></li>
+                  <li><span>Summoner</span><b id="st-summoner">—</b></li>
+                  <li><span>Data source</span><b id="st-source">—</b></li>
+                </ul>
+              </div>
+            </div>
+          </section>
+
+          <!-- ===== Progress ===== -->
+          <section class="page hidden" id="page-progress">
+            <div class="grid3">
+              <div class="card stat-card"><div class="big" id="pg-wr">—</div><div class="card-sub">Win rate</div></div>
+              <div class="card stat-card"><div class="big" id="pg-record">—</div><div class="card-sub">Solo/Duo record</div></div>
+              <div class="card stat-card"><div class="big" id="pg-weekly">—</div><div class="card-sub">Weekly LP</div></div>
+            </div>
+            <div class="card">
+              <div class="card-title">LP history</div>
+              <div id="pg-hist-empty" class="muted">Tracking starts now — your daily LP is recorded each launch.</div>
+              <ul id="pg-hist" class="hist hidden"></ul>
+            </div>
+          </section>
+
+          <!-- ===== Settings ===== -->
+          <section class="page hidden" id="page-settings">
+            <div class="card">
+              <div class="card-title">Account</div>
+              <ul class="kv">
+                <li><span>Linked Riot ID</span><b id="set-riotid">—</b></li>
+                <li><span>Region</span><b id="set-region">—</b></li>
+              </ul>
+              <div class="row"><button id="set-relink" class="btn btn-ghost">Re-link account</button></div>
+            </div>
+
+            <div class="card">
+              <div class="card-title">AI</div>
+              <label class="field"><span>Anthropic API key</span>
+                <input id="set-key" type="password" placeholder="sk-ant-…" spellcheck="false" /></label>
+              <label class="field"><span>Baseline API URL <i>(optional)</i></span>
+                <input id="set-baseline" type="text" placeholder="https://…/{rank}/{role}" spellcheck="false" /></label>
+              <div class="row"><button id="set-save" class="btn btn-accent">Save</button>
+                <span id="set-status" class="save-status"></span></div>
+            </div>
+
+            <div class="card">
+              <div class="card-title">Appearance</div>
+
+              <div class="opt"><span class="opt-lbl">Theme</span>
+                <div class="seg" id="seg-theme">
+                  <button data-v="dark" class="active">Dark</button><button data-v="light">Light</button>
+                </div></div>
+
+              <div class="opt"><span class="opt-lbl">Accent</span>
+                <div class="swatches" id="swatches"></div>
+                <input id="accent-custom" type="color" class="accent-custom" value="#36d6d6" title="Custom accent" /></div>
+
+              <div class="opt"><span class="opt-lbl">Density</span>
+                <div class="seg" id="seg-density">
+                  <button data-v="comfortable" class="active">Comfortable</button><button data-v="compact">Compact</button>
+                </div></div>
+
+              <div class="opt"><span class="opt-lbl">UI size</span>
+                <input id="rng-font" type="range" min="0.85" max="1.2" step="0.05" value="1" />
+                <span class="rng-val" id="val-font">100%</span></div>
+
+              <div class="sub-head">In-game overlay</div>
+              <div class="opt"><span class="opt-lbl">Overlay size</span>
+                <input id="rng-ovscale" type="range" min="0.8" max="1.3" step="0.05" value="1" />
+                <span class="rng-val" id="val-ovscale">100%</span></div>
+              <div class="opt"><span class="opt-lbl">Overlay opacity</span>
+                <input id="rng-ovop" type="range" min="0.4" max="1" step="0.05" value="1" />
+                <span class="rng-val" id="val-ovop">100%</span></div>
+              <div class="opt opt-rows"><span class="opt-lbl">Overlay rows</span>
+                <div class="chips" id="row-toggles"></div></div>
+            </div>
+          </section>
         </div>
-        <div id="predict-out" class="predict-out hidden"></div>
-      </section>
+      </div>
+    </div>
 
-      <!-- ===== Dashboard grid ===== -->
-      <section class="grid">
-        <!-- Status & connection -->
-        <div class="card">
-          <div class="card-title">Status</div>
-          <ul class="kv">
-            <li><span>League client</span><b id="st-client" class="pill">—</b></li>
-            <li><span>Phase</span><b id="st-phase">—</b></li>
-            <li><span>Summoner</span><b id="st-summoner">—</b></li>
-          </ul>
-        </div>
-
-        <!-- Last match review -->
-        <div class="card">
-          <div class="card-title">Last Match</div>
-          <div id="lm-empty" class="muted">No match recorded yet this session.</div>
-          <div id="lm-body" class="hidden">
-            <div class="lm-champ" id="lm-champ">—</div>
-            <ul class="kv">
-              <li><span>KDA</span><b id="lm-kda">—</b></li>
-              <li><span>CS</span><b id="lm-cs">—</b></li>
-            </ul>
-            <button id="lm-review" class="btn">Open AI Review</button>
-          </div>
-        </div>
-
-        <!-- Recent history -->
-        <div class="card">
-          <div class="card-title">Recent Progress</div>
-          <div id="hist-empty" class="muted">Tracking starts now — check back after a few days of ranked.</div>
-          <ul id="hist-list" class="hist hidden"></ul>
-        </div>
-
-        <!-- Settings -->
-        <div class="card">
-          <div class="card-title">Settings</div>
-          <label class="field">
-            <span>Anthropic API key</span>
-            <input id="set-key" type="password" placeholder="sk-ant-…" spellcheck="false" />
-          </label>
-          <label class="field">
-            <span>Baseline API URL <i>(optional)</i></span>
-            <input id="set-baseline" type="text" placeholder="https://…/{rank}/{role}" spellcheck="false" />
-          </label>
-          <div class="row">
-            <button id="set-save" class="btn btn-accent">Save</button>
-            <button id="set-reposition" class="btn">Reposition overlay</button>
-            <span id="set-status" class="set-status"></span>
-          </div>
-        </div>
-      </section>
-
-      <footer class="foot">
-        <span id="foot-refresh" class="muted">—</span>
-      </footer>
-    </main>
-
+    <script src="../theme.js"></script>
     <script src="home.js"></script>
   </body>
 </html>

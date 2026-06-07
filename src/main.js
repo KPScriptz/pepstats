@@ -296,7 +296,9 @@ function loadConfig() {
   ];
   for (const p of candidates) {
     try {
-      return JSON.parse(fs.readFileSync(p, "utf8"));
+      // Strip a leading UTF-8 BOM — JSON.parse throws on it, and editors (or
+      // PowerShell's Out-File) can add one to a hand-edited config.json.
+      return JSON.parse(fs.readFileSync(p, "utf8").replace(/^﻿/, ""));
     } catch (_) {
       /* try next */
     }
@@ -318,6 +320,44 @@ function saveConfig(patch) {
   const next = { ...cur, ...patch };
   fs.writeFileSync(file, JSON.stringify(next, null, 2));
   return next;
+}
+
+// ----- Theme / customization -------------------------------------------------
+const THEME_DEFAULTS = {
+  theme: "dark", // "dark" | "light"
+  accent: "#36d6d6",
+  density: "comfortable", // "comfortable" | "compact"
+  fontScale: 1, // 0.9 .. 1.15
+  overlay: {
+    scale: 1, // 0.8 .. 1.3
+    opacity: 1, // 0.5 .. 1
+    rows: { csm: true, gpm: true, vision: true, kp: true, kda: true, lvl: true },
+  },
+};
+
+// Resolve the saved UI settings over the defaults (always returns a full object).
+function resolveTheme() {
+  const ui = (loadConfig() || {}).ui || {};
+  const ov = ui.overlay || {};
+  const num = (v, d, lo, hi) =>
+    typeof v === "number" && isFinite(v) ? Math.min(hi, Math.max(lo, v)) : d;
+  return {
+    theme: ui.theme === "light" ? "light" : "dark",
+    accent: typeof ui.accent === "string" && /^#[0-9a-fA-F]{6}$/.test(ui.accent) ? ui.accent : THEME_DEFAULTS.accent,
+    density: ui.density === "compact" ? "compact" : "comfortable",
+    fontScale: num(ui.fontScale, 1, 0.85, 1.2),
+    overlay: {
+      scale: num(ov.scale, 1, 0.8, 1.3),
+      opacity: num(ov.opacity, 1, 0.4, 1),
+      rows: { ...THEME_DEFAULTS.overlay.rows, ...(ov.rows || {}) },
+    },
+  };
+}
+
+// Push the current theme to every open window so changes apply live.
+function broadcastTheme() {
+  const t = resolveTheme();
+  for (const r of Object.keys(windows)) sendTo(r, "theme", t);
 }
 
 // Current ranked summary from the best available source: the live LCU when the
@@ -432,6 +472,7 @@ async function buildHomeData() {
     },
     lastMatch: lastSnapshot,
     history: rankProgress.history(app.getPath("userData")),
+    theme: resolveTheme(),
   };
 }
 
@@ -584,6 +625,24 @@ ipcMain.handle("save-settings", (_e, s) => {
     return { ok: false, error: e.message };
   }
 });
+ipcMain.handle("get-theme", () => resolveTheme());
+ipcMain.handle("save-theme", (_e, patch) => {
+  const cur = resolveTheme();
+  const p = patch || {};
+  const merged = {
+    ...cur,
+    ...p,
+    overlay: {
+      ...cur.overlay,
+      ...(p.overlay || {}),
+      rows: { ...cur.overlay.rows, ...((p.overlay && p.overlay.rows) || {}) },
+    },
+  };
+  saveConfig({ ui: merged });
+  broadcastTheme();
+  return resolveTheme();
+});
+
 ipcMain.handle("riot-regions", () => riotApi.regionList());
 ipcMain.handle("connect-riot", async (_e, s) => {
   const cfg = {

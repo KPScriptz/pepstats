@@ -36,6 +36,11 @@ contextBridge.exposeInMainWorld("pepstats", {
   getRiotRegions: () => ipcRenderer.invoke("riot-regions"),
   connectRiot: (s) => ipcRenderer.invoke("connect-riot", s),
   skipRiot: () => ipcRenderer.invoke("skip-riot"),
+
+  // Theme / customization
+  getTheme: () => ipcRenderer.invoke("get-theme"),
+  saveTheme: (patch) => ipcRenderer.invoke("save-theme", patch),
+  onTheme: (cb) => ipcRenderer.on("theme", (_e, t) => cb(t)),
   repositionOverlay: () => ipcRenderer.send("overlay-reposition"),
   openReview: () => ipcRenderer.send("open-review"),
 
