@@ -10,6 +10,7 @@ const { LcuSocket } = require("./shared/lcuSocket");
 const { computeTimers } = require("./shared/timers");
 const rankBaseline = require("./shared/rankBaseline");
 const rankProgress = require("./shared/rankProgress");
+const riotApi = require("./shared/riotApi");
 const processWatch = require("./shared/process");
 const replays = require("./shared/replays");
 
@@ -319,6 +320,19 @@ function saveConfig(patch) {
   return next;
 }
 
+// Current ranked summary from the best available source: the live LCU when the
+// client is open, otherwise the linked Riot account via the official API.
+async function getCurrentSummary() {
+  const cfg = loadConfig();
+  const riotCfg = { riotId: cfg.riotId, region: cfg.region, riotApiKey: cfg.riotApiKey };
+  if (clientUp) return rankProgress.summary(lcu, app.getPath("userData"));
+  if (riotCfg.riotId && riotCfg.region && riotCfg.riotApiKey) {
+    const profile = await riotApi.fetchProfile(riotCfg);
+    return rankProgress.buildSummary(app.getPath("userData"), profile.summoner, profile.ranked, "riot");
+  }
+  return null;
+}
+
 // One-shot (non-streaming) Claude call that estimates the player's climb from
 // their current rank, LP trend, and win rate. Returns { text } or { error }.
 async function predictRankUp() {
@@ -328,7 +342,7 @@ async function predictRankUp() {
 
   let sum = null;
   try {
-    sum = await rankProgress.summary(lcu, app.getPath("userData"));
+    sum = await getCurrentSummary();
   } catch (_) {
     sum = null;
   }
@@ -390,20 +404,31 @@ async function predictRankUp() {
 
 // Assemble everything the home/client window renders.
 async function buildHomeData() {
+  const cfg = loadConfig();
+  const riotCfg = { riotId: cfg.riotId, region: cfg.region, riotApiKey: cfg.riotApiKey };
+  const configured = !!(riotCfg.riotId && riotCfg.region && riotCfg.riotApiKey);
+
+  // Prefer the live LCU when the client is open; otherwise use the linked Riot
+  // account via the official API so stats still show with the client closed.
   let summary = null;
   try {
-    if (clientUp) summary = await rankProgress.summary(lcu, app.getPath("userData"));
+    summary = await getCurrentSummary();
   } catch (_) {
     summary = null;
   }
-  const cfg = loadConfig();
+
   const key = cfg.anthropicApiKey;
   return {
+    needsSetup: !configured && !cfg.riotSkipped,
+    configured,
     summary,
     status: { clientUp, phase: clientPhase },
     settings: {
       anthropicApiKey: key && !String(key).startsWith("sk-ant-...") ? key : "",
       baselineApiUrl: cfg.baselineApiUrl || "",
+      riotId: cfg.riotId || "",
+      region: cfg.region || "",
+      hasRiotKey: !!cfg.riotApiKey,
     },
     lastMatch: lastSnapshot,
     history: rankProgress.history(app.getPath("userData")),
@@ -558,6 +583,27 @@ ipcMain.handle("save-settings", (_e, s) => {
   } catch (e) {
     return { ok: false, error: e.message };
   }
+});
+ipcMain.handle("riot-regions", () => riotApi.regionList());
+ipcMain.handle("connect-riot", async (_e, s) => {
+  const cfg = {
+    riotId: (s && s.riotId || "").trim(),
+    region: (s && s.region || "").trim().toUpperCase(),
+    riotApiKey: (s && s.riotApiKey || "").trim(),
+  };
+  try {
+    // Validate by actually fetching the profile before saving.
+    const profile = await riotApi.fetchProfile(cfg);
+    saveConfig({ ...cfg, riotSkipped: false });
+    accountRank = null; // re-resolve baseline rank against the linked account
+    return { ok: true, name: profile.summoner.name, tag: profile.summoner.tagLine };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+ipcMain.handle("skip-riot", () => {
+  saveConfig({ riotSkipped: true });
+  return { ok: true };
 });
 ipcMain.on("overlay-reposition", () => setDesignMode(true));
 ipcMain.on("open-review", () => {

@@ -3,5 +3,9 @@
   "anthropicApiKey": "sk-ant-...",
   "coachModel": "claude-sonnet-4-6",
   "_baselineComment": "Optional. URL of a stats API returning rank-average JSON for the in-game overlay's 'you vs rank' comparison. Supports {rank}/{role}/{mode} placeholders; response may include csmPerMin, kp, kda, visionPerMin. Leave empty to use the built-in baked-in baselines.",
-  "baselineApiUrl": ""
+  "baselineApiUrl": "",
+  "_riotComment": "Set via the app's first-run setup, not by hand. Links your Riot account so stats show even when the League client is closed. region is a code like NA/EUW/KR; riotApiKey is a personal key from developer.riotgames.com (does not expire).",
+  "riotId": "",
+  "region": "",
+  "riotApiKey": ""
 }

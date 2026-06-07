@@ -31,6 +31,11 @@ contextBridge.exposeInMainWorld("pepstats", {
   onHome: (cb) => ipcRenderer.on("home-update", () => cb()),
   predictRankUp: () => ipcRenderer.invoke("home-predict"),
   saveSettings: (s) => ipcRenderer.invoke("save-settings", s),
+
+  // Riot account linking (first-run setup)
+  getRiotRegions: () => ipcRenderer.invoke("riot-regions"),
+  connectRiot: (s) => ipcRenderer.invoke("connect-riot", s),
+  skipRiot: () => ipcRenderer.invoke("skip-riot"),
   repositionOverlay: () => ipcRenderer.send("overlay-reposition"),
   openReview: () => ipcRenderer.send("open-review"),
 

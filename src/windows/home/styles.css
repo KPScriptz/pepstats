@@ -190,3 +190,41 @@ html, body {
 .set-status.show { opacity: 1; }
 
 .foot { text-align: center; padding: 2px 0 4px; }
+
+/* ---- First-run setup ---- */
+.setup {
+  height: calc(100% - 38px); display: grid; place-items: center; padding: 24px;
+  animation: rise 0.35s ease both;
+}
+.setup-card {
+  width: 100%; max-width: 460px;
+  background: var(--card); border: 1px solid var(--card-bd); border-radius: 16px;
+  padding: 26px 26px 22px; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+}
+.setup-mark {
+  width: 46px; height: 46px; border-radius: 13px; margin-bottom: 14px;
+  background: linear-gradient(150deg, #2a3340, #12151b);
+  border: 1px solid rgba(54, 214, 214, 0.5); position: relative;
+}
+.setup-mark::after {
+  content: ""; position: absolute; left: 9px; right: 9px; bottom: 15px; height: 12px;
+  border-bottom: 3px solid var(--teal); border-right: 3px solid var(--teal);
+  transform: rotate(-32deg); transform-origin: right; border-radius: 2px;
+}
+.setup-title { font-size: 21px; font-weight: 800; }
+.setup-sub { font-size: 13px; color: var(--muted); line-height: 1.6; margin: 6px 0 14px; }
+.setup-card select {
+  background: rgba(0, 0, 0, 0.28); border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 9px; padding: 9px 11px; color: var(--txt); font-size: 13px;
+  font-family: inherit; outline: none;
+}
+.setup-card select:focus { border-color: rgba(54, 214, 214, 0.7); }
+.setup-help { font-size: 11.5px; color: var(--muted); line-height: 1.6; margin: 14px 0 4px; }
+.setup-help b { color: #c2c9d4; font-weight: 700; }
+.setup-help i { font-style: normal; opacity: 0.75; }
+.setup-error {
+  font-size: 12.5px; color: var(--bad); background: rgba(255, 93, 108, 0.1);
+  border: 1px solid rgba(255, 93, 108, 0.25); border-radius: 9px;
+  padding: 9px 11px; margin: 6px 0 4px;
+}
+.linked-tag { color: var(--good); font-size: 11px; font-weight: 700; }

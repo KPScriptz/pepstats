@@ -20,9 +20,77 @@ function signedLp(n) {
   return (n >= 0 ? "+" : "−") + Math.abs(n);
 }
 
+// ---- First-run setup ----
+let regionsLoaded = false;
+async function loadRegions() {
+  if (regionsLoaded || !api.getRiotRegions) return;
+  try {
+    const regions = await api.getRiotRegions();
+    const sel = $("su-region");
+    sel.innerHTML = "";
+    for (const r of regions || []) {
+      const o = document.createElement("option");
+      o.value = r.code;
+      o.textContent = r.label + " (" + r.code + ")";
+      sel.append(o);
+    }
+    regionsLoaded = true;
+  } catch (_) {
+    /* ignore */
+  }
+}
+
+function showSetup(show) {
+  $("setup").classList.toggle("hidden", !show);
+  document.querySelector("main.client").classList.toggle("hidden", show);
+  if (show) loadRegions();
+}
+
+$("su-connect").addEventListener("click", async () => {
+  const btn = $("su-connect");
+  const err = $("su-error");
+  err.classList.add("hidden");
+  btn.disabled = true;
+  const prev = btn.textContent;
+  btn.textContent = "Connecting…";
+  try {
+    const res = await api.connectRiot({
+      riotId: $("su-riotid").value,
+      region: $("su-region").value,
+      riotApiKey: $("su-key").value,
+    });
+    if (res && res.ok) {
+      showSetup(false);
+      refresh();
+    } else {
+      err.textContent = (res && res.error) || "Couldn't connect. Check your details.";
+      err.classList.remove("hidden");
+    }
+  } catch (e) {
+    err.textContent = "Connection failed: " + (e && e.message ? e.message : "unknown error");
+    err.classList.remove("hidden");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = prev;
+  }
+});
+
+$("su-skip").addEventListener("click", async () => {
+  try {
+    await api.skipRiot();
+  } catch (_) {}
+  showSetup(false);
+  refresh();
+});
+
 // ---- Render ----
 function render(data) {
   if (!data) return;
+  if (data.needsSetup) {
+    showSetup(true);
+    return;
+  }
+  showSetup(false);
   const { summary, status, settings, lastMatch } = data;
 
   // Hero: rank

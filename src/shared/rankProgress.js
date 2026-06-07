@@ -152,10 +152,10 @@ function weeklyGain(dir, solo) {
   return { gain: cur - base, tracking: h.length < 2, since: within[0].day };
 }
 
-// One call the home window uses to render everything. `dir` = a writable dir
-// (the app's userData) for the LP-history file.
-async function summary(lcu, dir) {
-  const [summoner, ranked] = await Promise.all([getSummoner(lcu), getRanked(lcu)]);
+// Pure builder: given raw { summoner, ranked }, compute the home-window summary
+// (progress + weekly trend) and record an LP snapshot. Shared by both data
+// sources (LCU and the Riot Games API) so the rank math lives in one place.
+function buildSummary(dir, summoner, ranked, source) {
   const solo = ranked && ranked.solo;
   if (solo) recordSnapshot(dir, solo);
 
@@ -163,6 +163,7 @@ async function summary(lcu, dir) {
   const winRate = games > 0 ? Math.round((solo.wins / games) * 100) : null;
 
   return {
+    source: source || null,
     summoner,
     ranked,
     solo,
@@ -178,6 +179,13 @@ async function summary(lcu, dir) {
   };
 }
 
+// LCU-sourced summary (League client running). `dir` = a writable dir (userData)
+// for the LP-history file.
+async function summary(lcu, dir) {
+  const [summoner, ranked] = await Promise.all([getSummoner(lcu), getRanked(lcu)]);
+  return buildSummary(dir, summoner, ranked, "lcu");
+}
+
 // The raw LP-history snapshots, for the home window's "recent progress" list.
 function history(dir) {
   return loadHist(dir);
@@ -187,6 +195,7 @@ module.exports = {
   getSummoner,
   getRanked,
   summary,
+  buildSummary,
   rankScore,
   nextRankLabel,
   label,
