@@ -491,7 +491,7 @@ function coachConfigStatus() {
     return {
       ready: false,
       message:
-        "Claude coach unavailable — add your Anthropic API key to config.json to enable AI tactical reviews.",
+        "AI coach unavailable — add your AI key in Settings to enable tactical reviews and forecasts.",
     };
   }
   return { ready: true, message: "" };
@@ -641,6 +641,35 @@ ipcMain.handle("save-theme", (_e, patch) => {
   saveConfig({ ui: merged });
   broadcastTheme();
   return resolveTheme();
+});
+
+ipcMain.handle("match-filters", () => riotApi.filterList());
+ipcMain.handle("get-matches", async (_e, filter) => {
+  const cfg = loadConfig();
+  if (!(cfg.riotId && cfg.region && cfg.riotApiKey)) return { ok: false, error: "Link your account first." };
+  try {
+    const account = { riotId: cfg.riotId, region: cfg.region, riotApiKey: cfg.riotApiKey };
+    const matches = await riotApi.getMatches(account, filter || "all", 20);
+    const version = await riotApi.ddragonVersion();
+
+    // Aggregate champion performance + a "last N" summary (remakes excluded).
+    const champs = {};
+    let w = 0, l = 0, games = 0, kS = 0, dS = 0, aS = 0;
+    for (const m of matches) {
+      if (m.remake) continue;
+      games++; m.win ? w++ : l++; kS += m.k; dS += m.d; aS += m.a;
+      const c = champs[m.champion] || (champs[m.champion] = { champion: m.champion, champKey: m.champKey, games: 0, wins: 0, k: 0, d: 0, a: 0 });
+      c.games++; if (m.win) c.wins++; c.k += m.k; c.d += m.d; c.a += m.a;
+    }
+    const champList = Object.values(champs)
+      .map((c) => ({ champion: c.champion, champKey: c.champKey, games: c.games, wins: c.wins, wr: Math.round((c.wins / c.games) * 100), kda: c.d ? +(((c.k + c.a) / c.d).toFixed(2)) : c.k + c.a }))
+      .sort((a, b) => b.games - a.games).slice(0, 6);
+    const summary = { w, l, games, kda: dS ? +(((kS + aS) / dS).toFixed(2)) : kS + aS, avgK: games ? +(kS / games).toFixed(1) : 0, avgD: games ? +(dS / games).toFixed(1) : 0, avgA: games ? +(aS / games).toFixed(1) : 0 };
+
+    return { ok: true, matches, champs: champList, summary, version };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
 });
 
 ipcMain.handle("riot-regions", () => riotApi.regionList());

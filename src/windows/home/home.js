@@ -21,6 +21,7 @@ document.querySelectorAll(".nav-item").forEach((b) => {
     const meta = PAGE_META[page] || ["", ""];
     $("page-title").textContent = meta[0];
     $("page-sub").textContent = meta[1];
+    if (page === "progress" && !matchesLoaded) loadMatches();
   });
 });
 
@@ -100,7 +101,6 @@ function render(data) {
   const cl = $("st-client"); cl.textContent = up ? "Connected" : "Offline"; cl.className = "pill " + (up ? "on" : "off");
   $("st-phase").textContent = (status && PHASE_LABEL[status.phase]) || "Idle";
   $("st-summoner").textContent = sm && sm.name ? sm.name + (sm.tagLine ? "#" + sm.tagLine : "") : "—";
-  $("st-source").textContent = summary && summary.source === "lcu" ? "League client" : summary && summary.source === "riot" ? "Riot API" : "—";
 
   // Last match
   if (lastMatch && lastMatch.champion) {
@@ -111,11 +111,12 @@ function render(data) {
     $("lm-cs").textContent = `${Math.round(lastMatch.cs || 0)} (${(lastMatch.csPerMin || 0).toFixed(1)}/min)`;
   } else { $("lm-empty").classList.remove("hidden"); $("lm-body").classList.add("hidden"); }
 
-  // Progress page
-  $("pg-wr").textContent = p.winRate != null ? p.winRate + "%" : "—";
-  $("pg-record").textContent = solo ? `${p.wins}W-${p.losses}L` : "—";
-  $("pg-weekly").textContent = wk.gain != null && !wk.tracking ? signedLp(wk.gain) + " LP" : "tracking…";
-  renderHistory(data.history || []);
+  // Progress: ranked summary card (match list loads on demand)
+  progressSummary = { solo, p };
+  $("rs-em").textContent = solo && solo.tier ? solo.tier[0] : "?";
+  $("rs-tier").textContent = p.label || "Unranked";
+  $("rs-lp").textContent = solo ? `${div.lp} LP` : "—";
+  $("rs-wr").textContent = solo ? `${p.winRate != null ? p.winRate + "% WR" : "—"} · ${p.wins}W ${p.losses}L` : "—";
 
   // Settings: account + AI fields
   $("set-riotid").textContent = (settings && settings.riotId) || "Not linked";
@@ -126,23 +127,96 @@ function render(data) {
   }
 }
 
-function renderHistory(hist) {
-  const list = hist.slice().reverse();
-  const ok = list.length >= 2;
-  $("pg-hist-empty").classList.toggle("hidden", ok);
-  $("pg-hist").classList.toggle("hidden", !ok);
-  if (!ok) return;
-  const ul = $("pg-hist"); ul.innerHTML = "";
-  for (let i = 0; i < list.length && i < 12; i++) {
-    const e = list[i], prev = list[i + 1];
+// ===== Match history (Progress page, op.gg-style) =====
+let progressSummary = null;
+let matchFilter = "all";
+let matchesLoaded = false;
+let filtersBuilt = false;
+
+const champImg = (ver, key) => `https://ddragon.leagueoflegends.com/cdn/${ver}/img/champion/${key}.png`;
+const itemImg = (ver, id) => `https://ddragon.leagueoflegends.com/cdn/${ver}/img/item/${id}.png`;
+
+function timeAgo(ts) {
+  if (!ts) return "";
+  const s = Math.max(1, Math.floor((Date.now() - ts) / 1000));
+  if (s < 3600) return Math.floor(s / 60) + "m ago";
+  if (s < 86400) return Math.floor(s / 3600) + "h ago";
+  const d = Math.floor(s / 86400);
+  if (d < 14) return d + "d ago";
+  return Math.floor(d / 7) + "w ago";
+}
+const dur = (s) => Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+
+async function buildFilters() {
+  if (filtersBuilt || !api.getMatchFilters) return;
+  try {
+    const fs = await api.getMatchFilters();
+    const sel = $("mh-filter"); sel.innerHTML = "";
+    for (const f of fs || []) { const o = document.createElement("option"); o.value = f.key; o.textContent = f.label; sel.append(o); }
+    sel.value = matchFilter;
+    sel.addEventListener("change", () => { matchFilter = sel.value; loadMatches(); });
+    filtersBuilt = true;
+  } catch (_) {}
+}
+
+async function loadMatches() {
+  await buildFilters();
+  const loading = $("mh-loading"), empty = $("mh-empty"), list = $("mh-list");
+  loading.classList.remove("hidden"); empty.classList.add("hidden"); list.classList.add("hidden");
+  try {
+    const res = await api.getMatches(matchFilter);
+    loading.classList.add("hidden");
+    if (!res || !res.ok) { empty.classList.remove("hidden"); empty.textContent = (res && res.error) || "Couldn't load matches."; return; }
+    renderMatches(res);
+    matchesLoaded = true;
+  } catch (e) { loading.classList.add("hidden"); empty.classList.remove("hidden"); empty.textContent = "Couldn't load matches."; }
+}
+
+function renderMatches(res) {
+  const ver = res.version, list = $("mh-list");
+  // summary line
+  const s = res.summary || { w: 0, l: 0, games: 0, kda: 0 };
+  $("mh-summary").textContent = s.games ? `Last ${s.games} · ${s.w}W ${s.l}L · ${s.kda} KDA` : "No ranked games";
+
+  // champion performance
+  const cp = $("cp-list"); cp.innerHTML = "";
+  const champs = res.champs || [];
+  $("cp-empty").classList.toggle("hidden", champs.length > 0);
+  cp.classList.toggle("hidden", champs.length === 0);
+  for (const c of champs) {
     const li = document.createElement("li");
-    const left = document.createElement("span");
-    left.innerHTML = `${e.day} · <b>${e.tier ? e.tier[0] + (e.division || "") : "—"} ${e.lp}LP</b>`;
-    const right = document.createElement("span");
-    if (prev && typeof e.score === "number" && typeof prev.score === "number") {
-      const d = e.score - prev.score; right.className = "delta " + (d > 0 ? "pos" : d < 0 ? "neg" : ""); right.textContent = signedLp(d);
-    } else right.textContent = "—";
-    li.append(left, right); ul.append(li);
+    const img = document.createElement("img"); img.className = "cp-icon"; img.src = champImg(ver, c.champKey); img.onerror = () => (img.style.visibility = "hidden");
+    const name = document.createElement("div"); name.className = "cp-name"; name.innerHTML = `${c.champion}<span class="cp-sub">${c.games} games · ${c.kda} KDA</span>`;
+    const wr = document.createElement("div"); wr.className = "cp-wr " + (c.wr >= 50 ? "pos" : "neg"); wr.textContent = c.wr + "%";
+    li.append(img, name, wr); cp.append(li);
+  }
+
+  // matches
+  list.innerHTML = "";
+  const matches = res.matches || [];
+  if (matches.length === 0) { $("mh-empty").classList.remove("hidden"); $("mh-empty").textContent = "No matches found for this filter."; return; }
+  $("mh-empty").classList.add("hidden"); list.classList.remove("hidden");
+  for (const m of matches) {
+    const li = document.createElement("li");
+    li.className = "match " + (m.remake ? "remake" : m.win ? "win" : "loss");
+    const icon = document.createElement("img"); icon.className = "m-champ"; icon.src = champImg(ver, m.champKey); icon.onerror = () => (icon.style.visibility = "hidden");
+    const main = document.createElement("div"); main.className = "m-main";
+    main.innerHTML =
+      `<div class="m-top"><span class="m-res">${m.remake ? "Remake" : m.win ? "Victory" : "Defeat"}</span>` +
+      `<span class="m-q">${m.queue}</span></div>` +
+      `<div class="m-bot"><span class="m-when">${timeAgo(m.endTs)} · ${dur(m.durationSec)}</span></div>`;
+    const stats = document.createElement("div"); stats.className = "m-stats";
+    stats.innerHTML =
+      `<div class="m-kda"><b>${m.k} / <span class="d">${m.d}</span> / ${m.a}</b><span class="m-kdar">${m.kda} KDA</span></div>` +
+      `<div class="m-cs">${m.cs} CS · ${m.csPerMin}/min</div>`;
+    const items = document.createElement("div"); items.className = "m-items";
+    for (const it of (m.items || [])) {
+      const cell = document.createElement("span"); cell.className = "m-item";
+      if (it) { const im = document.createElement("img"); im.src = itemImg(ver, it); im.onerror = () => (cell.classList.add("empty")); cell.append(im); }
+      else cell.classList.add("empty");
+      items.append(cell);
+    }
+    li.append(icon, main, stats, items); list.append(li);
   }
 }
 

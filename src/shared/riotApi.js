@@ -36,7 +36,7 @@ function getJson(host, pathname, apiKey, timeoutMs = 6000) {
   return new Promise((resolve, reject) => {
     const req = https.get(
       "https://" + host + pathname,
-      { timeout: timeoutMs, headers: { "X-Riot-Token": apiKey } },
+      { timeout: timeoutMs, headers: apiKey ? { "X-Riot-Token": apiKey } : {} },
       (res) => {
         let body = "";
         res.setEncoding("utf8");
@@ -137,4 +137,128 @@ async function fetchProfile(cfg) {
   };
 }
 
-module.exports = { fetchProfile, parseRiotId, regionList, REGIONS };
+// ----- Match history (match-v5) --------------------------------------------
+const QUEUES = {
+  420: "Ranked Solo", 440: "Ranked Flex",
+  400: "Normal", 430: "Normal", 490: "Normal",
+  450: "ARAM", 720: "ARAM Clash",
+  700: "Clash", 900: "URF", 1900: "URF", 1020: "One for All",
+  1700: "Arena", 1710: "Arena", 1300: "Nexus Blitz", 1400: "Spellbook",
+  830: "Co-op vs AI", 840: "Co-op vs AI", 850: "Co-op vs AI", 0: "Custom",
+};
+const queueLabel = (id) => QUEUES[id] || "Other";
+
+// Dropdown filter -> match-v5 query params (queue id, or broad type).
+const MATCH_FILTERS = {
+  all: {},
+  ranked: { queue: 420 },
+  flex: { queue: 440 },
+  normal: { type: "normal" },
+  aram: { queue: 450 },
+  arena: { queue: 1700 },
+};
+function filterList() {
+  return [
+    { key: "all", label: "All games" },
+    { key: "ranked", label: "Ranked Solo/Duo" },
+    { key: "flex", label: "Ranked Flex" },
+    { key: "normal", label: "Normal" },
+    { key: "aram", label: "ARAM" },
+    { key: "arena", label: "Arena" },
+  ];
+}
+
+// Data Dragon champion id differs from match `championName` for a couple champs.
+const CHAMP_FIX = { FiddleSticks: "Fiddlesticks", Wukong: "MonkeyKing" };
+const champKey = (name) => CHAMP_FIX[name] || name;
+
+let _ddv = null;
+async function ddragonVersion() {
+  if (_ddv) return _ddv;
+  try {
+    const v = await getJson("ddragon.leagueoflegends.com", "/api/versions.json");
+    _ddv = Array.isArray(v) && v[0] ? v[0] : "15.1.1";
+  } catch (_) {
+    _ddv = "15.1.1";
+  }
+  return _ddv;
+}
+
+const matchCache = new Map(); // matchId -> processed (avoids refetch on filter toggles)
+
+function processMatch(m, puuid) {
+  const info = m && m.info;
+  if (!info) return null;
+  const me = (info.participants || []).find((p) => p.puuid === puuid);
+  if (!me) return null;
+  const cs = (me.totalMinionsKilled || 0) + (me.neutralMinionsKilled || 0);
+  const durSec = info.gameDuration || 0;
+  const durMin = durSec / 60;
+  const k = me.kills || 0, d = me.deaths || 0, a = me.assists || 0;
+  return {
+    id: m.metadata && m.metadata.matchId,
+    queueId: info.queueId,
+    queue: queueLabel(info.queueId),
+    win: !!me.win,
+    remake: durSec > 0 && durSec < 300,
+    champion: me.championName,
+    champKey: champKey(me.championName),
+    champLevel: me.champLevel || 0,
+    k, d, a,
+    kda: d ? +(((k + a) / d).toFixed(2)) : k + a,
+    cs,
+    csPerMin: durMin > 0 ? +(cs / durMin).toFixed(1) : 0,
+    durationSec: durSec,
+    endTs: info.gameEndTimestamp || info.gameCreation || 0,
+    items: [me.item0, me.item1, me.item2, me.item3, me.item4, me.item5, me.item6],
+    position: me.teamPosition || me.individualPosition || "",
+  };
+}
+
+// Fetch + process recent matches for the linked account, filtered by `filterKey`.
+async function getMatches(cfg, filterKey, count = 20) {
+  const key = cfg && cfg.riotApiKey;
+  const id = parseRiotId(cfg && cfg.riotId);
+  const reg = REGIONS[(cfg && cfg.region || "").toUpperCase()];
+  if (!key || !id || !reg) throw new Error("Account not linked.");
+  const host = reg.cluster + ".api.riotgames.com";
+
+  let puuid;
+  try {
+    const account = await getJson(
+      host,
+      `/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(id.name)}/${encodeURIComponent(id.tag)}`,
+      key
+    );
+    puuid = account.puuid;
+  } catch (err) {
+    throw new Error(friendly(err));
+  }
+
+  const f = MATCH_FILTERS[filterKey] || MATCH_FILTERS.all;
+  const params = ["start=0", "count=" + Math.min(50, Math.max(1, count))];
+  if (f.queue) params.push("queue=" + f.queue);
+  if (f.type) params.push("type=" + f.type);
+
+  let ids = [];
+  try {
+    ids = await getJson(host, `/lol/match/v5/matches/by-puuid/${puuid}/ids?${params.join("&")}`, key);
+  } catch (err) {
+    throw new Error(friendly(err));
+  }
+
+  const out = [];
+  for (const mid of ids || []) {
+    if (matchCache.has(mid)) { out.push(matchCache.get(mid)); continue; }
+    let m;
+    try { m = await getJson(host, `/lol/match/v5/matches/${mid}`, key); } catch (_) { continue; }
+    const proc = processMatch(m, puuid);
+    if (proc) { matchCache.set(mid, proc); out.push(proc); }
+  }
+  return out;
+}
+
+module.exports = {
+  fetchProfile, parseRiotId, regionList, REGIONS,
+  getMatches, ddragonVersion, filterList, queueLabel, champKey,
+};
