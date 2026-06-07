@@ -12,6 +12,7 @@ const rankBaseline = require("./shared/rankBaseline");
 const rankProgress = require("./shared/rankProgress");
 const riotApi = require("./shared/riotApi");
 const builds = require("./shared/builds");
+const advisor = require("./shared/advisor");
 const processWatch = require("./shared/process");
 const replays = require("./shared/replays");
 
@@ -80,6 +81,7 @@ function createDashboard(file, role, opts = {}) {
     height: opts.height || 660,
     minWidth: opts.minWidth || 0,
     minHeight: opts.minHeight || 0,
+    center: true,
     show: false,
     frame: false,
     backgroundColor: "#12141a",
@@ -104,10 +106,12 @@ function ensure(role) {
   if (role === "pregame")
     windows.pregame = createDashboard(path.join(__dirname, "windows/pregame/index.html"), "pregame");
   if (role === "postgame")
-    windows.postgame = createDashboard(path.join(__dirname, "windows/postgame/index.html"), "postgame");
+    windows.postgame = createDashboard(path.join(__dirname, "windows/postgame/index.html"), "postgame", {
+      width: 1280, height: 720, minWidth: 1000, minHeight: 680,
+    });
   if (role === "home")
     windows.home = createDashboard(path.join(__dirname, "windows/home/index.html"), "home", {
-      width: 880, height: 720, minWidth: 560, minHeight: 600,
+      width: 1280, height: 720, minWidth: 1280, minHeight: 720,
     });
   return windows[role];
 }
@@ -299,10 +303,24 @@ async function pollProcess() {
 
 // ----- Engine 4: post-game AI coach (streaming, your own data only) ------
 const COACH_SYSTEM =
-  "You are a Challenger-level League of Legends coach. Given a player's own " +
-  "post-match data, give a concise Tactical Post-Match Review: 3-5 macro " +
-  "takeaways (wave management, recall timing, objective routing) with specific, " +
-  "actionable fixes. Be direct and kind.";
+  "You are a Challenger-level League of Legends coach giving a concise post-match " +
+  "review. Give EXACTLY 3 macro takeaways (wave management, recall timing, " +
+  "objective routing, pathing, teamfight positioning).\n\n" +
+  "Hard rules:\n" +
+  "- No title line, no intro sentence, no closing summary, no tables, no horizontal " +
+  "rules (no '---').\n" +
+  "- Exactly 3 takeaways. Keep the whole review under 160 words.\n" +
+  "- Be direct, specific to this player's data, and kind.\n\n" +
+  "Format in Markdown EXACTLY like this:\n" +
+  "**1. Short punchy title**\n" +
+  "One sentence on what happened.\n" +
+  "_Fix:_ one concrete action.\n\n" +
+  "**2. Short punchy title**\n" +
+  "One sentence.\n" +
+  "_Fix:_ one concrete action.\n\n" +
+  "**3. Short punchy title**\n" +
+  "One sentence.\n" +
+  "_Fix:_ one concrete action.";
 
 function loadConfig() {
   const candidates = [
@@ -405,6 +423,12 @@ async function predictRankUp() {
   if (!solo) {
     return { error: "No ranked Solo/Duo data found — play a placement game (with the client open) first." };
   }
+
+  // Free, built-in engine by default — no tokens, no cost.
+  if (!useClaudeAI()) {
+    return { text: advisor.climbAdvice(sum) };
+  }
+
   const wk = (sum && sum.weekly) || {};
   const prog = (sum && sum.progress) || {};
   const facts = [
@@ -416,12 +440,25 @@ async function predictRankUp() {
   ].join("\n");
 
   const system =
-    "You are a League of Legends ranked-climb analyst. Given a player's rank, LP, " +
-    "win rate and recent LP trend, estimate realistically how long it will take to " +
-    "reach the next rank (and the next tier, e.g. Silver->Gold). Give a short, " +
-    "concrete forecast: an estimated games/days range at their current win rate, the " +
-    "win rate they'd need to climb faster, and one focus tip. Be encouraging but " +
-    "honest. 4-6 sentences, no preamble.";
+    "You are a League of Legends ranked-climb coach. Given a player's rank, LP, win " +
+    "rate and recent LP trend, give exactly FOUR concrete, high-impact pieces of " +
+    "advice that will help them climb to the next rank.\n\n" +
+    "Hard rules:\n" +
+    "- Do NOT give any timeline, ETA, or estimate of how long it will take (no days, " +
+    "weeks, dates, or number-of-games estimates).\n" +
+    "- Give exactly 4 advice points, no more, no fewer.\n" +
+    "- Make each point specific and actionable for THIS player's rank and trend — not " +
+    "generic filler.\n\n" +
+    "Format your answer in Markdown exactly like this, with no preamble and no closing " +
+    "summary:\n" +
+    "**1. Short punchy title**\n" +
+    "One or two sentences of concrete advice.\n\n" +
+    "**2. Short punchy title**\n" +
+    "One or two sentences.\n\n" +
+    "**3. Short punchy title**\n" +
+    "One or two sentences.\n\n" +
+    "**4. Short punchy title**\n" +
+    "One or two sentences.";
 
   try {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -488,6 +525,12 @@ async function champAdvice() {
   const topRole = Object.entries(roles).sort((a, b) => b[1] - a[1])[0];
   const role = topRole ? topRole[0] : "any role";
 
+  // Free, built-in engine by default — no tokens, no cost.
+  if (!useClaudeAI()) {
+    const champStats = Object.entries(champs).map(([champion, c]) => ({ champion, ...c }));
+    return { text: advisor.champPicks(rank, role, champStats) };
+  }
+
   const facts = `Rank: ${rank}\nMain role: ${role}\nRecent champions:\n${champList || "(no recent ranked games on record)"}`;
   const system =
     "You are a League of Legends climbing coach. Given a player's rank, main role, " +
@@ -545,6 +588,7 @@ async function buildHomeData() {
     settings: {
       anthropicApiKey: key && !String(key).startsWith("sk-ant-...") ? key : "",
       baselineApiUrl: cfg.baselineApiUrl || "",
+      coachUseClaude: cfg.coachUseClaude === true,
       riotId: cfg.riotId || "",
       region: cfg.region || "",
       hasRiotKey: !!cfg.riotApiKey,
@@ -558,6 +602,20 @@ async function buildHomeData() {
 // Single source of truth for whether the Claude coach can run. Drives both the
 // stream gate and the proactive post-game warning, so a missing config.json or
 // absent API key degrades to a friendly banner instead of an unhandled error.
+// True only when the user has explicitly opted into using their OWN Claude API
+// key (which costs them per token). Otherwise PepStats uses the free, built-in
+// advisor — no tokens, no key, no cost. Default is the free engine.
+function useClaudeAI() {
+  let cfg = {};
+  try { cfg = loadConfig(); } catch (_) { cfg = {}; }
+  const key = cfg && cfg.anthropicApiKey;
+  const hasKey = key && typeof key === "string" && !key.startsWith("sk-ant-...");
+  return cfg.coachUseClaude === true && hasKey;
+}
+
+// The built-in advisor needs no key, so the AI features are always ready. This
+// only reports "not ready" when the user has opted into Claude but the key is
+// missing/invalid — in which case we tell them how to fix it.
 function coachConfigStatus() {
   let cfg = {};
   try {
@@ -565,13 +623,15 @@ function coachConfigStatus() {
   } catch (_) {
     cfg = {};
   }
-  const key = cfg && cfg.anthropicApiKey;
-  if (!key || typeof key !== "string" || key.startsWith("sk-ant-...")) {
-    return {
-      ready: false,
-      message:
-        "AI coach unavailable — add your AI key in Settings to enable tactical reviews and forecasts.",
-    };
+  if (cfg.coachUseClaude === true) {
+    const key = cfg.anthropicApiKey;
+    if (!key || typeof key !== "string" || key.startsWith("sk-ant-...")) {
+      return {
+        ready: false,
+        message:
+          "Claude mode is on but no valid AI key is set — add your key in Settings, or turn Claude mode off to use the free built-in coach.",
+      };
+    }
   }
   return { ready: true, message: "" };
 }
@@ -611,6 +671,21 @@ async function streamCoach(sender) {
     send("coach-error", status.message);
     return;
   }
+
+  // Free, built-in engine by default — no tokens, no cost. We "stream" the
+  // generated review in small slices so the post-game window keeps its live feel.
+  if (!useClaudeAI()) {
+    if (!lastSnapshot) {
+      send("coach-error", "No match data captured yet — finish a game with PepStats running.");
+      return;
+    }
+    const review = advisor.matchReview(lastSnapshot);
+    const chunks = review.match(/[^]{1,48}/g) || [review];
+    for (const c of chunks) send("coach-chunk", c);
+    send("coach-done", {});
+    return;
+  }
+
   const cfg = loadConfig();
 
   let res;
@@ -700,6 +775,7 @@ ipcMain.handle("save-settings", (_e, s) => {
   // empty Settings field from silently wiping a previously-saved key.
   if (s && typeof s.anthropicApiKey === "string" && s.anthropicApiKey.trim()) patch.anthropicApiKey = s.anthropicApiKey.trim();
   if (s && typeof s.baselineApiUrl === "string") patch.baselineApiUrl = s.baselineApiUrl;
+  if (s && typeof s.coachUseClaude === "boolean") patch.coachUseClaude = s.coachUseClaude;
   try {
     saveConfig(patch);
     return { ok: true };

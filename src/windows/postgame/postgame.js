@@ -104,19 +104,48 @@ function wireGraphHover() {
   });
 }
 
-/* ---- Streaming Claude tactical review (typewriter) ---- */
+/* ---- Markdown rendering (safe, minimal) ---- */
+function mdReview(src) {
+  const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const inline = (s) =>
+    esc(s)
+      .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+      .replace(/(^|[^*_])[*_]([^*_]+)[*_](?!\*)/g, "$1<em>$2</em>");
+  const out = [];
+  for (let block of String(src || "").trim().split(/\n{2,}/)) {
+    block = block.trim();
+    if (!block || /^-{3,}$/.test(block)) continue; // skip stray horizontal rules
+    const lines = block.split("\n");
+    if (lines.every((l) => /^\s*[-*]\s+/.test(l))) {
+      out.push("<ul>" + lines.map((l) => "<li>" + inline(l.replace(/^\s*[-*]\s+/, "")) + "</li>").join("") + "</ul>");
+    } else {
+      out.push("<p>" + lines.map((l) => {
+        const h = l.match(/^(#{1,4})\s+(.*)$/);
+        if (h) { const n = h[1].length; return `</p><h${n + 1}>` + inline(h[2]) + `</h${n + 1}><p>`; }
+        return inline(l);
+      }).join("<br>") + "</p>");
+    }
+  }
+  return out.join("").replace(/<p><\/p>/g, "");
+}
+
+/* ---- Streaming Claude tactical review ---- */
+let coachRaw = "";
 coachBtn.addEventListener("click", () => {
   coachBtn.disabled = true;
-  out.textContent = "";
+  coachRaw = "";
+  out.innerHTML = "";
   out.classList.add("streaming");
   window.pepstats.startCoach();
 });
 
 window.pepstats.onCoachChunk((text) => {
-  out.textContent += text;
+  coachRaw += text;
+  out.innerHTML = mdReview(coachRaw);
   out.scrollTop = out.scrollHeight;
 });
 window.pepstats.onCoachDone(() => {
+  out.innerHTML = mdReview(coachRaw);
   coachBtn.disabled = false;
   out.classList.remove("streaming");
 });

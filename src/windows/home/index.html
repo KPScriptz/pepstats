@@ -105,9 +105,9 @@
 
             <div class="card predict">
               <div class="predict-head">
-                <div><div class="card-title">AI Rank-Up Forecast</div>
-                  <div class="card-sub" id="predict-sub">Estimate how fast you can climb at your current pace.</div></div>
-                <button id="predict-btn" class="btn btn-accent">Predict</button>
+                <div><div class="card-title">AI Climb Advice</div>
+                  <div class="card-sub" id="predict-sub">Four focused things to work on to rank up.</div></div>
+                <button id="predict-btn" class="btn btn-accent">Get Advice</button>
               </div>
               <div id="predict-out" class="predict-out hidden"></div>
             </div>
@@ -211,7 +211,12 @@
 
             <div class="card">
               <div class="card-title">AI</div>
-              <label class="field"><span>AI key</span>
+              <p class="card-sub ai-note">Climb advice, champion picks and post-match reviews are <b>free</b> and built in — they run on your own match data, no account or key required.</p>
+              <div class="opt"><span class="opt-lbl">Use my own Claude key <i>(advanced, paid)</i></span>
+                <div class="seg" id="seg-claude">
+                  <button data-v="off" class="active">Off</button><button data-v="on">On</button>
+                </div></div>
+              <label class="field"><span>Claude API key <i>(only needed for Claude mode)</i></span>
                 <input id="set-key" type="password" placeholder="sk-ant-…" spellcheck="false" /></label>
               <label class="field"><span>Baseline URL <i>(optional)</i></span>
                 <input id="set-baseline" type="text" placeholder="https://…/{rank}/{role}" spellcheck="false" /></label>

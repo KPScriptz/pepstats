@@ -111,8 +111,16 @@ html, body { height: 100%; font-family: "SF Pro Display", "Inter", "Segoe UI", A
 
 /* ---- Predict ---- */
 .predict-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.ai-note { margin-bottom: 12px; }
 .predict-out { margin-top: 13px; padding-top: 13px; border-top: 1px solid var(--card-bd); font-size: 13.5px; line-height: 1.6; white-space: pre-wrap; animation: rise .3s ease both; }
 .predict-out.loading { color: var(--muted); font-style: italic; }
+.predict-out p { margin: 0 0 12px; white-space: normal; }
+.predict-out p:last-child { margin-bottom: 0; }
+.predict-out p strong { color: var(--accent); font-weight: 700; }
+.predict-out ul { margin: 0 0 12px; padding-left: 18px; white-space: normal; }
+.predict-out ul:last-child { margin-bottom: 0; }
+.predict-out li { margin: 0 0 5px; }
+.predict-out li::marker { color: var(--accent); }
 
 /* ---- Lists ---- */
 .kv { list-style: none; margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }

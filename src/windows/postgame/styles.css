@@ -143,9 +143,20 @@ html, body {
 .replay-line { margin: -4px 0 16px; }
 
 .coach-out {
-  margin-top: 14px; white-space: pre-wrap; line-height: 1.5;
+  margin-top: 14px; line-height: 1.55;
   font-family: "SF Pro Display", "Segoe UI", Arial, sans-serif; font-size: 14px; color: #cdd3dc;
 }
+.coach-out p { margin: 0 0 6px; }
+.coach-out h2, .coach-out h3, .coach-out h4, .coach-out h5 {
+  margin: 16px 0 6px; font-size: 15px; font-weight: 700; color: #f0e6cf;
+  letter-spacing: 0.2px;
+}
+.coach-out h2:first-child, .coach-out h3:first-child, .coach-out p:first-child { margin-top: 0; }
+.coach-out strong { color: var(--gold); font-weight: 700; }
+.coach-out em { color: #8fd6c4; font-style: normal; font-weight: 600; }
+.coach-out ul { margin: 4px 0 10px; padding-left: 18px; }
+.coach-out li { margin: 0 0 4px; }
+.coach-out li::marker { color: var(--gold); }
 /* Blinking caret while tokens stream in (typewriter effect). */
 .coach-out.streaming::after {
   content: "▋";

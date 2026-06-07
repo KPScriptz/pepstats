@@ -3,6 +3,33 @@
 const $ = (id) => document.getElementById(id);
 const api = window.pepstats || {};
 
+// Minimal, safe Markdown renderer for short AI advice blocks. Escapes HTML first,
+// then supports **bold**, *italic*, `-`/`*` bullet lists and paragraph breaks.
+function mdLite(src) {
+  const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const inline = (s) =>
+    esc(s)
+      .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+      .replace(/(^|[^*])\*([^*]+)\*(?!\*)/g, "$1<em>$2</em>");
+  const blocks = String(src || "").trim().split(/\n{2,}/);
+  let html = "";
+  for (const block of blocks) {
+    const lines = block.split("\n");
+    if (lines.every((l) => /^\s*[-*]\s+/.test(l))) {
+      html += "<ul>" + lines.map((l) => "<li>" + inline(l.replace(/^\s*[-*]\s+/, "")) + "</li>").join("") + "</ul>";
+    } else {
+      html += "<p>" + lines.map(inline).join("<br>") + "</p>";
+    }
+  }
+  return html;
+}
+// Render { text } | { error } into an AI output element as formatted HTML.
+function renderAiOut(out, res, fallback) {
+  out.classList.remove("loading");
+  if (res && res.text) out.innerHTML = mdLite(res.text);
+  else out.textContent = (res && res.error) || fallback;
+}
+
 // ---- Window controls (setup + app) ----
 for (const id of ["su-min", "tb-min"]) { const el = $(id); if (el) el.addEventListener("click", () => api.winMin && api.winMin()); }
 for (const id of ["su-close", "tb-close"]) { const el = $(id); if (el) el.addEventListener("click", () => api.winClose && api.winClose()); }
@@ -168,6 +195,7 @@ function render(data) {
   if (!settingsDirty) {
     if (document.activeElement !== $("set-key")) $("set-key").value = (settings && settings.anthropicApiKey) || "";
     if (document.activeElement !== $("set-baseline")) $("set-baseline").value = (settings && settings.baselineApiUrl) || "";
+    setClaudeMode(!!(settings && settings.coachUseClaude));
   }
 }
 
@@ -402,12 +430,11 @@ async function refresh() { try { render(await api.getHome()); } catch (_) {} }
 // ===== AI prediction =====
 $("predict-btn").addEventListener("click", async () => {
   const btn = $("predict-btn"), out = $("predict-out");
-  btn.disabled = true; out.classList.remove("hidden"); out.classList.add("loading"); out.textContent = "Forecasting your climb…";
+  btn.disabled = true; out.classList.remove("hidden"); out.classList.add("loading"); out.textContent = "Analyzing your climb…";
   try {
     const res = await api.predictRankUp();
-    out.classList.remove("loading");
-    out.textContent = res && res.text ? res.text : (res && res.error) || "Couldn't generate a forecast.";
-  } catch (e) { out.classList.remove("loading"); out.textContent = "Forecast failed: " + (e && e.message ? e.message : "error"); }
+    renderAiOut(out, res, "Couldn't generate advice.");
+  } catch (e) { out.classList.remove("loading"); out.textContent = "Advice failed: " + (e && e.message ? e.message : "error"); }
   finally { btn.disabled = false; }
 });
 
@@ -417,20 +444,27 @@ $("champ-btn").addEventListener("click", async () => {
   btn.disabled = true; out.classList.remove("hidden"); out.classList.add("loading"); out.textContent = "Finding your best champions to climb…";
   try {
     const res = await api.suggestChamps();
-    out.classList.remove("loading");
-    out.textContent = res && res.text ? res.text : (res && res.error) || "Couldn't generate suggestions.";
+    renderAiOut(out, res, "Couldn't generate suggestions.");
   } catch (e) { out.classList.remove("loading"); out.textContent = "Suggestion failed: " + (e && e.message ? e.message : "error"); }
   finally { btn.disabled = false; }
 });
 
 // ===== Settings: AI save + re-link =====
 let settingsDirty = false;
+let claudeMode = false;
+function setClaudeMode(on) {
+  claudeMode = !!on;
+  $("seg-claude").querySelectorAll("button").forEach((b) => b.classList.toggle("active", (b.dataset.v === "on") === claudeMode));
+}
+$("seg-claude").querySelectorAll("button").forEach((b) =>
+  b.addEventListener("click", () => { setClaudeMode(b.dataset.v === "on"); settingsDirty = true; })
+);
 $("set-key").addEventListener("input", () => (settingsDirty = true));
 $("set-baseline").addEventListener("input", () => (settingsDirty = true));
 $("set-save").addEventListener("click", async () => {
   const st = $("set-status");
   try {
-    await api.saveSettings({ anthropicApiKey: $("set-key").value.trim(), baselineApiUrl: $("set-baseline").value.trim() });
+    await api.saveSettings({ anthropicApiKey: $("set-key").value.trim(), baselineApiUrl: $("set-baseline").value.trim(), coachUseClaude: claudeMode });
     settingsDirty = false; st.textContent = "Saved"; st.classList.add("show"); setTimeout(() => st.classList.remove("show"), 1800);
   } catch (_) { st.textContent = "Save failed"; st.classList.add("show"); }
 });
