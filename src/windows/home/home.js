@@ -171,7 +171,7 @@ function render(data) {
   }
 }
 
-// ===== Match history (Progress page, op.gg-style) =====
+// ===== Match history (Progress page) =====
 let progressSummary = null;
 let matchFilter = "all";
 let matchesLoaded = false;

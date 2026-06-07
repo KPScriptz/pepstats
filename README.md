@@ -29,11 +29,14 @@ opportunity — all while staying fully within Riot's Terms of Service.
 - 🔗 **Riot Account Linking** — Connect once with your Riot ID and a free
   personal API key; your stats sync automatically.
 
-## Safe by design
+## Safe by design — Vanguard compliant
 
 PepStats reads **only Riot-sanctioned data** — the official Live Client Data API,
 the LCU, and the Riot Games API. **No screen capture. No minimap vision. No enemy
-tracking.** Nothing that risks your account.
+tracking. No memory reading, injection, or input automation.** It's a normal
+desktop app that never touches the League process, so it runs safely alongside
+**Riot Vanguard**. The overlay is a separate transparent window (like OBS or
+Discord's overlay), not injected into the game. Full audit: [COMPLIANCE.md](COMPLIANCE.md).
 
 ---
 
