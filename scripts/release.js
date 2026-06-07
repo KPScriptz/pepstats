@@ -29,13 +29,17 @@ function die(msg) {
   console.error("\n✖ " + msg);
   process.exit(1);
 }
+// Only npx needs a shell on Windows (it resolves to npx.cmd). Running git/node
+// through a shell re-parses the args and breaks anything containing spaces
+// (e.g. a commit message), so keep them shell-free.
+const needsShell = (cmd) => process.platform === "win32" && cmd === "npx";
 function run(cmd, args, opts = {}) {
-  const res = spawnSync(cmd, args, { cwd: ROOT, stdio: "inherit", shell: process.platform === "win32", ...opts });
+  const res = spawnSync(cmd, args, { cwd: ROOT, stdio: "inherit", shell: needsShell(cmd), ...opts });
   if (res.status !== 0) die(`Command failed: ${cmd} ${args.join(" ")}`);
   return res;
 }
 function capture(cmd, args, opts = {}) {
-  const res = spawnSync(cmd, args, { cwd: ROOT, encoding: "utf8", shell: process.platform === "win32", ...opts });
+  const res = spawnSync(cmd, args, { cwd: ROOT, encoding: "utf8", shell: needsShell(cmd), ...opts });
   return { status: res.status, out: (res.stdout || "").trim(), err: (res.stderr || "").trim() };
 }
 
