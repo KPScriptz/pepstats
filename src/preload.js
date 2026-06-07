@@ -25,4 +25,16 @@ contextBridge.exposeInMainWorld("pepstats", {
   onCoachChunk: (cb) => ipcRenderer.on("coach-chunk", (_e, text) => cb(text)),
   onCoachDone: (cb) => ipcRenderer.on("coach-done", (_e, data) => cb(data)),
   onCoachError: (cb) => ipcRenderer.on("coach-error", (_e, msg) => cb(msg)),
+
+  // Home / client window
+  getHome: () => ipcRenderer.invoke("get-home"),
+  onHome: (cb) => ipcRenderer.on("home-update", () => cb()),
+  predictRankUp: () => ipcRenderer.invoke("home-predict"),
+  saveSettings: (s) => ipcRenderer.invoke("save-settings", s),
+  repositionOverlay: () => ipcRenderer.send("overlay-reposition"),
+  openReview: () => ipcRenderer.send("open-review"),
+
+  // Frameless window controls
+  winMin: () => ipcRenderer.send("win-min"),
+  winClose: () => ipcRenderer.send("win-close"),
 });

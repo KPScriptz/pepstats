@@ -2,7 +2,10 @@
 node_modules/
 /dist/
 /out/
-/build/
+# Ignore build output but keep the committed app icons (needed by electron-builder)
+/build/*
+!/build/icon.ico
+!/build/icon.png
 *.log
 
 # macOS
