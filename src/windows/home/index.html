@@ -103,44 +103,80 @@
               </div>
             </div>
 
-            <div class="card predict">
-              <div class="predict-head">
-                <div><div class="card-title">AI Climb Advice</div>
-                  <div class="card-sub" id="predict-sub">Four focused things to work on to rank up.</div></div>
-                <button id="predict-btn" class="btn btn-accent">Get Advice</button>
-              </div>
-              <div id="predict-out" class="predict-out hidden"></div>
-            </div>
-
-            <div class="card predict">
-              <div class="predict-head">
-                <div><div class="card-title">AI Champion Picks</div>
-                  <div class="card-sub">Which champions to play to rank up, for your role &amp; rank.</div></div>
-                <button id="champ-btn" class="btn btn-accent">Suggest</button>
-              </div>
-              <div id="champ-out" class="predict-out hidden"></div>
+            <!-- Quick stat strip -->
+            <div class="qstats">
+              <div class="qstat"><div class="qs-val" id="qs-record">—</div><div class="qs-lbl">Recent W/L</div></div>
+              <div class="qstat"><div class="qs-val" id="qs-kda">—</div><div class="qs-lbl">Avg KDA</div></div>
+              <div class="qstat"><div class="qs-val" id="qs-cs">—</div><div class="qs-lbl">Avg CS/min</div></div>
+              <div class="qstat"><div class="qs-val" id="qs-main">—</div><div class="qs-lbl">Most Played</div></div>
             </div>
 
             <div class="grid2">
+              <div class="card predict">
+                <div class="predict-head">
+                  <div><div class="card-title">AI Climb Advice</div>
+                    <div class="card-sub" id="predict-sub">Four focused things to work on to rank up.</div></div>
+                  <button id="predict-btn" class="btn btn-accent">Get Advice</button>
+                </div>
+                <div id="predict-out" class="predict-out hidden"></div>
+              </div>
+
+              <div class="card predict">
+                <div class="predict-head">
+                  <div><div class="card-title">AI Champion Picks</div>
+                    <div class="card-sub">Which champions to play to rank up, for your role &amp; rank.</div></div>
+                  <button id="champ-btn" class="btn btn-accent">Suggest</button>
+                </div>
+                <div id="champ-out" class="predict-out hidden"></div>
+              </div>
+            </div>
+
+            <div class="db-grid">
               <div class="card">
-                <div class="card-title">Last Match</div>
-                <div id="lm-empty" class="muted">No match recorded yet this session.</div>
-                <div id="lm-body" class="hidden">
-                  <div class="lm-champ" id="lm-champ">—</div>
+                <div class="card-head">
+                  <div class="card-title">Recent Matches</div>
+                  <button class="link-btn" data-goto="progress">View all →</button>
+                </div>
+                <div id="db-recent-empty" class="muted">Link your account to see recent games.</div>
+                <ul id="db-recent" class="db-recent hidden"></ul>
+              </div>
+
+              <div class="db-col">
+                <div class="card">
+                  <div class="card-title">Status</div>
                   <ul class="kv">
-                    <li><span>KDA</span><b id="lm-kda">—</b></li>
-                    <li><span>CS</span><b id="lm-cs">—</b></li>
+                    <li><span>League client</span><b id="st-client" class="pill off">Offline</b></li>
+                    <li><span>Phase</span><b id="st-phase">Idle</b></li>
+                    <li><span>Summoner</span><b id="st-summoner">—</b></li>
                   </ul>
-                  <button id="lm-review" class="btn btn-ghost">Open AI Review</button>
+                </div>
+                <div class="card">
+                  <div class="card-title">Last Match</div>
+                  <div id="lm-empty" class="muted">No match recorded yet this session.</div>
+                  <div id="lm-body" class="hidden">
+                    <div class="lm-champ" id="lm-champ">—</div>
+                    <ul class="kv">
+                      <li><span>KDA</span><b id="lm-kda">—</b></li>
+                      <li><span>CS</span><b id="lm-cs">—</b></li>
+                    </ul>
+                    <button id="lm-review" class="btn btn-ghost">Open AI Review</button>
+                  </div>
                 </div>
               </div>
+            </div>
+
+            <div class="db-grid">
               <div class="card">
-                <div class="card-title">Status</div>
-                <ul class="kv">
-                  <li><span>League client</span><b id="st-client" class="pill off">Offline</b></li>
-                  <li><span>Phase</span><b id="st-phase">Idle</b></li>
-                  <li><span>Summoner</span><b id="st-summoner">—</b></li>
-                </ul>
+                <div class="card-title">Champion Pool</div>
+                <div id="db-champs-empty" class="muted">No recent games on record.</div>
+                <ul id="db-champs" class="cp hidden"></ul>
+              </div>
+              <div class="card">
+                <div class="card-title">LP Trend</div>
+                <div id="db-lp-empty" class="muted">Records daily — check back after a few days.</div>
+                <svg id="db-lp-graph" class="lp-graph hidden" viewBox="0 0 240 90" preserveAspectRatio="none">
+                  <polyline id="db-lp-line" class="lp-line" points="" />
+                </svg>
               </div>
             </div>
           </section>
@@ -201,60 +237,104 @@
 
           <!-- ===== Settings ===== -->
           <section class="page hidden" id="page-settings">
-            <div class="card">
-              <div class="card-title">Account</div>
-              <ul class="kv">
-                <li><span>Linked Riot ID</span><b id="set-riotid">—</b></li>
-                <li><span>Region</span><b id="set-region">—</b></li>
-              </ul>
-              <div class="row"><button id="set-relink" class="btn btn-ghost">Re-link account</button></div>
-            </div>
+            <div class="set-grid">
+              <div class="set-col">
+                <div class="card">
+                  <div class="card-title">Account</div>
+                  <ul class="kv">
+                    <li><span>Linked Riot ID</span><b id="set-riotid">—</b></li>
+                    <li><span>Region</span><b id="set-region">—</b></li>
+                    <li><span>Account level</span><b id="set-level">—</b></li>
+                  </ul>
+                  <div class="row"><button id="set-relink" class="btn btn-ghost">Re-link account</button></div>
+                </div>
 
-            <div class="card">
-              <div class="card-title">AI</div>
-              <p class="card-sub ai-note">Climb advice, champion picks and post-match reviews are <b>free</b> and built in — they run on your own match data, no account or key required.</p>
-              <div class="opt"><span class="opt-lbl">Use my own Claude key <i>(advanced, paid)</i></span>
-                <div class="seg" id="seg-claude">
-                  <button data-v="off" class="active">Off</button><button data-v="on">On</button>
-                </div></div>
-              <label class="field"><span>Claude API key <i>(only needed for Claude mode)</i></span>
-                <input id="set-key" type="password" placeholder="sk-ant-…" spellcheck="false" /></label>
-              <label class="field"><span>Baseline URL <i>(optional)</i></span>
-                <input id="set-baseline" type="text" placeholder="https://…/{rank}/{role}" spellcheck="false" /></label>
-              <div class="row"><button id="set-save" class="btn btn-accent">Save</button>
-                <span id="set-status" class="save-status"></span></div>
-            </div>
+                <div class="card">
+                  <div class="card-title">AI</div>
+                  <p class="card-sub ai-note">Climb advice, champion picks and post-match reviews are <b>free</b> and built in — they run on your own match data, no account or key required.</p>
+                  <div class="opt"><span class="opt-lbl">Use my own Claude key <i>(advanced, paid)</i></span>
+                    <div class="seg" id="seg-claude">
+                      <button data-v="off" class="active">Off</button><button data-v="on">On</button>
+                    </div></div>
+                  <label class="field"><span>Claude API key <i>(only needed for Claude mode)</i></span>
+                    <input id="set-key" type="password" placeholder="sk-ant-…" spellcheck="false" /></label>
+                  <label class="field"><span>Baseline URL <i>(optional)</i></span>
+                    <input id="set-baseline" type="text" placeholder="https://…/{rank}/{role}" spellcheck="false" /></label>
+                  <div class="row"><button id="set-save" class="btn btn-accent">Save</button>
+                    <span id="set-status" class="save-status"></span></div>
+                </div>
 
-            <div class="card">
-              <div class="card-title">Appearance</div>
+                <div class="card">
+                  <div class="card-title">Data &amp; About</div>
+                  <ul class="kv">
+                    <li><span>Version</span><b id="set-version">—</b></li>
+                  </ul>
+                  <div class="opt"><span class="opt-lbl">Match cache</span>
+                    <button id="set-clearcache" class="btn btn-ghost">Clear cache</button></div>
+                  <div class="row">
+                    <button id="set-openfolder" class="btn btn-ghost">Open data folder</button>
+                    <button id="set-github" class="btn btn-ghost">View on GitHub</button>
+                  </div>
+                  <span id="set-data-status" class="save-status"></span>
+                </div>
+              </div>
 
-              <div class="opt"><span class="opt-lbl">Theme</span>
-                <div class="seg" id="seg-theme">
-                  <button data-v="dark" class="active">Dark</button><button data-v="light">Light</button>
-                </div></div>
+              <div class="set-col">
+                <div class="card">
+                  <div class="card-title">General</div>
+                  <div class="opt"><span class="opt-lbl">Launch on system startup</span>
+                    <div class="seg" id="seg-startup">
+                      <button data-v="off" class="active">Off</button><button data-v="on">On</button>
+                    </div></div>
+                  <div class="opt"><span class="opt-lbl">Start overlay in Design mode</span>
+                    <div class="seg" id="seg-ovdesign">
+                      <button data-v="off" class="active">Off</button><button data-v="on">On</button>
+                    </div></div>
+                  <div class="opt"><span class="opt-lbl">Default match count</span>
+                    <select id="set-mhcount" class="mh-filter">
+                      <option value="10">10</option><option value="20" selected>20</option>
+                      <option value="30">30</option><option value="50">50</option>
+                    </select></div>
+                  <div class="sub-head">Overlay hotkeys</div>
+                  <ul class="kv hotkeys">
+                    <li><span>Toggle Design mode</span><b>Ctrl + Shift + D</b></li>
+                    <li><span>Show home / client</span><b>Ctrl + Shift + H</b></li>
+                    <li><span>Quit PepStats</span><b>Ctrl + Shift + Q</b></li>
+                  </ul>
+                </div>
 
-              <div class="opt"><span class="opt-lbl">Accent</span>
-                <div class="swatches" id="swatches"></div>
-                <input id="accent-custom" type="color" class="accent-custom" value="#36d6d6" title="Custom accent" /></div>
+                <div class="card">
+                  <div class="card-title">Appearance</div>
 
-              <div class="opt"><span class="opt-lbl">Density</span>
-                <div class="seg" id="seg-density">
-                  <button data-v="comfortable" class="active">Comfortable</button><button data-v="compact">Compact</button>
-                </div></div>
+                  <div class="opt"><span class="opt-lbl">Theme</span>
+                    <div class="seg" id="seg-theme">
+                      <button data-v="dark" class="active">Dark</button><button data-v="light">Light</button>
+                    </div></div>
 
-              <div class="opt"><span class="opt-lbl">UI size</span>
-                <input id="rng-font" type="range" min="0.85" max="1.2" step="0.05" value="1" />
-                <span class="rng-val" id="val-font">100%</span></div>
+                  <div class="opt"><span class="opt-lbl">Accent</span>
+                    <div class="swatches" id="swatches"></div>
+                    <input id="accent-custom" type="color" class="accent-custom" value="#36d6d6" title="Custom accent" /></div>
 
-              <div class="sub-head">In-game overlay</div>
-              <div class="opt"><span class="opt-lbl">Overlay size</span>
-                <input id="rng-ovscale" type="range" min="0.8" max="1.3" step="0.05" value="1" />
-                <span class="rng-val" id="val-ovscale">100%</span></div>
-              <div class="opt"><span class="opt-lbl">Overlay opacity</span>
-                <input id="rng-ovop" type="range" min="0.4" max="1" step="0.05" value="1" />
-                <span class="rng-val" id="val-ovop">100%</span></div>
-              <div class="opt opt-rows"><span class="opt-lbl">Overlay rows</span>
-                <div class="chips" id="row-toggles"></div></div>
+                  <div class="opt"><span class="opt-lbl">Density</span>
+                    <div class="seg" id="seg-density">
+                      <button data-v="comfortable" class="active">Comfortable</button><button data-v="compact">Compact</button>
+                    </div></div>
+
+                  <div class="opt"><span class="opt-lbl">UI size</span>
+                    <input id="rng-font" type="range" min="0.85" max="1.2" step="0.05" value="1" />
+                    <span class="rng-val" id="val-font">100%</span></div>
+
+                  <div class="sub-head">In-game overlay</div>
+                  <div class="opt"><span class="opt-lbl">Overlay size</span>
+                    <input id="rng-ovscale" type="range" min="0.8" max="1.3" step="0.05" value="1" />
+                    <span class="rng-val" id="val-ovscale">100%</span></div>
+                  <div class="opt"><span class="opt-lbl">Overlay opacity</span>
+                    <input id="rng-ovop" type="range" min="0.4" max="1" step="0.05" value="1" />
+                    <span class="rng-val" id="val-ovop">100%</span></div>
+                  <div class="opt opt-rows"><span class="opt-lbl">Overlay rows</span>
+                    <div class="chips" id="row-toggles"></div></div>
+                </div>
+              </div>
             </div>
           </section>
         </div>

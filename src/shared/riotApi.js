@@ -219,6 +219,11 @@ function setCacheDir(dir) {
     if (raw && typeof raw === "object") for (const k of Object.keys(raw)) matchCache.set(k, raw[k]);
   } catch (_) { /* no cache yet */ }
 }
+function clearCache() {
+  matchCache.clear();
+  _cacheDirty = false;
+  try { if (_cacheFile && fs.existsSync(_cacheFile)) fs.unlinkSync(_cacheFile); } catch (_) {}
+}
 function saveCache() {
   if (!_cacheFile || !_cacheDirty) return;
   try {
@@ -379,5 +384,5 @@ async function getMatches(cfg, filterKey, count = 20) {
 module.exports = {
   fetchProfile, parseRiotId, regionList, REGIONS,
   getMatches, ddragonVersion, perkMaps, championIndex, filterList, queueLabel, champKey,
-  setCacheDir,
+  setCacheDir, clearCache,
 };

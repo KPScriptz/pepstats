@@ -53,6 +53,13 @@ contextBridge.exposeInMainWorld("pepstats", {
   repositionOverlay: () => ipcRenderer.send("overlay-reposition"),
   openReview: () => ipcRenderer.send("open-review"),
 
+  // App info / general settings / data
+  getAppInfo: () => ipcRenderer.invoke("get-app-info"),
+  setStartup: (on) => ipcRenderer.invoke("set-startup", on),
+  clearMatchCache: () => ipcRenderer.invoke("clear-match-cache"),
+  openDataFolder: () => ipcRenderer.invoke("open-data-folder"),
+  openRepo: () => ipcRenderer.invoke("open-repo"),
+
   // Frameless window controls
   winMin: () => ipcRenderer.send("win-min"),
   winClose: () => ipcRenderer.send("win-close"),

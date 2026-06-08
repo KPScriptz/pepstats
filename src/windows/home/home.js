@@ -51,6 +51,13 @@ document.querySelectorAll(".nav-item").forEach((b) => {
     if (page === "progress" && !matchesLoaded) loadMatches();
   });
 });
+// "View all →" style shortcuts that jump to another page.
+document.querySelectorAll("[data-goto]").forEach((el) => {
+  el.addEventListener("click", () => {
+    const target = document.querySelector(`.nav-item[data-page="${el.dataset.goto}"]`);
+    if (target) target.click();
+  });
+});
 
 // ---- Helpers ----
 const PHASE_LABEL = {
@@ -188,14 +195,95 @@ function render(data) {
   $("prof-lvl").textContent = "Level " + (sm && sm.level ? sm.level : "—");
   updateProfileIcon();
   drawLpGraph(data.history || []);
+  drawLpGraph(data.history || [], { empty: "db-lp-empty", svg: "db-lp-graph", line: "db-lp-line" });
 
   // Settings: account + AI fields
   $("set-riotid").textContent = (settings && settings.riotId) || "Not linked";
   $("set-region").textContent = (settings && settings.region) || "—";
+  $("set-level").textContent = sm && sm.level ? sm.level : "—";
   if (!settingsDirty) {
     if (document.activeElement !== $("set-key")) $("set-key").value = (settings && settings.anthropicApiKey) || "";
     if (document.activeElement !== $("set-baseline")) $("set-baseline").value = (settings && settings.baselineApiUrl) || "";
     setClaudeMode(!!(settings && settings.coachUseClaude));
+    ovDesignMode = !!(settings && settings.overlayDefaultDesign);
+    setSeg("seg-ovdesign", ovDesignMode ? "on" : "off");
+    if (settings && settings.matchCount) { const mc = $("set-mhcount"); if (mc) mc.value = String(settings.matchCount); if (!matchesLoaded) matchCount = settings.matchCount; }
+  }
+
+  // Dashboard extras (recent matches, champ pool, quick stats) — fetched once.
+  loadDashboardExtras();
+}
+
+// Generic segmented-control state setter.
+function setSeg(id, value) {
+  const el = $(id); if (!el) return;
+  el.querySelectorAll("button").forEach((b) => b.classList.toggle("active", b.dataset.v === value));
+}
+
+// ===== Dashboard extras =====
+let dashLoaded = false;
+let dashLastTry = 0;
+async function loadDashboardExtras(force) {
+  if ((dashLoaded && !force) || !api.getMatches) return;
+  // Throttle retries (the render loop ticks every 5s; don't hammer the API while
+  // offline or rate-limited).
+  const now = Date.now();
+  if (!force && now - dashLastTry < 30000) return;
+  dashLastTry = now;
+  let res;
+  try { res = await api.getMatches("all", 10); } catch (_) { return; }
+  if (!res || !res.ok) return;
+  dashLoaded = true;
+  const ver = res.version;
+  const matches = res.matches || [];
+
+  // Quick stats
+  const s = res.summary || {};
+  const recEl = $("qs-record"); if (recEl) recEl.textContent = s.games ? `${s.w}W ${s.l}L` : "—";
+  const kdaEl = $("qs-kda"); if (kdaEl) kdaEl.textContent = s.games ? (s.kda + " KDA") : "—";
+  const csEl = $("qs-cs");
+  if (csEl) { const avgCs = matches.length ? (matches.reduce((t, m) => t + (m.csPerMin || 0), 0) / matches.length) : 0; csEl.textContent = matches.length ? avgCs.toFixed(1) : "—"; }
+  const champs = res.champs || [];
+  const mainEl = $("qs-main"); if (mainEl) mainEl.textContent = champs.length ? champs[0].champion : "—";
+
+  // Recent matches (top 5)
+  const list = $("db-recent"), empty = $("db-recent-empty");
+  if (list && empty) {
+    const recent = matches.slice(0, 5);
+    if (!recent.length) { empty.classList.remove("hidden"); list.classList.add("hidden"); }
+    else {
+      empty.classList.add("hidden"); list.classList.remove("hidden"); list.innerHTML = "";
+      for (const m of recent) {
+        const li = document.createElement("li");
+        const res2 = m.remake ? "remake" : (m.win ? "win" : "loss");
+        li.className = "dbm " + res2;
+        li.append(mkImg(champImg(ver, m.champKey), "dbm-icon", function () { this.style.visibility = "hidden"; }));
+        const main = document.createElement("div"); main.className = "dbm-main";
+        const name = document.createElement("div"); name.className = "dbm-champ"; name.textContent = m.champion;
+        const sub = document.createElement("div"); sub.className = "dbm-sub"; sub.textContent = `${m.queue || "Game"} · ${timeAgo(m.endTs)}`;
+        main.append(name, sub);
+        const kda = document.createElement("div"); kda.className = "dbm-kda"; kda.textContent = `${m.k}/${m.d}/${m.a}`;
+        const pill = document.createElement("div"); pill.className = "dbm-res " + res2; pill.textContent = m.remake ? "RmK" : (m.win ? "Win" : "Loss");
+        li.append(main, kda, pill);
+        list.append(li);
+      }
+    }
+  }
+
+  // Champion pool (top 5)
+  const cpList = $("db-champs"), cpEmpty = $("db-champs-empty");
+  if (cpList && cpEmpty) {
+    if (!champs.length) { cpEmpty.classList.remove("hidden"); cpList.classList.add("hidden"); }
+    else {
+      cpEmpty.classList.add("hidden"); cpList.classList.remove("hidden"); cpList.innerHTML = "";
+      for (const c of champs.slice(0, 5)) {
+        const li = document.createElement("li");
+        li.append(mkImg(champImg(ver, c.champKey), "cp-icon", function () { this.style.visibility = "hidden"; }));
+        const name = document.createElement("div"); name.className = "cp-name"; name.innerHTML = `${c.champion}<span class="cp-sub">${c.games} games · ${c.kda} KDA</span>`;
+        const wr = document.createElement("div"); wr.className = "cp-wr " + (c.wr >= 50 ? "pos" : "neg"); wr.textContent = c.wr + "%";
+        li.append(name, wr); cpList.append(li);
+      }
+    }
   }
 }
 
@@ -230,9 +318,11 @@ function updateProfileIcon() {
   } else if (el) { el.style.visibility = "hidden"; }
 }
 
-function drawLpGraph(history) {
+function drawLpGraph(history, ids) {
+  ids = ids || { empty: "lp-graph-empty", svg: "lp-graph", line: "lp-line" };
   const pts = (history || []).filter((e) => typeof e.score === "number");
-  const empty = $("lp-graph-empty"), svg = $("lp-graph"), line = $("lp-line");
+  const empty = $(ids.empty), svg = $(ids.svg), line = $(ids.line);
+  if (!empty || !svg || !line) return;
   if (pts.length < 2) { empty.classList.remove("hidden"); svg.classList.add("hidden"); return; }
   empty.classList.add("hidden"); svg.classList.remove("hidden");
   const scores = pts.map((e) => e.score);
@@ -476,10 +566,24 @@ $("seg-claude").querySelectorAll("button").forEach((b) =>
 );
 $("set-key").addEventListener("input", () => (settingsDirty = true));
 $("set-baseline").addEventListener("input", () => (settingsDirty = true));
+
+// General: overlay-design default + default match count (mark dirty; saved with Save)
+let ovDesignMode = false;
+$("seg-ovdesign").querySelectorAll("button").forEach((b) =>
+  b.addEventListener("click", () => { ovDesignMode = b.dataset.v === "on"; setSeg("seg-ovdesign", b.dataset.v); settingsDirty = true; })
+);
+$("set-mhcount").addEventListener("change", () => (settingsDirty = true));
+
 $("set-save").addEventListener("click", async () => {
   const st = $("set-status");
   try {
-    await api.saveSettings({ anthropicApiKey: $("set-key").value.trim(), baselineApiUrl: $("set-baseline").value.trim(), coachUseClaude: claudeMode });
+    await api.saveSettings({
+      anthropicApiKey: $("set-key").value.trim(),
+      baselineApiUrl: $("set-baseline").value.trim(),
+      coachUseClaude: claudeMode,
+      overlayDefaultDesign: ovDesignMode,
+      matchCount: parseInt($("set-mhcount").value, 10) || 20,
+    });
     settingsDirty = false; st.textContent = "Saved"; st.classList.add("show"); setTimeout(() => st.classList.remove("show"), 1800);
   } catch (_) { st.textContent = "Save failed"; st.classList.add("show"); }
 });
@@ -489,6 +593,34 @@ $("set-relink").addEventListener("click", () => {
   showSetup(true);
 });
 $("lm-review").addEventListener("click", () => api.openReview && api.openReview());
+
+// General: launch-on-startup toggle (applied immediately via the OS)
+$("seg-startup").querySelectorAll("button").forEach((b) =>
+  b.addEventListener("click", async () => {
+    const on = b.dataset.v === "on";
+    setSeg("seg-startup", b.dataset.v);
+    try { if (api.setStartup) await api.setStartup(on); } catch (_) {}
+  })
+);
+
+// Data & About
+(async () => {
+  if (!api.getAppInfo) return;
+  try {
+    const info = await api.getAppInfo();
+    if (info) {
+      const v = $("set-version"); if (v) v.textContent = "PepStats v" + (info.version || "?");
+      setSeg("seg-startup", info.startup ? "on" : "off");
+    }
+  } catch (_) {}
+})();
+const dataStatus = (msg) => { const el = $("set-data-status"); if (!el) return; el.textContent = msg; el.classList.add("show"); setTimeout(() => el.classList.remove("show"), 1800); };
+$("set-clearcache").addEventListener("click", async () => {
+  try { const r = api.clearMatchCache && await api.clearMatchCache(); dashLoaded = false; dataStatus(r && r.ok ? "Cache cleared" : "Couldn't clear cache"); }
+  catch (_) { dataStatus("Couldn't clear cache"); }
+});
+$("set-openfolder").addEventListener("click", () => { try { api.openDataFolder && api.openDataFolder(); } catch (_) {} });
+$("set-github").addEventListener("click", () => { try { api.openRepo && api.openRepo(); } catch (_) {} });
 
 // ===== Appearance (live theming) =====
 const ACCENTS = ["#36d6d6", "#4f9dff", "#a06bff", "#ff5d9e", "#46c98a", "#d9b35e", "#ff6b5d"];

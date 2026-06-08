@@ -1,6 +1,6 @@
 "use strict";
 
-const { app, BrowserWindow, ipcMain, globalShortcut, screen, dialog } = require("electron");
+const { app, BrowserWindow, ipcMain, globalShortcut, screen, dialog, shell } = require("electron");
 const path = require("path");
 const fs = require("fs");
 
@@ -594,6 +594,8 @@ async function buildHomeData() {
       anthropicApiKey: key && !String(key).startsWith("sk-ant-...") ? key : "",
       baselineApiUrl: cfg.baselineApiUrl || "",
       coachUseClaude: cfg.coachUseClaude === true,
+      overlayDefaultDesign: cfg.overlayDefaultDesign === true,
+      matchCount: typeof cfg.matchCount === "number" ? cfg.matchCount : 20,
       riotId: cfg.riotId || "",
       region: cfg.region || "",
       hasRiotKey: !!cfg.riotApiKey,
@@ -781,6 +783,8 @@ ipcMain.handle("save-settings", (_e, s) => {
   if (s && typeof s.anthropicApiKey === "string" && s.anthropicApiKey.trim()) patch.anthropicApiKey = s.anthropicApiKey.trim();
   if (s && typeof s.baselineApiUrl === "string") patch.baselineApiUrl = s.baselineApiUrl;
   if (s && typeof s.coachUseClaude === "boolean") patch.coachUseClaude = s.coachUseClaude;
+  if (s && typeof s.overlayDefaultDesign === "boolean") patch.overlayDefaultDesign = s.overlayDefaultDesign;
+  if (s && typeof s.matchCount === "number" && s.matchCount > 0) patch.matchCount = Math.min(50, Math.max(5, Math.round(s.matchCount)));
   try {
     saveConfig(patch);
     return { ok: true };
@@ -925,6 +929,29 @@ ipcMain.handle("export-matches", async (e, payload) => {
   }
 });
 
+// App info: version + current OS launch-on-startup state.
+ipcMain.handle("get-app-info", () => {
+  let startup = false;
+  try { startup = !!app.getLoginItemSettings().openAtLogin; } catch (_) {}
+  return { version: app.getVersion(), startup };
+});
+ipcMain.handle("set-startup", (_e, on) => {
+  try { app.setLoginItemSettings({ openAtLogin: !!on }); return { ok: true }; }
+  catch (e) { return { ok: false, error: e.message }; }
+});
+ipcMain.handle("clear-match-cache", () => {
+  try { riotApi.clearCache(); return { ok: true }; }
+  catch (e) { return { ok: false, error: e.message }; }
+});
+ipcMain.handle("open-data-folder", () => {
+  try { shell.openPath(app.getPath("userData")); return { ok: true }; }
+  catch (e) { return { ok: false, error: e.message }; }
+});
+ipcMain.handle("open-repo", () => {
+  try { shell.openExternal("https://github.com/KPScriptz/pepstats"); return { ok: true }; }
+  catch (e) { return { ok: false, error: e.message }; }
+});
+
 ipcMain.handle("riot-regions", () => riotApi.regionList());
 ipcMain.handle("connect-riot", async (_e, s) => {
   const cfg = {
@@ -977,8 +1004,11 @@ app.whenReady().then(() => {
   ensure("ingame");
   // Default to Live (click-through) mode and keep the overlay hidden until a
   // match is live — it surfaces automatically from poll()'s in-game branch.
-  // Press Ctrl+Shift+D any time to enter Design Mode and reposition it.
-  setDesignMode(false);
+  // Press Ctrl+Shift+D any time to enter Design Mode and reposition it. The
+  // user can opt to start in Design mode from Settings → General.
+  let startDesign = false;
+  try { startDesign = loadConfig().overlayDefaultDesign === true; } catch (_) {}
+  setDesignMode(startDesign);
 
   // The home/client window is the app's default taskbar presence out of game.
   showHome();
