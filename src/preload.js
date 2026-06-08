@@ -18,6 +18,8 @@ contextBridge.exposeInMainWorld("pepstats", {
   getChampions: () => ipcRenderer.invoke("get-champions"),
   getBuild: (championId) => ipcRenderer.invoke("get-build", championId),
   importRunes: (championId, variant) => ipcRenderer.invoke("import-runes", championId, variant),
+  getLobbyAllies: () => ipcRenderer.invoke("get-lobby-allies"),
+  getDraftAdvice: () => ipcRenderer.invoke("get-draft-advice"),
   onChampSelect: (cb) => ipcRenderer.on("champ-select", (_e, data) => cb(data)),
 
   // Post-game

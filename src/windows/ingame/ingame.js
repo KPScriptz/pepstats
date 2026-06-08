@@ -1,9 +1,13 @@
 "use strict";
 
 const els = {
+  frame: document.getElementById("widget-frame"),
   widget: document.getElementById("widget"),
+  dragHandle: document.getElementById("drag-handle"),
+  resizeHandle: document.getElementById("resize-handle"),
   rankTag: document.getElementById("rank-tag"),
   csm: document.getElementById("csm"),
+  pacePip: document.getElementById("csm-pace"),
   sparkLine: document.getElementById("spark-line"),
   sparkDot: document.getElementById("spark-dot"),
   gpm: document.getElementById("gpm"),
@@ -17,6 +21,8 @@ const els = {
   status: document.getElementById("status"),
   divider: document.getElementById("divider"),
   timeline: document.getElementById("timeline"),
+  skillRow: document.getElementById("skill-row"),
+  skillBadges: document.getElementById("skill-badges"),
 };
 
 // Stat rows, toggled + reordered per lane.
@@ -69,6 +75,7 @@ let watchdog = null;
 
 const fmtInt = (n) => Math.round(n).toLocaleString();
 const DASH = "—";
+const PACE_TARGET = 8.5; // "Challenger pace" CS/min reference for the pace pip
 
 // ---- CSM sparkline -----------------------------------------------------------
 // viewBox is 64x22; we render across an inner box so the dot/stroke don't clip.
@@ -167,12 +174,43 @@ function renderTimers(timers) {
     return;
   }
 
+  // Prune nodes no longer in the feed — inhibitor timers come and go as they're
+  // destroyed and regenerate, so a stale "respawning" row must be removed.
+  const present = new Set(timers.map((t) => t.key));
+  for (const key of Array.from(nodeEls.keys())) {
+    if (!present.has(key)) {
+      nodeEls.get(key).node.remove();
+      nodeEls.delete(key);
+    }
+  }
+
   for (const t of timers) {
     const ref = nodeFor(t.key, t.label);
     const view = STATUS_VIEW[t.status] || { cls: "", meta: "" };
     ref.node.className = "node " + view.cls;
     ref.time.textContent = t.display;
     ref.meta.textContent = view.meta;
+  }
+}
+
+// ---- Skill-order hint --------------------------------------------------------
+// Renders the Q/W/E max-priority order with the ability to put your next point
+// into highlighted. When the next point is the ultimate, an R badge leads.
+function renderSkill(skill) {
+  if (!els.skillRow || !els.skillBadges) return;
+  if (!skill || !Array.isArray(skill.order) || !skill.order.length) {
+    els.skillRow.classList.add("hidden");
+    return;
+  }
+  els.skillRow.classList.remove("hidden");
+  const seq = skill.next === "R" ? ["R", ...skill.order] : skill.order.slice();
+  els.skillBadges.textContent = "";
+  for (const k of seq) {
+    const b = document.createElement("span");
+    b.className =
+      "skill-badge" + (k === skill.next ? " next" : "") + (k === "R" ? " ult" : "");
+    b.textContent = k;
+    els.skillBadges.append(b);
   }
 }
 
@@ -204,6 +242,20 @@ function applyStats(compare) {
   pushCsm(compare.csmYou);
   drawSpark();
 
+  // Pro-pace pip (Blitz-style): glow green at/above Challenger CS/min, dim red
+  // below. Your own CS only — hidden until there's meaningful farm on the board.
+  if (els.pacePip) {
+    const csm = compare.csmYou || 0;
+    if (csm <= 0) {
+      els.pacePip.classList.add("hidden");
+    } else {
+      els.pacePip.classList.remove("hidden");
+      const ahead = csm >= PACE_TARGET;
+      els.pacePip.classList.toggle("ahead", ahead);
+      els.pacePip.classList.toggle("behind", !ahead);
+    }
+  }
+
   // GPM: your value only (no enemy gold in the sanctioned feed).
   els.gpm.textContent = fmtInt(compare.gpm || 0);
 
@@ -227,7 +279,9 @@ function applyStats(compare) {
 function render() {
   const show = mode === "design" || (mode === "live" && gameActive);
   els.widget.classList.toggle("hidden", !show);
-  els.widget.classList.toggle("design", mode === "design");
+  // Spec: toggle `.design-mode` on the document body (drives dashed borders +
+  // resize grips across the whole overlay), not just the widget.
+  document.body.classList.toggle("design-mode", mode === "design");
   if (mode === "design") {
     els.status.textContent = "Design Mode · drag title · Ctrl+Shift+D to lock";
   } else {
@@ -235,9 +289,103 @@ function render() {
   }
 }
 
-function applyOverlay({ scores, compare, timers, mode: m }) {
+// ---- Design-Mode drag + resize (persisted to localStorage) -------------------
+// Vanilla mouse listeners only (no libraries). All visual updates are coalesced
+// into one rAF and applied as a single transform/position write, so dragging
+// stays GPU-cheap and never thrashes layout during a match.
+const LAYOUT_KEY = "pep-overlay-layout";
+const WIDGET_BASE_W = 204; // must match .widget width in styles.css
+const MIN_SCALE = 0.6, MAX_SCALE = 1.8;
+
+const clampScale = (s) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, typeof s === "number" && isFinite(s) ? s : 1));
+
+function loadLayout() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(LAYOUT_KEY) || "null");
+    if (raw && typeof raw.x === "number" && typeof raw.y === "number") {
+      return { x: raw.x, y: raw.y, scale: clampScale(raw.scale) };
+    }
+  } catch (_) { /* fall through to default */ }
+  const themeScale = (window.__pepTheme && window.__pepTheme.overlay && window.__pepTheme.overlay.scale) || 1;
+  const scale = clampScale(themeScale);
+  const x = Math.max(8, (window.innerWidth || 1280) - WIDGET_BASE_W * scale - 20);
+  return { x, y: 16, scale };
+}
+
+const layout = loadLayout();
+let dragState = null;
+let resizeState = null;
+let rafPending = false;
+
+function saveLayout() {
+  try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(layout)); } catch (_) {}
+}
+
+function applyLayout() {
+  // Keep the widget on-screen (visual size = unscaled box × scale).
+  const w = WIDGET_BASE_W * layout.scale;
+  const visH = (els.frame.offsetHeight || 200) * layout.scale;
+  layout.x = Math.min(Math.max(0, (window.innerWidth || 1280) - w), Math.max(0, layout.x));
+  layout.y = Math.min(Math.max(0, (window.innerHeight || 720) - Math.min(visH, window.innerHeight || 720)), Math.max(0, layout.y));
+  els.frame.style.left = layout.x + "px";
+  els.frame.style.top = layout.y + "px";
+  els.frame.style.transform = "scale(" + layout.scale + ")";
+}
+
+function scheduleApply() {
+  if (rafPending) return;
+  rafPending = true;
+  requestAnimationFrame(() => { rafPending = false; applyLayout(); });
+}
+
+function onPointerMove(e) {
+  if (dragState) {
+    layout.x = dragState.ox + (e.clientX - dragState.startX);
+    layout.y = dragState.oy + (e.clientY - dragState.startY);
+    scheduleApply();
+  } else if (resizeState) {
+    layout.scale = clampScale(resizeState.oscale + (e.clientX - resizeState.startX) / WIDGET_BASE_W);
+    scheduleApply();
+  }
+}
+
+function endInteraction() {
+  if (dragState || resizeState) {
+    dragState = null;
+    resizeState = null;
+    saveLayout();
+  }
+  window.removeEventListener("mousemove", onPointerMove);
+  window.removeEventListener("mouseup", endInteraction);
+}
+
+function beginInteraction() {
+  window.addEventListener("mousemove", onPointerMove);
+  window.addEventListener("mouseup", endInteraction);
+}
+
+els.widget.addEventListener("mousedown", (e) => {
+  if (mode !== "design") return; // live mode is click-through anyway
+  e.preventDefault();
+  dragState = { startX: e.clientX, startY: e.clientY, ox: layout.x, oy: layout.y };
+  beginInteraction();
+});
+
+els.resizeHandle.addEventListener("mousedown", (e) => {
+  if (mode !== "design") return;
+  e.preventDefault();
+  e.stopPropagation();
+  resizeState = { startX: e.clientX, oscale: layout.scale };
+  beginInteraction();
+});
+
+window.addEventListener("resize", applyLayout);
+applyLayout();
+
+function applyOverlay({ scores, compare, timers, skill, mode: m }) {
   if (m) mode = m;
   applyStats(compare);
+  renderSkill(skill);
   renderTimers(timers);
 
   // Champion Sync: tint the dynamic accent to the champion being played.
@@ -268,7 +416,7 @@ if (window.pepstats && typeof window.pepstats.onOverlay === "function") {
   if (typeof window.pepstats.onForceDesignOff === "function") {
     window.pepstats.onForceDesignOff(() => {
       mode = "live";
-      els.widget.classList.remove("design");
+      document.body.classList.remove("design-mode");
       render();
     });
   }
@@ -291,10 +439,12 @@ if (window.pepstats && typeof window.pepstats.onOverlay === "function") {
       lvl: { you: 9 },
       vision: { you: 12, baseline: 9 },
     },
+    skill: { order: ["Q", "E", "W"], next: "Q", ranks: { Q: 3, W: 1, E: 2, R: 1 } },
     timers: [
       { key: "grubs", label: "Void Grubs", status: "up", display: "0:00" },
       { key: "herald", label: "Rift Herald", status: "spawning", display: "2:14" },
       { key: "dragon", label: "Dragon", status: "gone", display: "4:30" },
+      { key: "inhib-Barracks_T2C1", label: "Inhib Mid (R)", status: "respawning", display: "4:00" },
     ],
     mode: "design",
   });

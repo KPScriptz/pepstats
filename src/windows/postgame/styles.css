@@ -60,6 +60,17 @@ html, body {
 .card .k { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: #8a93a2; margin-bottom: 8px; }
 .card .v { font-size: 20px; font-weight: 700; color: #e8e8e8; font-variant-numeric: tabular-nums; }
 
+/* ---- Post-match performance badges ---- */
+.awards { display: flex; flex-wrap: wrap; gap: 8px; margin: -4px 0 16px; }
+.awards.hidden { display: none; }
+.award {
+  font-size: 11px; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase;
+  padding: 4px 11px; border-radius: 999px; border: 1px solid transparent;
+}
+.award.gold { color: #f0d27a; background: rgba(214, 179, 94, 0.14); border-color: rgba(214, 179, 94, 0.35); }
+.award.silver { color: #c7d0dc; background: rgba(170, 184, 204, 0.12); border-color: rgba(170, 184, 204, 0.28); }
+.award.red { color: #ff9aa2; background: rgba(255, 93, 108, 0.14); border-color: rgba(255, 93, 108, 0.32); }
+
 /* ---- Panels ---- */
 .panel {
   background: linear-gradient(160deg, var(--panel-a), var(--panel-b));

@@ -26,9 +26,17 @@ const el = {
   bSkills: document.getElementById("b-skills"),
   bStart: document.getElementById("b-start"),
   bCore: document.getElementById("b-core"),
+  draftCounters: document.getElementById("draft-counters"),
+  draftSynergies: document.getElementById("draft-synergies"),
 };
 
 let pickedChampId = 0; // the local player's locked champion (for rune import)
+
+// Champ-select ally recent form (cellId -> ally object from get-lobby-allies).
+let lastSession = null;
+let allyForm = {};
+let alliesFetchedAt = 0;
+let alliesKey = "";
 
 const GAUGE_CIRCUMFERENCE = 2 * Math.PI * 52; // r=52 in the SVG
 const ROLE_SHORT = { TOP: "TOP", JUNGLE: "JNG", MIDDLE: "MID", BOTTOM: "BOT", UTILITY: "SUP" };
@@ -64,12 +72,13 @@ function champLabel(championId) {
   return champName(championId);
 }
 
-function statChip(label) {
+function statChip(label, value) {
   const chip = document.createElement("div");
-  chip.className = "stat-chip placeholder";
+  const has = value != null && value !== "";
+  chip.className = "stat-chip" + (has ? "" : " placeholder");
   const v = document.createElement("span");
   v.className = "sv";
-  v.textContent = "—";
+  v.textContent = has ? value : "—";
   const k = document.createElement("span");
   k.className = "sk";
   k.textContent = label;
@@ -100,9 +109,15 @@ function renderTeam(container, members, localCellId, withStats) {
     const champ = document.createElement("span");
     champ.className = "player-champ";
     champ.textContent = champLabel(m.championId);
+    const form = withStats ? allyForm[m.cellId] : null;
+    const recent = form && form.recent && form.recent.games ? form.recent : null;
+
     const sub = document.createElement("span");
     sub.className = "player-sub";
-    sub.textContent = m.cellId === localCellId ? "You" : (m.assignedPosition ? ROLE_SHORT[m.assignedPosition] + " lane" : "Assigned role");
+    sub.textContent =
+      m.cellId === localCellId ? "You"
+      : (form && form.riotId) ? form.riotId
+      : (m.assignedPosition ? ROLE_SHORT[m.assignedPosition] + " lane" : "Assigned role");
     main.append(champ, sub);
 
     row.append(role, main);
@@ -110,7 +125,16 @@ function renderTeam(container, members, localCellId, withStats) {
     if (withStats) {
       const stats = document.createElement("div");
       stats.className = "player-stats";
-      stats.append(statChip("WR"), statChip("MAIN"));
+      if (recent) {
+        // Real recent-5 form pulled from the official match-v5 API.
+        stats.append(
+          statChip("WR", recent.wr != null ? recent.wr + "%" : null),
+          statChip("KDA", recent.kda != null ? Number(recent.kda).toFixed(1) : null),
+          statChip("MAIN", recent.topChamp || null)
+        );
+      } else {
+        stats.append(statChip("WR"), statChip("MAIN"));
+      }
       row.append(stats);
     }
 
@@ -129,11 +153,96 @@ function resetIdle(message) {
   el.importLabel.textContent = "Standby";
 }
 
+// Pull teammates' recent-5 win-rate + KDA once per champ-select roster (then at
+// most every 30s). The main process 60s-caches by teammate set, so this stays
+// light. On success we re-render the ally team so the real chips replace the
+// placeholders. Quietly no-ops when the Riot account isn't linked.
+function maybeLoadAllies(session) {
+  if (!session || !window.pepstats.getLobbyAllies) return;
+  const team = (session.myTeam || []).filter((m) => m && m.cellId !== session.localPlayerCellId);
+  const key = team.map((m) => m.cellId).sort().join(",");
+  if (!key) return;
+  const now = Date.now();
+  if (key === alliesKey && now - alliesFetchedAt < 30000) return;
+  alliesKey = key;
+  alliesFetchedAt = now;
+  window.pepstats
+    .getLobbyAllies()
+    .then((res) => {
+      if (!res || !res.ok || !Array.isArray(res.allies)) return;
+      const map = {};
+      for (const a of res.allies) map[a.cellId] = a;
+      allyForm = map;
+      if (lastSession) renderTeam(el.ally, lastSession.myTeam || [], lastSession.localPlayerCellId, true);
+    })
+    .catch(() => {});
+}
+
+// ----- Draft coach (curated counters + synergies) -----
+let draftKey = "";
+let draftFetchedAt = 0;
+
+function renderDraftList(container, items, emptyMsg) {
+  container.innerHTML = "";
+  if (!items || !items.length) {
+    const m = document.createElement("span");
+    m.className = "muted";
+    m.textContent = emptyMsg;
+    container.append(m);
+    return;
+  }
+  for (const s of items) {
+    const row = document.createElement("div");
+    row.className = "draft-pick";
+    const icon = document.createElement("img");
+    icon.className = "draft-icon";
+    if (s.icon) { icon.src = s.icon; icon.onerror = () => (icon.style.visibility = "hidden"); }
+    const txt = document.createElement("div");
+    txt.className = "draft-text";
+    const name = document.createElement("span");
+    name.className = "draft-name";
+    name.textContent = s.name;
+    const why = document.createElement("span");
+    why.className = "draft-why";
+    why.textContent = (s.vs && s.vs.length ? s.vs.join(", ") + " · " : "") + (s.reason || "");
+    txt.append(name, why);
+    row.append(icon, txt);
+    container.append(row);
+  }
+}
+
+// Pull curated counters/synergies for the current locks. Re-fetch only when the
+// set of locked champions changes (or every 8s) so it tracks new picks live.
+function maybeLoadDraft(session) {
+  if (!session || !window.pepstats.getDraftAdvice) return;
+  const locks = []
+    .concat((session.myTeam || []).map((m) => m.championId || 0))
+    .concat((session.theirTeam || []).map((m) => m.championId || 0))
+    .filter(Boolean)
+    .sort()
+    .join(",");
+  const now = Date.now();
+  if (locks === draftKey && now - draftFetchedAt < 8000) return;
+  draftKey = locks;
+  draftFetchedAt = now;
+  window.pepstats
+    .getDraftAdvice()
+    .then((res) => {
+      if (!res || !res.ok) return;
+      renderDraftList(el.draftCounters, res.counters, "No counter data for these picks yet.");
+      renderDraftList(el.draftSynergies, res.synergies, "No synergy data for these picks yet.");
+    })
+    .catch(() => {});
+}
+
 function renderSession(session) {
   if (!session) {
     resetIdle("League client not detected. Open League and enter champ select.");
     return;
   }
+  lastSession = session;
+  maybeLoadAllies(session);
+  maybeLoadDraft(session);
 
   el.phase.textContent = "Champ select in progress.";
   setDot(el.phaseDot, "active");
@@ -265,7 +374,8 @@ el.importBtn.addEventListener("click", async () => {
   try {
     const res = await window.pepstats.importRunes(pickedChampId, activeVariant);
     if (res && res.ok) {
-      el.importStatus.textContent = `Imported "${res.variant || "Standard Core"}" runes — check your client.`;
+      const what = res.items ? "runes + items" : "runes";
+      el.importStatus.textContent = `Imported "${res.variant || "Standard Core"}" ${what} — check your client.`;
       setDot(el.importDot, "active");
       el.importLabel.textContent = "Imported";
     } else {

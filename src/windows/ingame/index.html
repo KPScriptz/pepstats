@@ -7,8 +7,11 @@
     <title>PepStats Overlay</title>
   </head>
   <body>
-    <div id="widget" class="widget hidden">
-      <div class="brand-row">
+    <!-- The frame is positioned + scaled (drag/resize in Design Mode); the inner
+         .widget keeps its own entrance animation untouched by the frame transform. -->
+    <div id="widget-frame">
+      <div id="widget" class="widget hidden">
+      <div class="brand-row" id="drag-handle">
         <span class="brand">PEPSTATS</span>
         <span id="rank-tag" class="rank-tag"></span>
         <span id="live-dot" class="live-dot"></span>
@@ -23,6 +26,8 @@
               <polyline id="spark-line" class="spark-line" points="" />
               <circle id="spark-dot" class="spark-dot" cx="-9" cy="0" r="2.1" />
             </svg>
+            <!-- Pro-pace pip: green when at/above Challenger CS/min, dim red below. -->
+            <span id="csm-pace" class="pace-pip hidden" title="vs Challenger pace (8.5 CS/min)"></span>
           </span>
         </div>
 
@@ -66,12 +71,21 @@
         </div>
       </div>
 
+      <!-- Skill-order hint: which ability to put your next point into. -->
+      <div class="skill-row hidden" id="skill-row">
+        <span class="stat-label">MAX NEXT</span>
+        <span class="skill-badges" id="skill-badges"></span>
+      </div>
+
       <div class="divider" id="divider"></div>
       <div class="timeline" id="timeline">
         <!-- Objective nodes are rendered from the timers array in ingame.js -->
       </div>
 
       <div id="status" class="status">Waiting for a live game…</div>
+      </div>
+      <!-- Resize grip — visible only in Design Mode. -->
+      <span id="resize-handle" class="resize-handle" title="Drag to resize"></span>
     </div>
     <script src="../theme.js"></script>
     <script src="../themeEngine.js"></script>

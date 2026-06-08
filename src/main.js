@@ -12,8 +12,10 @@ const rankBaseline = require("./shared/rankBaseline");
 const rankProgress = require("./shared/rankProgress");
 const riotApi = require("./shared/riotApi");
 const builds = require("./shared/builds");
+const draftCoach = require("./shared/draftCoach");
 const advisor = require("./shared/advisor");
 const buildDataEngine = require("./utils/buildDataEngine");
+const deepCoach = require("./shared/deepCoach");
 const processWatch = require("./shared/process");
 const replays = require("./shared/replays");
 
@@ -52,14 +54,22 @@ function preload() {
 // NOTE: app.disableHardwareAcceleration() is intentionally NOT called, so the
 // GPU keeps compositing the overlay for ~0% in-game FPS impact.
 function createOverlay() {
+  // Full-screen transparent canvas: the widget floats inside it and can be
+  // dragged/resized anywhere in Design Mode (positions persisted client-side).
+  // Click-through in Live Mode means the empty canvas passes every click to the
+  // game — zero gameplay interference.
+  const area = screen.getPrimaryDisplay().workArea;
   const win = new BrowserWindow({
-    width: 220,
-    height: 320,
+    x: area.x,
+    y: area.y,
+    width: area.width,
+    height: area.height,
     show: false,
     frame: false,
     transparent: true,
     backgroundColor: "#00000000",
     resizable: false,
+    movable: false,
     alwaysOnTop: true,
     skipTaskbar: true,
     hasShadow: false,
@@ -69,8 +79,7 @@ function createOverlay() {
   });
   win.setAlwaysOnTop(true, "screen-saver");
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-  const area = screen.getPrimaryDisplay().workArea;
-  win.setPosition(area.x + area.width - 220 - 20, area.y + 20);
+  win.setIgnoreMouseEvents(true, { forward: true }); // boot click-through (Live Mode)
   win.loadFile(path.join(__dirname, "windows/ingame/index.html"));
   win.on("closed", () => (windows.ingame = null));
   return win;
@@ -213,6 +222,36 @@ function refreshLiveBaseline(info, role) {
   })();
 }
 
+// ----- Skill-order hint (overlay "max next") -----------------------------
+// Compliant + offline: the recommended Q/W/E max priority comes from the
+// curated builds dictionary (no key, no network), and "what to put the next
+// point in" is computed from the active player's OWN ability ranks + level that
+// the sanctioned Live Client API already exposes. No enemy or hidden data.
+function abilityRanks(live) {
+  const ab = (live && live.activePlayer && live.activePlayer.abilities) || {};
+  const rank = (k) => (ab[k] && typeof ab[k].abilityLevel === "number" ? ab[k].abilityLevel : 0);
+  return { Q: rank("Q"), W: rank("W"), E: rank("E"), R: rank("R") };
+}
+
+function computeSkillHint(live, championName) {
+  try {
+    const champKey = riotApi.champKey(championName) || championName;
+    const set = champKey && builds.getVariants(champKey);
+    if (!set) return null; // uncurated champ -> no hint (row stays hidden)
+    const order = set.variants[set.order[0]].skills; // ["Q","W","E"] max priority
+    const level = (live && live.activePlayer && live.activePlayer.level) || 0;
+    const ranks = abilityRanks(live);
+    // You earn an ult point at levels 6 / 11 / 16; take it as soon as it's free.
+    const ultEntitled = level >= 16 ? 3 : level >= 11 ? 2 : level >= 6 ? 1 : 0;
+    let next;
+    if ((ranks.R || 0) < ultEntitled) next = "R";
+    else next = order.find((k) => (ranks[k] || 0) < 5) || order[order.length - 1];
+    return { order, next, ranks };
+  } catch (_) {
+    return null;
+  }
+}
+
 // ----- Engine 2: phase-detection heartbeat -------------------------------
 async function poll() {
   let live = null;
@@ -226,6 +265,9 @@ async function poll() {
     // A match is in progress.
     sawLiveGame = true;
     const scores = liveClient.activeScores(live);
+    // Capture post-match badges from the sanctioned final snapshot every tick;
+    // the last good one is what the post-game window + coach use at match end.
+    scores.awards = liveClient.matchAwards(live);
     lastSnapshot = scores;
 
     // Compare against the rank baseline. The baseline is refreshed in the
@@ -235,6 +277,7 @@ async function poll() {
     refreshLiveBaseline(info, role);
     const compare = liveClient.compareStats(live, liveBaseline);
     const timers = computeTimers(scores.gameTime, scores.events, { isClassic: info.isClassic });
+    const skill = computeSkillHint(live, scores.champion);
     if (appState !== STATE.INGAME) {
       appState = STATE.INGAME;
       const overlayWindow = ensure("ingame");
@@ -249,7 +292,7 @@ async function poll() {
       }
       sendTo("ingame", "force-design-mode-off");
     }
-    sendTo("ingame", "overlay", { scores, compare, timers, mode: designMode ? "design" : "live" });
+    sendTo("ingame", "overlay", { scores, compare, timers, skill, mode: designMode ? "design" : "live" });
     return;
   }
 
@@ -335,6 +378,27 @@ const COACH_SYSTEM =
   "**3. Short punchy title**\n" +
   "One sentence.\n" +
   "_Fix:_ one concrete action.";
+
+// Used when we have the real match timeline (death-by-death context). Asks for a
+// macro playbook focused on preventing the specific deaths in the data.
+const DEEP_COACH_SYSTEM =
+  "You are a Challenger-level League of Legends macro coach. You are given a " +
+  "death-by-death breakdown from the player's OWN match timeline: their gold/" +
+  "level/CS at each death, the gold the previous minute, the killer's gold lead, " +
+  "and how much map action happened just before.\n\n" +
+  "Write a 'Macro Playbook Review'. Hard rules:\n" +
+  "- Open with ONE bold sentence naming the single biggest recurring pattern " +
+  "behind these deaths.\n" +
+  "- Then give EXACTLY 3 numbered fixes about POSITIONING and MACRO (recall " +
+  "timing, wave state before roaming/fighting, vision before objectives, when to " +
+  "give up a play) that would have prevented these specific deaths.\n" +
+  "- Reference concrete numbers from the data (gold deficits, timings).\n" +
+  "- No tables, no horizontal rules, under 200 words.\n\n" +
+  "Format:\n" +
+  "**One-sentence pattern.**\n\n" +
+  "**1. Title**\nWhat to change, tied to the data.\n\n" +
+  "**2. Title**\n…\n\n" +
+  "**3. Title**\n…";
 
 function loadConfig() {
   const candidates = [
@@ -663,6 +727,7 @@ function buildCoachPayload(s, replay) {
         `- ${Math.floor(e.EventTime / 60)}:${String(Math.floor(e.EventTime % 60)).padStart(2, "0")} ChampionKill`
     )
     .join("\n");
+  const awards = (s.awards || []).map((a) => `- ${a.label}: ${a.desc}`).join("\n");
   return [
     "# Post-match data (my own game)",
     `- Champion: ${s.champion}`,
@@ -672,6 +737,7 @@ function buildCoachPayload(s, replay) {
     `- Gold: ${Math.round(s.gold)}`,
     replay ? `- Replay file: ${replay.name}` : "",
     "",
+    awards ? "## Performance badges earned\n" + awards : "",
     "## Kill-event timeline (this match)",
     timeline || "(no kill events recorded)",
   ]
@@ -706,6 +772,20 @@ async function streamCoach(sender) {
 
   const cfg = loadConfig();
 
+  // Prefer a deep, death-by-death review from the user's own match timeline
+  // (official match-v5). Best-effort: if the match isn't indexed yet or the
+  // account isn't linked, fall back to the lightweight snapshot payload.
+  let system = COACH_SYSTEM;
+  let userContent = buildCoachPayload(lastSnapshot, lastReplay);
+  try {
+    const account = { riotId: cfg.riotId, region: cfg.region, riotApiKey: cfg.riotApiKey };
+    const deep = await deepCoach.buildTimelineReview(account);
+    if (deep) {
+      system = DEEP_COACH_SYSTEM;
+      userContent = deep;
+    }
+  } catch (_) { /* fall back to the snapshot payload */ }
+
   let res;
   try {
     res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -719,8 +799,8 @@ async function streamCoach(sender) {
         model: cfg.coachModel || "claude-sonnet-4-6",
         max_tokens: 1024,
         stream: true,
-        system: [{ type: "text", text: COACH_SYSTEM, cache_control: { type: "ephemeral" } }],
-        messages: [{ role: "user", content: buildCoachPayload(lastSnapshot, lastReplay) }],
+        system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
+        messages: [{ role: "user", content: userContent }],
       }),
     });
   } catch (e) {
@@ -782,6 +862,119 @@ ipcMain.handle("get-pregame", async () => {
     return null;
   }
 });
+
+// ----- Champ-select ally lookup ------------------------------------------
+// Reads your own team's PUUIDs from the LCU champ-select session, then pulls
+// each teammate's recent-5 win-rate + KDA from the OFFICIAL match-v5 API. All
+// sanctioned: LCU read for the lobby roster + the public match API for form.
+// Enemy identities are deliberately hidden by Riot in champ select, so this only
+// ever resolves allies. Cached 60s by the teammate set so the pre-game window
+// can poll freely without re-hitting the API.
+let _alliesCache = { key: "", ts: 0, data: null };
+async function getLobbyAllies() {
+  const cfg = loadConfig();
+  if (!(cfg.riotId && cfg.region && cfg.riotApiKey)) {
+    return { ok: false, error: "Link your Riot account in Settings to see teammates' recent form." };
+  }
+
+  let session = null;
+  try {
+    session = await lcu.getChampSelectSession();
+  } catch (_) {
+    session = null;
+  }
+  if (!session || !Array.isArray(session.myTeam)) return { ok: false, error: "Not in champ select." };
+
+  const localCell = session.localPlayerCellId;
+  const team = session.myTeam.filter((m) => m && m.puuid && m.cellId !== localCell);
+  if (!team.length) return { ok: true, allies: [], note: "Teammates' identities aren't available yet." };
+
+  const cacheKey = team.map((m) => m.puuid).sort().join(",");
+  const now = Date.now();
+  if (_alliesCache.key === cacheKey && now - _alliesCache.ts < 60000 && _alliesCache.data) {
+    return _alliesCache.data;
+  }
+
+  const acc = { region: cfg.region, riotApiKey: cfg.riotApiKey };
+  let idx = null;
+  try { idx = await riotApi.championIndex(); } catch (_) {}
+
+  const allies = [];
+  for (const m of team) {
+    let recent = null;
+    try { recent = await riotApi.recentByPuuid(acc, m.puuid, 5); } catch (_) { recent = null; }
+    const champ = idx && m.championId ? idx.byId[String(m.championId)] : null;
+    allies.push({
+      cellId: m.cellId,
+      position: (m.assignedPosition || "").toUpperCase(),
+      championId: m.championId || 0,
+      champion: champ ? champ.name : "",
+      riotId: (recent && recent.riotId) || "",
+      recent: recent
+        ? { games: recent.games, wr: recent.wr, kda: recent.kda, k: recent.k, d: recent.d, a: recent.a, topChamp: recent.topChamp }
+        : null,
+    });
+  }
+
+  const data = { ok: true, allies };
+  _alliesCache = { key: cacheKey, ts: now, data };
+  return data;
+}
+ipcMain.handle("get-lobby-allies", () => getLobbyAllies());
+
+// ----- Draft coach (curated counters + synergies) ------------------------
+// Reads the live champ-select session, maps locked champions to Data Dragon
+// keys, and asks the curated draftCoach engine for counters to enemy locks +
+// synergies with ally locks. Curated data only — no scraping, no win-rate API.
+async function getDraftAdvice() {
+  let session = null;
+  try { session = await lcu.getChampSelectSession(); } catch (_) { session = null; }
+  if (!session || !Array.isArray(session.myTeam)) return { ok: false };
+
+  let idx = null;
+  try { idx = await riotApi.championIndex(); } catch (_) {}
+  if (!idx || !idx.byId) return { ok: false };
+
+  // Resolve numeric championId -> Data Dragon key, and key -> { name, icon }.
+  const keyOf = (cid) => (cid && idx.byId[String(cid)] ? idx.byId[String(cid)].id : null);
+  const byKey = {};
+  for (const cid of Object.keys(idx.byId)) {
+    const e = idx.byId[cid];
+    if (e && e.id) byKey[e.id] = { name: e.name, ddId: e.id };
+  }
+  const decorate = (list) =>
+    list.map((s) => ({
+      key: s.key,
+      name: (byKey[s.key] && byKey[s.key].name) || s.key,
+      icon: idx.version ? `https://ddragon.leagueoflegends.com/cdn/${idx.version}/img/champion/${s.key}.png` : null,
+      reason: s.reason,
+      vs: (s.vs || []).map((k) => (byKey[k] && byKey[k].name) || k),
+    }));
+
+  const localCell = session.localPlayerCellId;
+  const myTeam = session.myTeam || [];
+  const theirTeam = session.theirTeam || [];
+
+  const enemyKeys = theirTeam.map((m) => keyOf(m.championId)).filter(Boolean);
+  const allyKeys = myTeam
+    .filter((m) => m.cellId !== localCell)
+    .map((m) => keyOf(m.championId))
+    .filter(Boolean);
+
+  const bans = (session.bans && [...(session.bans.myTeamBans || []), ...(session.bans.theirTeamBans || [])]) || [];
+  const me = myTeam.find((m) => m.cellId === localCell);
+  const myHover = me ? (me.championId || me.championPickIntent || 0) : 0;
+  const takenKeys = [
+    ...enemyKeys,
+    ...allyKeys,
+    ...bans.map(keyOf).filter(Boolean),
+    keyOf(myHover),
+  ].filter(Boolean);
+
+  const advice = draftCoach.advise({ allyKeys, enemyKeys, takenKeys });
+  return { ok: true, counters: decorate(advice.counters), synergies: decorate(advice.synergies) };
+}
+ipcMain.handle("get-draft-advice", () => getDraftAdvice());
 
 // Home / client window
 ipcMain.handle("get-home", () => buildHomeData());
@@ -875,7 +1068,21 @@ ipcMain.handle("import-runes", async (_e, championId, variantName) => {
       subStyleId: b.runes.sub,
       selectedPerkIds: b.runes.ids,
     });
-    return { ok: true, name: champ.name, variant: label };
+
+    // Also push an item set for the same variant (best-effort — never fail the
+    // rune import if item sets are disabled/unavailable on the client).
+    let items = false;
+    try {
+      const block = (type, ids) => ({ type, items: (ids || []).filter(Boolean).map((id) => ({ id: String(id), count: 1 })) });
+      await lcu.importItemSet({
+        championId: Number(championId) || 0,
+        title: `PepStats: ${champ.name} — ${label}`,
+        blocks: [block("Starting", b.start), block("Core build", b.core)],
+      });
+      items = true;
+    } catch (_) { /* item set import is optional */ }
+
+    return { ok: true, name: champ.name, variant: label, items };
   } catch (e) {
     return { ok: false, error: e.message };
   }

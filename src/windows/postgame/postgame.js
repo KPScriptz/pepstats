@@ -6,6 +6,25 @@ const out = document.getElementById("coach-out");
 const coachBtn = document.getElementById("coach");
 const coachWarn = document.getElementById("coach-warning");
 const replayLine = document.getElementById("replay-line");
+const awardsEl = document.getElementById("awards");
+
+// Performance badges earned this match (MVP / Ace / Vision Demon / …), computed
+// in the main process from the sanctioned final scoreboard snapshot.
+function renderAwards(list) {
+  awardsEl.textContent = "";
+  if (!Array.isArray(list) || !list.length) {
+    awardsEl.classList.add("hidden");
+    return;
+  }
+  awardsEl.classList.remove("hidden");
+  for (const a of list) {
+    const span = document.createElement("span");
+    span.className = "award " + (a.cls || "silver");
+    span.textContent = a.label;
+    if (a.desc) span.title = a.desc;
+    awardsEl.append(span);
+  }
+}
 
 /* ---- Summary cards ---- */
 function fillCards(s) {
@@ -52,6 +71,7 @@ function applyLastGame(data) {
     return;
   }
   fillCards(data.scores);
+  renderAwards(data.scores && data.scores.awards);
   showReplay(data.replay);
   renderCoachStatus(data.coach);
 }

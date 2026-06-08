@@ -23,7 +23,13 @@ const C = {
 
   DRAGON_FIRST: 5 * 60,
   DRAGON_RESPAWN: 5 * 60,
+
+  INHIB_RESPAWN: 5 * 60,     // an inhibitor regenerates 5:00 after destruction
 };
+
+// Inhibitor structure id -> lane. League names them "Barracks_T{1|2}{L|C|R}1":
+// T1 = blue side (ORDER), T2 = red side (CHAOS); L/C/R = top/mid/bottom.
+const INHIB_LANE = { L: "Top", C: "Mid", R: "Bot" };
 
 const fmtClock = (s) => {
   const m = Math.floor(s / 60);
@@ -101,6 +107,36 @@ function baronState(t, events) {
   return node("baron", "Baron", "up", null);
 }
 
+// Inhibitor respawn timers, derived ONLY from the sanctioned `InhibKilled`
+// event (+ the fixed 5:00 respawn). We key by structure id and keep the LATEST
+// kill time per inhibitor (it can be destroyed again after regenerating), then
+// emit a "respawning" node for every inhibitor still down. Nothing here reads
+// map/vision state — only the event the live API already publishes.
+//
+// NOTE: structure (turret) timers aren't included — turrets don't respawn — and
+// JUNGLE CAMP timers are deliberately absent: the sanctioned API exposes no
+// "camp cleared" signal, so the only way to time camps would be screen-reading
+// or memory access, both of which are forbidden.
+function inhibitorStates(t, events) {
+  const lastKill = {};
+  for (const e of events || []) {
+    if (e.EventName === "InhibKilled" && typeof e.EventTime === "number") {
+      lastKill[e.InhibKilled || ""] = e.EventTime; // events are chronological
+    }
+  }
+  const out = [];
+  for (const id of Object.keys(lastKill)) {
+    const next = lastKill[id] + C.INHIB_RESPAWN;
+    if (t >= next) continue; // already regenerated
+    const m = /Barracks_T(\d)([LCR])/i.exec(id);
+    const side = m ? (m[1] === "1" ? "B" : "R") : "?";
+    const lane = m ? INHIB_LANE[m[2].toUpperCase()] || "?" : "?";
+    out.push(node("inhib-" + id, `Inhib ${lane} (${side})`, "respawning", Math.max(0, next - t)));
+  }
+  out.sort((a, b) => (a.secondsUntil || 0) - (b.secondsUntil || 0));
+  return out;
+}
+
 // Ordered array for the overlay's vertical timeline.
 //
 // `opts.isClassic` gates the whole timeline: grubs/herald/dragon/baron exist
@@ -116,6 +152,7 @@ function computeTimers(gameTime, events, opts) {
     heraldState(t, events),
     dragonState(t, events),
     baronState(t, events),
+    ...inhibitorStates(t, events),
   ];
 }
 
