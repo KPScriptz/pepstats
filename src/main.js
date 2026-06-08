@@ -13,6 +13,7 @@ const rankProgress = require("./shared/rankProgress");
 const riotApi = require("./shared/riotApi");
 const builds = require("./shared/builds");
 const advisor = require("./shared/advisor");
+const buildDataEngine = require("./utils/buildDataEngine");
 const processWatch = require("./shared/process");
 const replays = require("./shared/replays");
 
@@ -884,16 +885,22 @@ ipcMain.handle("import-runes", async (_e, championId, variantName) => {
 ipcMain.handle("get-build-key", async (_e, champKey) => {
   try {
     const set = builds.getVariants(champKey);
-    if (!set) return null;
+    // Derive the real skill order from the user's games (falls back to curated).
+    const cfg = loadConfig();
+    const account = { riotId: cfg.riotId, region: cfg.region, riotApiKey: cfg.riotApiKey };
+    const derived = await buildDataEngine.getOrDeriveSkillOrder(champKey, account);
+    if (!set && !derived) return null;
     const ver = await riotApi.ddragonVersion();
     const item = (id) => `https://ddragon.leagueoflegends.com/cdn/${ver}/img/item/${id}.png`;
-    const std = set.variants[set.order[0]];
+    const std = set ? set.variants[set.order[0]] : null;
     return {
       key: champKey,
-      role: std.role,
-      skills: std.skills,
-      start: std.start.map(item),
-      core: std.core.map(item),
+      role: std ? std.role : "",
+      skills: (derived && derived.skillMaxOrder) || (std ? std.skills : []),
+      skillPath: derived ? derived.skillPath : null,
+      source: derived ? derived.source : "curated",
+      start: std ? std.start.map(item) : [],
+      core: std ? std.core.map(item) : [],
     };
   } catch (e) {
     return null;
@@ -986,7 +993,7 @@ ipcMain.handle("set-startup", (_e, on) => {
   }
 });
 ipcMain.handle("clear-match-cache", () => {
-  try { riotApi.clearCache(); return { ok: true }; }
+  try { riotApi.clearCache(); buildDataEngine.clearCache(); return { ok: true }; }
   catch (e) { return { ok: false, error: e.message }; }
 });
 ipcMain.handle("open-data-folder", () => {

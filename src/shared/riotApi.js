@@ -381,8 +381,37 @@ async function getMatches(cfg, filterKey, count = 20) {
   return out;
 }
 
+// Resolve (and cache) the account PUUID from a linked Riot ID. Needed to map a
+// timeline's participantId back to the user.
+const _puuidCache = {};
+async function accountPuuid(cfg) {
+  const key = cfg && cfg.riotApiKey;
+  const id = parseRiotId(cfg && cfg.riotId);
+  const reg = REGIONS[((cfg && cfg.region) || "").toUpperCase()];
+  if (!key || !id || !reg) throw new Error("Account not linked.");
+  const ck = (cfg.riotId || "") + "|" + (cfg.region || "");
+  if (_puuidCache[ck]) return _puuidCache[ck];
+  const host = reg.cluster + ".api.riotgames.com";
+  const acc = await getJson(
+    host,
+    `/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(id.name)}/${encodeURIComponent(id.tag)}`,
+    key
+  );
+  if (acc && acc.puuid) _puuidCache[ck] = acc.puuid;
+  return acc.puuid;
+}
+
+// Official Match Timeline (used to derive real skill orders). ToS-compliant.
+function matchTimeline(cfg, matchId, timeoutMs = 7000) {
+  const key = cfg && cfg.riotApiKey;
+  const reg = REGIONS[((cfg && cfg.region) || "").toUpperCase()];
+  if (!key || !reg) return Promise.reject(new Error("Account not linked."));
+  const host = reg.cluster + ".api.riotgames.com";
+  return getJson(host, `/lol/match/v5/matches/${matchId}/timeline`, key, timeoutMs);
+}
+
 module.exports = {
   fetchProfile, parseRiotId, regionList, REGIONS,
   getMatches, ddragonVersion, perkMaps, championIndex, filterList, queueLabel, champKey,
-  setCacheDir, clearCache,
+  setCacheDir, clearCache, getJson, accountPuuid, matchTimeline,
 };

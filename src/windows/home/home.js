@@ -439,6 +439,7 @@ function renderAnalytics(res, ver) {
       api.getBuildByKey(top.champKey).then((b) => {
         if (!b || !b.skills || !b.skills.length) { sEmpty.classList.remove("hidden"); sBox.classList.add("hidden"); return; }
         sEmpty.classList.add("hidden"); sBox.classList.remove("hidden"); sBox.innerHTML = "";
+        sChamp.textContent = top.champion + (b.source === "riot" ? " · from your games" : " · curated");
         const widths = [100, 70, 45];
         b.skills.forEach((sk, i) => {
           const row = document.createElement("div"); row.className = "an-skrow";
@@ -449,6 +450,18 @@ function renderAnalytics(res, ver) {
           const ord = document.createElement("span"); ord.className = "an-skord"; ord.textContent = i === 0 ? "Max 1st" : i === 1 ? "2nd" : "3rd";
           row.append(key, bar, ord); sBox.append(row);
         });
+        // Full 1–15 level path (only when derived from real games).
+        if (Array.isArray(b.skillPath) && b.skillPath.length) {
+          const path = document.createElement("div"); path.className = "an-skpath";
+          b.skillPath.slice(0, 15).forEach((sk, i) => {
+            const cell = document.createElement("span");
+            cell.className = "an-skcell s-" + sk;
+            cell.textContent = sk;
+            cell.title = "Level " + (i + 1);
+            path.append(cell);
+          });
+          sBox.append(path);
+        }
       }).catch(() => { sEmpty.classList.remove("hidden"); sBox.classList.add("hidden"); });
     }
   } else if (!top) {

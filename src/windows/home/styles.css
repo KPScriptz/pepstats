@@ -417,6 +417,12 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16p
 .an-skbar { height: 8px; border-radius: 5px; background: var(--inset); overflow: hidden; }
 .an-skfill { height: 100%; border-radius: 5px; background: linear-gradient(90deg, color-mix(in srgb, var(--accent-dynamic) 55%, #000), var(--accent-dynamic)); }
 .an-skord { font-size: 10px; color: var(--muted); text-align: right; font-weight: 600; }
+.an-skpath { display: grid; grid-template-columns: repeat(15, 1fr); gap: 2px; margin-top: 10px; }
+.an-skcell { font-size: 8.5px; font-weight: 800; text-align: center; padding: 3px 0; border-radius: 3px; color: var(--text-muted); background: var(--inset); border: 1px solid var(--card-bd); }
+.an-skcell.s-Q { color: #5db4ff; border-color: rgba(93,180,255,.4); }
+.an-skcell.s-W { color: #46c98a; border-color: rgba(70,201,138,.4); }
+.an-skcell.s-E { color: #e7b35e; border-color: rgba(231,179,94,.4); }
+.an-skcell.s-R { color: #ff6b6b; border-color: rgba(255,107,107,.45); background: color-mix(in srgb, var(--bad) 12%, var(--inset)); }
 
 /* Best & worst */
 .an-bw { list-style: none; display: flex; flex-direction: column; gap: 8px; }
