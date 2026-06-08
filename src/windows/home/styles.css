@@ -23,17 +23,17 @@
 
 /* ---- Cyber-Grid Minimal · Dark (default) ---- */
 :root, [data-theme="dark"] {
-  --bg-primary: #0a0b0d; --bg-secondary: #12141c; --bg-card: #161920;
+  --bg-primary: #0a0b0d; --bg-secondary: #12141c; --bg-card: #1a1d26;
   --text-main: #f0f3f8; --text-muted: #6b778d;
 
   --bg0: var(--bg-primary); --bg1: var(--bg-secondary);
   --rail: #0b0d12; --rail-bd: #1b1f29;
   --card: var(--bg-card); --card-bd: #242936; --card-hover: var(--accent-dynamic);
-  --text: var(--text-main); --muted: var(--text-muted); --muted2: #4d5668;
+  --text: var(--text-main); --muted: var(--text-muted); --muted2: #545e72;
   --field-bg: #0e1117; --field-bd: #242936;
-  --hover: rgba(255,255,255,.045); --inset: #0e1117;
-  --shadow: 0 10px 30px rgba(0,0,0,.45);
-  --grid-line: rgba(255,255,255,.018);
+  --hover: rgba(255,255,255,.05); --inset: #11141c;
+  --shadow: 0 10px 30px rgba(0,0,0,.5);
+  --grid-line: rgba(255,255,255,.04);
   --app-bg: var(--bg-primary);
 }
 /* ---- Light ---- */

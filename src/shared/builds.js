@@ -65,6 +65,18 @@ const BUILDS = {
     spells: [4, 14], skills: ["Q", "E", "W"],
     start: [1056, 2003], core: [6655, 3020, 3157, 3089, 3135],
   },
+  Smolder: {
+    role: "BOTTOM",
+    runes: { primary: 8000, sub: 8100, ids: [8008, 8009, 9101, 8017, 8139, 8135, 5008, 5008, 5001] },
+    spells: [4, 7], skills: ["Q", "W", "E"],
+    start: [1055, 2003], core: [3042, 6672, 3006, 3094, 3036],
+  },
+  Mordekaiser: {
+    role: "TOP", ap: true,
+    runes: { primary: 8000, sub: 8400, ids: [8010, 9111, 9104, 8299, 8444, 8453, 5005, 5008, 5001] },
+    spells: [4, 6], skills: ["Q", "E", "W"],
+    start: [1054, 2003], core: [4633, 3020, 3116, 3157, 3065],
+  },
 };
 
 const SUMMONER_SPELLS = {
@@ -100,7 +112,9 @@ function withSituational(base, situationalItem, defShard) {
 }
 
 function deriveVariants(base) {
-  const isAP = base.runes.primary === 8200;
+  // AP if the primary tree is Sorcery, or the entry is flagged (AP bruisers that
+  // run Precision/Resolve keystones, e.g. Mordekaiser).
+  const isAP = base.ap === true || base.runes.primary === 8200;
   const apCounter = isAP ? 3102 : 3156; // Banshee's Veil (mage) / Maw of Malmortius (AD)
   const adCounter = isAP ? 3157 : 3026; // Zhonya's Hourglass (mage) / Guardian Angel (AD)
   return {
