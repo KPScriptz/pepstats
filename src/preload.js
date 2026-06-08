@@ -11,12 +11,13 @@ contextBridge.exposeInMainWorld("pepstats", {
   // In-game overlay
   onOverlay: (cb) => ipcRenderer.on("overlay", (_e, data) => cb(data)),
   onModeChange: (cb) => ipcRenderer.on("mode-change", (_e, mode) => cb(mode)),
+  onForceDesignOff: (cb) => ipcRenderer.on("force-design-mode-off", () => cb()),
 
   // Pre-game (poll + live push from the LCU socket)
   getPregame: () => ipcRenderer.invoke("get-pregame"),
   getChampions: () => ipcRenderer.invoke("get-champions"),
   getBuild: (championId) => ipcRenderer.invoke("get-build", championId),
-  importRunes: (championId) => ipcRenderer.invoke("import-runes", championId),
+  importRunes: (championId, variant) => ipcRenderer.invoke("import-runes", championId, variant),
   onChampSelect: (cb) => ipcRenderer.on("champ-select", (_e, data) => cb(data)),
 
   // Post-game

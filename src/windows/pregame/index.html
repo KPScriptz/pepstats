@@ -67,9 +67,10 @@
         </div>
       </section>
 
-      <!-- Build (curated) + rune import -->
-      <section class="panel">
+      <!-- Build (curated, situational multi-build) + rune import -->
+      <section class="panel build-panel">
         <h2>Build <span id="build-champ" class="pill pill-ally"></span></h2>
+        <div id="build-tabs" class="build-tabs hidden"></div>
         <div id="build-empty" class="muted">Lock in a champion to see a curated build (runes, spells, items, skill order).</div>
         <div id="build-body" class="build hidden">
           <div class="build-row"><span class="bl">Runes</span><div id="b-runes" class="b-icons"></div></div>
@@ -80,11 +81,13 @@
         </div>
         <div class="import-row">
           <button id="import" class="btn">Import runes</button>
-          <span id="import-status" class="muted">Pushes the curated rune page to your client.</span>
+          <span id="import-status" class="muted">Pushes the active variant's rune page to your client.</span>
         </div>
       </section>
     </main>
 
+    <script src="../theme.js"></script>
+    <script src="../themeEngine.js"></script>
     <script src="pregame.js"></script>
   </body>
 </html>

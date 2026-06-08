@@ -616,8 +616,17 @@ $("seg-startup").querySelectorAll("button").forEach((b) =>
 })();
 const dataStatus = (msg) => { const el = $("set-data-status"); if (!el) return; el.textContent = msg; el.classList.add("show"); setTimeout(() => el.classList.remove("show"), 1800); };
 $("set-clearcache").addEventListener("click", async () => {
-  try { const r = api.clearMatchCache && await api.clearMatchCache(); dashLoaded = false; dataStatus(r && r.ok ? "Cache cleared" : "Couldn't clear cache"); }
-  catch (_) { dataStatus("Couldn't clear cache"); }
+  try {
+    const r = api.clearMatchCache && await api.clearMatchCache();
+    // Edge case C: purge the local render caches and force an immediate redraw
+    // instead of waiting for the 5s interval loop, so the user never stares at
+    // stale/ghost data after clearing.
+    dashLoaded = false; dashLastTry = 0; lastMatches = []; matchesLoaded = false;
+    await refresh();                 // re-pull home snapshot + redraw graphs
+    await loadDashboardExtras(true);  // force-refetch recent matches / champ pool
+    if (!$("page-progress").classList.contains("hidden")) loadMatches();
+    dataStatus(r && r.ok ? "Cache cleared" : "Couldn't clear cache");
+  } catch (_) { dataStatus("Couldn't clear cache"); }
 });
 $("set-openfolder").addEventListener("click", () => { try { api.openDataFolder && api.openDataFolder(); } catch (_) {} });
 $("set-github").addEventListener("click", () => { try { api.openRepo && api.openRepo(); } catch (_) {} });
@@ -636,6 +645,7 @@ const ROWS = [["csm", "CSM"], ["gpm", "GPM"], ["vision", "VIS"], ["kp", "KP%"], 
 
 $("accent-custom").addEventListener("input", (e) => saveTheme({ accent: e.target.value }));
 $("seg-theme").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => saveTheme({ theme: b.dataset.v })));
+$("seg-champsync").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => saveTheme({ championSync: b.dataset.v === "on" })));
 $("seg-density").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => saveTheme({ density: b.dataset.v })));
 $("rng-font").addEventListener("input", (e) => saveTheme({ fontScale: parseFloat(e.target.value) }));
 $("rng-ovscale").addEventListener("input", (e) => saveTheme({ overlay: { scale: parseFloat(e.target.value) } }));
@@ -648,6 +658,11 @@ async function saveTheme(patch) { try { _theme = await api.saveTheme(patch); syn
 function syncAppearance(t) {
   if (!t) return; _theme = t;
   $("seg-theme").querySelectorAll("button").forEach((b) => b.classList.toggle("active", b.dataset.v === t.theme));
+  const csOn = t.championSync !== false;
+  $("seg-champsync").querySelectorAll("button").forEach((b) => b.classList.toggle("active", (b.dataset.v === "on") === csOn));
+  // The home window has no champion context, so it always shows the default
+  // Hextech-blue dynamic accent; the live tint applies in pre-game / overlay.
+  if (window.syncAppTheme) window.syncAppTheme("", false);
   $("seg-density").querySelectorAll("button").forEach((b) => b.classList.toggle("active", b.dataset.v === t.density));
   document.querySelectorAll("#swatches .sw").forEach((s) => s.classList.toggle("active", s.dataset.c.toLowerCase() === (t.accent || "").toLowerCase()));
   $("accent-custom").value = /^#[0-9a-fA-F]{6}$/.test(t.accent) ? t.accent : "#36d6d6";

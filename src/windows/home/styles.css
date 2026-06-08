@@ -3,36 +3,53 @@
 @font-face { font-family: "SF Pro Display"; src: url("../fonts/SFProDisplay-Bold.otf") format("opentype"); font-weight: 600 900; font-display: swap; }
 
 :root {
+  /* User-chosen accent (nav, rank chips, swatches). */
   --accent: #36d6d6;
   --accent-2: color-mix(in srgb, var(--accent) 70%, #000);
   --accent-ink: color-mix(in srgb, var(--accent) 30%, #04211d);
   --accent-soft: color-mix(in srgb, var(--accent) 15%, transparent);
   --accent-line: color-mix(in srgb, var(--accent) 38%, transparent);
-  --ui-scale: 1;
-  --gap: 14px; --pad: 17px; --radius: 14px; --rail-w: 220px;
-  --good: #46c98a; --bad: #ff5d6c;
-}
-[data-density="compact"] { --gap: 9px; --pad: 12px; --radius: 11px; --rail-w: 200px; }
 
-/* Dark (default) */
-:root, [data-theme="dark"] {
-  --bg0: #0d0f14; --bg1: #161a23; --rail: #0a0c11; --rail-bd: rgba(255,255,255,.06);
-  --card: rgba(40,45,55,.5); --card-bd: rgba(255,255,255,.08); --card-hover: rgba(54,214,214,.28);
-  --text: #e9eef4; --muted: #8b94a3; --muted2: #6c7686;
-  --field-bg: rgba(0,0,0,.26); --field-bd: rgba(255,255,255,.1);
-  --hover: rgba(255,255,255,.07); --inset: rgba(0,0,0,.2);
-  --shadow: 0 8px 24px rgba(0,0,0,.32);
-  --app-bg: radial-gradient(1100px 640px at 82% -12%, #1b2331 0%, var(--bg1) 40%, var(--bg0) 100%);
+  /* Dynamic accent driven by the Champion Sync engine (defaults to Hextech
+     blue). Card glows, build tabs and key highlights ride on these. */
+  --accent-dynamic: #0070f3;
+  --accent-dynamic-glow: rgba(0, 112, 243, 0.15);
+
+  --ui-scale: 1;
+  --gap: 14px; --pad: 16px; --radius: 12px; --rail-w: 220px;
+  --good: #2ec28b; --bad: #ff5d6c;
 }
-/* Light */
+[data-density="compact"] { --gap: 9px; --pad: 12px; --radius: 10px; --rail-w: 200px; }
+
+/* ---- Cyber-Grid Minimal · Dark (default) ---- */
+:root, [data-theme="dark"] {
+  --bg-primary: #0a0b0d; --bg-secondary: #12141c; --bg-card: #161920;
+  --text-main: #f0f3f8; --text-muted: #6b778d;
+
+  --bg0: var(--bg-primary); --bg1: var(--bg-secondary);
+  --rail: #0b0d12; --rail-bd: #1b1f29;
+  --card: var(--bg-card); --card-bd: #242936; --card-hover: var(--accent-dynamic);
+  --text: var(--text-main); --muted: var(--text-muted); --muted2: #4d5668;
+  --field-bg: #0e1117; --field-bd: #242936;
+  --hover: rgba(255,255,255,.045); --inset: #0e1117;
+  --shadow: 0 10px 30px rgba(0,0,0,.45);
+  --grid-line: rgba(255,255,255,.018);
+  --app-bg: var(--bg-primary);
+}
+/* ---- Light ---- */
 [data-theme="light"] {
-  --bg0: #e9edf3; --bg1: #f4f7fb; --rail: #ffffff; --rail-bd: rgba(20,30,50,.08);
-  --card: #ffffff; --card-bd: rgba(20,30,50,.1); --card-hover: color-mix(in srgb, var(--accent) 45%, transparent);
-  --text: #18202c; --muted: #5b6675; --muted2: #8a94a3;
-  --field-bg: #ffffff; --field-bd: rgba(20,30,50,.16);
-  --hover: rgba(20,30,50,.05); --inset: rgba(20,30,50,.04);
-  --shadow: 0 8px 22px rgba(40,55,80,.1);
-  --app-bg: radial-gradient(1100px 640px at 82% -12%, #ffffff 0%, var(--bg1) 42%, var(--bg0) 100%);
+  --bg-primary: #eef1f6; --bg-secondary: #f5f7fb; --bg-card: #ffffff;
+  --text-main: #161b24; --text-muted: #5b6675;
+
+  --bg0: var(--bg-primary); --bg1: var(--bg-secondary);
+  --rail: #ffffff; --rail-bd: #e2e7ef;
+  --card: var(--bg-card); --card-bd: #e2e7ef; --card-hover: var(--accent-dynamic);
+  --text: var(--text-main); --muted: var(--text-muted); --muted2: #8a94a3;
+  --field-bg: #ffffff; --field-bd: #d7dde7;
+  --hover: rgba(20,30,50,.05); --inset: #f1f4f9;
+  --shadow: 0 10px 26px rgba(40,55,80,.1);
+  --grid-line: rgba(20,30,50,.02);
+  --app-bg: var(--bg-primary);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -40,7 +57,15 @@ html, body { height: 100%; font-family: "SF Pro Display", "Inter", "Segoe UI", A
 .hidden { display: none !important; }
 .muted { color: var(--muted); font-size: 12.5px; line-height: 1.55; }
 
-.app { display: flex; height: 100%; background: var(--app-bg); zoom: var(--ui-scale); }
+.app {
+  display: flex; height: 100%; zoom: var(--ui-scale);
+  background-color: var(--app-bg);
+  /* Subtle 32px cyber grid. */
+  background-image:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
 
 /* ---- Window controls (Segoe MDL2 glyphs) ---- */
 .winctl { display: flex; gap: 2px; -webkit-app-region: no-drag; }
@@ -86,7 +111,15 @@ html, body { height: 100%; font-family: "SF Pro Display", "Inter", "Segoe UI", A
 @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 
 /* ---- Cards ---- */
-.card { background: var(--card); border: 1px solid var(--card-bd); border-radius: var(--radius); padding: var(--pad) calc(var(--pad) + 1px); box-shadow: var(--shadow); transition: transform .18s, border-color .18s; }
+.card {
+  background: var(--card); border: 1px solid var(--card-bd); border-radius: var(--radius);
+  padding: var(--pad) calc(var(--pad) + 1px); box-shadow: var(--shadow);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.18s ease;
+}
+.card:hover {
+  border-color: color-mix(in srgb, var(--accent-dynamic) 55%, var(--card-bd));
+  box-shadow: var(--shadow), 0 0 0 1px var(--accent-dynamic-glow), 0 6px 34px var(--accent-dynamic-glow);
+}
 .card-title { font-size: 11px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); }
 .card-sub { font-size: 12px; color: var(--muted); margin-top: 3px; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap); }

@@ -18,6 +18,7 @@ const el = {
   importStatus: document.getElementById("import-status"),
   importBtn: document.getElementById("import"),
   buildChamp: document.getElementById("build-champ"),
+  buildTabs: document.getElementById("build-tabs"),
   buildEmpty: document.getElementById("build-empty"),
   buildBody: document.getElementById("build-body"),
   bRunes: document.getElementById("b-runes"),
@@ -167,20 +168,12 @@ function iconImg(url, cls) {
   return i;
 }
 
-function renderBuild(b) {
-  if (!b || b.none || b.error || !b.runes) {
-    el.buildBody.classList.add("hidden");
-    el.buildEmpty.classList.remove("hidden");
-    el.buildEmpty.textContent = b && b.champion
-      ? `No curated build for ${b.champion} yet.`
-      : "Lock in a champion to see a curated build.";
-    el.buildChamp.textContent = (b && b.champion) || "";
-    return;
-  }
-  el.buildEmpty.classList.add("hidden");
-  el.buildBody.classList.remove("hidden");
-  el.buildChamp.textContent = b.champion + (b.role ? " · " + b.role : "");
+// Current curated build set: { champion, role, order:[names], variants:{name:build} }.
+let buildSet = null;
+let activeVariant = "";
 
+// Render just the runes / skills / items of one resolved variant.
+function renderVariant(b) {
   el.bRunes.innerHTML = "";
   el.bRunes.append(iconImg(b.runes.keystone, "key"));
   for (const u of b.runes.perks) el.bRunes.append(iconImg(u, "rune"));
@@ -195,11 +188,54 @@ function renderBuild(b) {
   b.core.forEach((u, i) => { if (i) { const a = document.createElement("span"); a.className = "b-arrow"; a.textContent = "›"; el.bCore.append(a); } el.bCore.append(iconImg(u)); });
 }
 
+// Switch to a variant by name and refresh the displayed build + tab state.
+function selectVariant(name) {
+  if (!buildSet || !buildSet.variants[name]) return;
+  activeVariant = name;
+  renderVariant(buildSet.variants[name]);
+  el.buildTabs.querySelectorAll(".build-tab").forEach((t) => t.classList.toggle("active", t.dataset.v === name));
+}
+
+function renderBuild(payload) {
+  buildSet = null; activeVariant = "";
+  el.buildTabs.innerHTML = ""; el.buildTabs.classList.add("hidden");
+  if (!payload || payload.none || payload.error || !payload.variants) {
+    el.buildBody.classList.add("hidden");
+    el.buildEmpty.classList.remove("hidden");
+    el.buildEmpty.textContent = payload && payload.champion
+      ? `No curated build for ${payload.champion} yet.`
+      : "Lock in a champion to see a curated build.";
+    el.buildChamp.textContent = (payload && payload.champion) || "";
+    return;
+  }
+  buildSet = payload;
+  el.buildEmpty.classList.add("hidden");
+  el.buildBody.classList.remove("hidden");
+  el.buildChamp.textContent = payload.champion + (payload.role ? " · " + payload.role : "");
+
+  // Build the segmented variant tabs.
+  el.buildTabs.classList.remove("hidden");
+  for (const name of payload.order) {
+    const tab = document.createElement("button");
+    tab.className = "build-tab";
+    tab.dataset.v = name;
+    tab.textContent = name;
+    tab.addEventListener("click", () => selectVariant(name));
+    el.buildTabs.append(tab);
+  }
+  selectVariant(payload.order[0]);
+}
+
 async function loadBuild(championId) {
   pickedChampId = championId || 0;
   if (!pickedChampId || !window.pepstats.getBuild) { renderBuild(null); return; }
-  try { renderBuild(await window.pepstats.getBuild(pickedChampId)); }
-  catch (_) { renderBuild(null); }
+  try {
+    const payload = await window.pepstats.getBuild(pickedChampId);
+    renderBuild(payload);
+    // Champion Sync: tint the app accent to the picked champion.
+    const enabled = !(window.__pepTheme && window.__pepTheme.championSync === false);
+    if (window.syncAppTheme) window.syncAppTheme(payload && payload.champion, enabled);
+  } catch (_) { renderBuild(null); }
 }
 
 async function refresh() {
@@ -227,9 +263,9 @@ el.importBtn.addEventListener("click", async () => {
   el.importBtn.disabled = true;
   el.importStatus.textContent = "Importing rune page…";
   try {
-    const res = await window.pepstats.importRunes(pickedChampId);
+    const res = await window.pepstats.importRunes(pickedChampId, activeVariant);
     if (res && res.ok) {
-      el.importStatus.textContent = "Rune page imported — check your client.";
+      el.importStatus.textContent = `Imported "${res.variant || "Standard Core"}" runes — check your client.`;
       setDot(el.importDot, "active");
       el.importLabel.textContent = "Imported";
     } else {

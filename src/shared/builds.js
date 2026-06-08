@@ -77,4 +77,44 @@ function getBuild(ddragonId) {
   return (ddragonId && BUILDS[ddragonId]) || null;
 }
 
-module.exports = { getBuild, BUILDS, SUMMONER_SPELLS };
+// ---- Situational multi-build variants --------------------------------------
+// Each champion has one hand-curated "Standard Core" build; the two situational
+// pathways are derived from it so the offline set stays maintainable. They swap
+// the final (non-boots) core item for a defensive pick and flip the defense rune
+// shard, which is the highest-impact situational adjustment in practice.
+const VARIANT_ORDER = ["Standard Core", "vs Heavy AP", "vs Heavy AD / Assassin"];
+
+// Boots — never overwritten when injecting a situational item.
+const BOOTS = new Set([3006, 3009, 3020, 3047, 3111, 3117, 3158, 3174, 3013]);
+// Defense rune shard slot (9th perk): 5001 health · 5002 armor · 5003 magic resist.
+const SHARD_HEALTH = 5001, SHARD_ARMOR = 5002, SHARD_MR = 5003;
+
+function withSituational(base, situationalItem, defShard) {
+  const core = base.core.slice();
+  let idx = core.length - 1;
+  while (idx > 0 && BOOTS.has(core[idx])) idx--;
+  if (!core.includes(situationalItem)) core[idx] = situationalItem;
+  const ids = base.runes.ids.slice();
+  ids[8] = defShard;
+  return { role: base.role, spells: base.spells, skills: base.skills, start: base.start, core, runes: { ...base.runes, ids } };
+}
+
+function deriveVariants(base) {
+  const isAP = base.runes.primary === 8200;
+  const apCounter = isAP ? 3102 : 3156; // Banshee's Veil (mage) / Maw of Malmortius (AD)
+  const adCounter = isAP ? 3157 : 3026; // Zhonya's Hourglass (mage) / Guardian Angel (AD)
+  return {
+    "Standard Core": base,
+    "vs Heavy AP": withSituational(base, apCounter, SHARD_MR),
+    "vs Heavy AD / Assassin": withSituational(base, adCounter, SHARD_ARMOR),
+  };
+}
+
+// Returns { order:[names], variants:{ name: build } } or null when uncurated.
+function getVariants(ddragonId) {
+  const base = getBuild(ddragonId);
+  if (!base) return null;
+  return { order: VARIANT_ORDER.slice(), variants: deriveVariants(base) };
+}
+
+module.exports = { getBuild, getVariants, VARIANT_ORDER, BUILDS, SUMMONER_SPELLS };

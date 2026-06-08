@@ -235,10 +235,16 @@ function render() {
   }
 }
 
-function applyOverlay({ compare, timers, mode: m }) {
+function applyOverlay({ scores, compare, timers, mode: m }) {
   if (m) mode = m;
   applyStats(compare);
   renderTimers(timers);
+
+  // Champion Sync: tint the dynamic accent to the champion being played.
+  if (window.syncAppTheme && scores && scores.champion) {
+    const enabled = !(window.__pepTheme && window.__pepTheme.championSync === false);
+    window.syncAppTheme(scores.champion, enabled);
+  }
 
   gameActive = true;
   clearTimeout(watchdog);
@@ -255,6 +261,14 @@ if (window.pepstats && typeof window.pepstats.onOverlay === "function") {
   if (typeof window.pepstats.onModeChange === "function") {
     window.pepstats.onModeChange((m) => {
       mode = m;
+      render();
+    });
+  }
+  // Match just went live — drop any lingering design-mode outline/interaction.
+  if (typeof window.pepstats.onForceDesignOff === "function") {
+    window.pepstats.onForceDesignOff(() => {
+      mode = "live";
+      els.widget.classList.remove("design");
       render();
     });
   }

@@ -236,9 +236,17 @@ async function poll() {
     const timers = computeTimers(scores.gameTime, scores.events, { isClassic: info.isClassic });
     if (appState !== STATE.INGAME) {
       appState = STATE.INGAME;
-      ensure("ingame");
+      const overlayWindow = ensure("ingame");
       showOnly("ingame");
       setDesignMode(false); // matches go live (click-through) by default
+      // Edge case A: as the match ticks over to InProgress, hard-disable any
+      // lingering drag/design interaction so a stuck design state can never
+      // intercept the mouse during gameplay, then tell the renderer to drop the
+      // design outline visually.
+      if (overlayWindow && !overlayWindow.isDestroyed()) {
+        overlayWindow.setIgnoreMouseEvents(true, { forward: true });
+      }
+      sendTo("ingame", "force-design-mode-off");
     }
     sendTo("ingame", "overlay", { scores, compare, timers, mode: designMode ? "design" : "live" });
     return;
@@ -366,6 +374,7 @@ const THEME_DEFAULTS = {
   accent: "#36d6d6",
   density: "comfortable", // "comfortable" | "compact"
   fontScale: 1, // 0.9 .. 1.15
+  championSync: true, // tint --accent-dynamic to the selected champion
   overlay: {
     scale: 1, // 0.8 .. 1.3
     opacity: 1, // 0.5 .. 1
@@ -384,6 +393,7 @@ function resolveTheme() {
     accent: typeof ui.accent === "string" && /^#[0-9a-fA-F]{6}$/.test(ui.accent) ? ui.accent : THEME_DEFAULTS.accent,
     density: ui.density === "compact" ? "compact" : "comfortable",
     fontScale: num(ui.fontScale, 1, 0.85, 1.2),
+    championSync: ui.championSync !== false,
     overlay: {
       scale: num(ov.scale, 1, 0.8, 1.3),
       opacity: num(ov.opacity, 1, 0.4, 1),
@@ -812,52 +822,59 @@ ipcMain.handle("save-theme", (_e, patch) => {
 
 ipcMain.handle("get-champions", () => riotApi.championIndex());
 
-// Curated build for a champion (numeric championId), with icon URLs resolved.
+// Curated, situational multi-build for a champion (numeric championId). Returns
+// every variant (Standard Core / vs Heavy AP / vs Heavy AD) with icon URLs.
 ipcMain.handle("get-build", async (_e, championId) => {
   try {
     const idx = await riotApi.championIndex();
     const champ = idx.byId[String(championId)];
     if (!champ) return null;
-    const b = builds.getBuild(champ.id);
-    if (!b) return { champion: champ.name, none: true };
+    const set = builds.getVariants(champ.id);
+    if (!set) return { champion: champ.name, none: true };
     const ver = idx.version;
     const rm = await riotApi.perkMaps();
     const perk = (id) => (rm.perks && rm.perks[id]) || null;
     const style = (id) => (rm.styles && rm.styles[id]) || null;
     const spell = (id) => (builds.SUMMONER_SPELLS[id] ? `https://ddragon.leagueoflegends.com/cdn/${ver}/img/spell/${builds.SUMMONER_SPELLS[id]}.png` : null);
     const item = (id) => `https://ddragon.leagueoflegends.com/cdn/${ver}/img/item/${id}.png`;
-    const ids = b.runes.ids;
-    return {
-      champion: champ.name,
-      role: b.role,
-      runes: {
-        primary: style(b.runes.primary), sub: style(b.runes.sub),
-        keystone: perk(ids[0]), perks: [perk(ids[1]), perk(ids[2]), perk(ids[3])], sec: [perk(ids[4]), perk(ids[5])],
-      },
-      spells: b.spells.map(spell),
-      skills: b.skills,
-      start: b.start.map(item),
-      core: b.core.map(item),
+    const resolve = (b) => {
+      const ids = b.runes.ids;
+      return {
+        role: b.role,
+        runes: {
+          primary: style(b.runes.primary), sub: style(b.runes.sub),
+          keystone: perk(ids[0]), perks: [perk(ids[1]), perk(ids[2]), perk(ids[3])], sec: [perk(ids[4]), perk(ids[5])],
+        },
+        spells: b.spells.map(spell),
+        skills: b.skills,
+        start: b.start.map(item),
+        core: b.core.map(item),
+      };
     };
+    const variants = {};
+    for (const name of set.order) variants[name] = resolve(set.variants[name]);
+    return { champion: champ.name, role: set.variants[set.order[0]].role, order: set.order, variants };
   } catch (e) {
     return { error: e.message };
   }
 });
 
-// Import the curated rune page for a champion into the client via the LCU.
-ipcMain.handle("import-runes", async (_e, championId) => {
+// Import the rune page for the chosen variant into the client via the LCU.
+ipcMain.handle("import-runes", async (_e, championId, variantName) => {
   try {
     const idx = await riotApi.championIndex();
     const champ = idx.byId[String(championId)];
-    const b = champ && builds.getBuild(champ.id);
-    if (!b) return { ok: false, error: "No curated build for this champion yet." };
+    const set = champ && builds.getVariants(champ.id);
+    if (!set) return { ok: false, error: "No curated build for this champion yet." };
+    const b = set.variants[variantName] || set.variants[set.order[0]];
+    const label = variantName && set.variants[variantName] ? variantName : set.order[0];
     await lcu.importRunePage({
-      name: "PepStats: " + champ.name,
+      name: `PepStats: ${champ.name} — ${label}`,
       primaryStyleId: b.runes.primary,
       subStyleId: b.runes.sub,
       selectedPerkIds: b.runes.ids,
     });
-    return { ok: true, name: champ.name };
+    return { ok: true, name: champ.name, variant: label };
   } catch (e) {
     return { ok: false, error: e.message };
   }
@@ -936,8 +953,16 @@ ipcMain.handle("get-app-info", () => {
   return { version: app.getVersion(), startup };
 });
 ipcMain.handle("set-startup", (_e, on) => {
-  try { app.setLoginItemSettings({ openAtLogin: !!on }); return { ok: true }; }
-  catch (e) { return { ok: false, error: e.message }; }
+  // Edge case B: registry/login-item writes can be blocked by UAC, group
+  // policy, or an unsigned/sandboxed environment. Never let that bubble up and
+  // crash the background loop — catch it, log it, and report failure cleanly.
+  try {
+    app.setLoginItemSettings({ openAtLogin: !!on });
+    return { success: true, ok: true };
+  } catch (e) {
+    console.error("[startup] Failed to set launch-on-startup:", e && e.message ? e.message : e);
+    return { success: false, ok: false, error: (e && e.message) || "Could not update startup setting." };
+  }
 });
 ipcMain.handle("clear-match-cache", () => {
   try { riotApi.clearCache(); return { ok: true }; }
