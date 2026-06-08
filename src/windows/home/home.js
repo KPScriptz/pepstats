@@ -377,6 +377,103 @@ async function loadMatches() {
 
 const mkImg = (src, cls, onerr) => { const i = document.createElement("img"); if (cls) i.className = cls; i.src = src; i.onerror = onerr; return i; };
 
+// Achievement badges derived from the match's REAL participant data.
+function matchBadges(m) {
+  const out = [];
+  const parts = m.participants || [];
+  const meP = parts.find((p) => p.me);
+  const kdaOf = (p) => (p.d ? (p.k + p.a) / p.d : p.k + p.a);
+  if (meP) {
+    const team = parts.filter((p) => p.teamId === meP.teamId);
+    const all = parts.slice();
+    const bestTeam = team.reduce((a, b) => (kdaOf(b) > kdaOf(a) ? b : a), team[0]);
+    const bestAll = all.reduce((a, b) => (kdaOf(b) > kdaOf(a) ? b : a), all[0]);
+    if (bestAll && bestAll.me) out.push({ t: "ACE", cls: "gold" });
+    else if (bestTeam && bestTeam.me) out.push({ t: m.win ? "MVP" : "SVP", cls: "gold" });
+    // Most CS on own team.
+    const topCs = team.reduce((a, b) => ((b.cs || 0) > (a.cs || 0) ? b : a), team[0]);
+    if (topCs && topCs.me) out.push({ t: "High CS", cls: "silver" });
+  }
+  if (out.length < 2 && typeof m.kp === "number" && m.kp >= 65) out.push({ t: "Playmaker", cls: "silver" });
+  if (out.length < 2 && typeof m.kda === "number" && m.kda >= 5) out.push({ t: m.kda + " KDA", cls: "gold" });
+  return out.slice(0, 2);
+}
+
+// Right-column analytics — all from the player's own match data.
+let analyticsChampKey = "";
+function renderAnalytics(res, ver) {
+  const matches = (res.matches || []).filter((m) => !m.remake);
+
+  // ---- GPM vs average (oldest -> newest), from the player's own gold ----
+  const series = [];
+  for (const m of matches.slice().reverse()) {
+    const meP = (m.participants || []).find((p) => p.me);
+    const gold = meP ? meP.gold : 0;
+    const mins = m.durationSec ? m.durationSec / 60 : 0;
+    if (gold && mins) series.push(Math.round(gold / mins));
+  }
+  const gEmpty = $("an-gpm-empty"), gSvg = $("an-gpm"), gLine = $("an-gpm-line"), gAvg = $("an-gpm-avg"), gLeg = $("an-gpm-legend");
+  if (series.length < 2) {
+    gEmpty.classList.remove("hidden"); gSvg.classList.add("hidden"); gLeg.classList.add("hidden");
+  } else {
+    gEmpty.classList.add("hidden"); gSvg.classList.remove("hidden"); gLeg.classList.remove("hidden");
+    const avg = Math.round(series.reduce((a, b) => a + b, 0) / series.length);
+    let min = Math.min(...series), max = Math.max(...series);
+    if (max === min) { max += 1; min -= 1; }
+    const W = 240, H = 96, pad = 8, n = series.length;
+    const xs = (i) => pad + (i / (n - 1)) * (W - 2 * pad);
+    const ys = (v) => pad + (1 - (v - min) / (max - min)) * (H - 2 * pad);
+    gLine.setAttribute("points", series.map((v, i) => `${xs(i).toFixed(1)},${ys(v).toFixed(1)}`).join(" "));
+    const ay = ys(avg).toFixed(1); gAvg.setAttribute("y1", ay); gAvg.setAttribute("y2", ay);
+    $("an-gpm-avgval").textContent = avg + " g/m";
+  }
+
+  // ---- Skill maxing order for the most-played champion ----
+  const champs = res.champs || [];
+  const top = champs[0];
+  const sEmpty = $("an-skill-empty"), sBox = $("an-skill"), sChamp = $("an-skill-champ");
+  if (top && top.champKey && top.champKey !== analyticsChampKey) {
+    analyticsChampKey = top.champKey;
+    sChamp.textContent = top.champion;
+    if (api.getBuildByKey) {
+      api.getBuildByKey(top.champKey).then((b) => {
+        if (!b || !b.skills || !b.skills.length) { sEmpty.classList.remove("hidden"); sBox.classList.add("hidden"); return; }
+        sEmpty.classList.add("hidden"); sBox.classList.remove("hidden"); sBox.innerHTML = "";
+        const widths = [100, 70, 45];
+        b.skills.forEach((sk, i) => {
+          const row = document.createElement("div"); row.className = "an-skrow";
+          const key = document.createElement("span"); key.className = "an-skkey"; key.textContent = sk;
+          const bar = document.createElement("div"); bar.className = "an-skbar";
+          const fill = document.createElement("div"); fill.className = "an-skfill"; fill.style.width = (widths[i] || 30) + "%";
+          bar.append(fill);
+          const ord = document.createElement("span"); ord.className = "an-skord"; ord.textContent = i === 0 ? "Max 1st" : i === 1 ? "2nd" : "3rd";
+          row.append(key, bar, ord); sBox.append(row);
+        });
+      }).catch(() => { sEmpty.classList.remove("hidden"); sBox.classList.add("hidden"); });
+    }
+  } else if (!top) {
+    analyticsChampKey = ""; sChamp.textContent = "Most-played champion"; sEmpty.classList.remove("hidden"); sBox.classList.add("hidden");
+  }
+
+  // ---- Best & worst champions from the player's own win rates ----
+  const ranked = champs.filter((c) => c.games >= 2).sort((a, b) => b.wr - a.wr);
+  const bwEmpty = $("an-bw-empty"), bw = $("an-bw");
+  if (ranked.length < 1) { bwEmpty.classList.remove("hidden"); bw.classList.add("hidden"); }
+  else {
+    bwEmpty.classList.add("hidden"); bw.classList.remove("hidden"); bw.innerHTML = "";
+    const rows = [{ tag: "Best", c: ranked[0] }];
+    if (ranked.length > 1) rows.push({ tag: "Worst", c: ranked[ranked.length - 1] });
+    for (const r of rows) {
+      const li = document.createElement("li");
+      li.append(mkImg(champImg(ver, r.c.champKey), "an-bwico", function () { this.style.visibility = "hidden"; }));
+      const meta = document.createElement("div"); meta.className = "an-bwmeta";
+      meta.innerHTML = `<span class="an-bwtag ${r.tag === "Best" ? "pos" : "neg"}">${r.tag}</span> ${r.c.champion}<span class="an-bwsub">${r.c.games} games · ${r.c.kda} KDA</span>`;
+      const wr = document.createElement("div"); wr.className = "an-bwwr " + (r.c.wr >= 50 ? "pos" : "neg"); wr.textContent = r.c.wr + "%";
+      li.append(meta, wr); bw.append(li);
+    }
+  }
+}
+
 function buildDetail(m, ver) {
   const wrap = document.createElement("div"); wrap.className = "m-detail hidden";
   const maxDmg = Math.max(1, ...m.participants.map((p) => p.dmg || 0));
@@ -503,6 +600,12 @@ function renderMatches(res) {
       `<div class="m-kda"><b>${m.k} / <span class="d">${m.d}</span> / ${m.a}</b><span class="m-kdar">${m.kda} KDA</span></div>` +
       `<div class="m-cs">${m.cs} CS · ${m.csPerMin}/min</div>` +
       `<div class="m-extra">P/Kill ${m.kp}% · ${kFmt(m.dmg)} dmg</div>`;
+    const badges = matchBadges(m);
+    if (badges.length) {
+      const bw = document.createElement("div"); bw.className = "m-badges";
+      for (const b of badges) { const pill = document.createElement("span"); pill.className = "badge " + b.cls; pill.textContent = b.t; bw.append(pill); }
+      stats.append(bw);
+    }
 
     const items = document.createElement("div"); items.className = "m-items";
     for (const it of (m.items || [])) { const cell = document.createElement("span"); cell.className = "m-item"; if (it) cell.append(mkImg(itemImg(ver, it), "", function () { cell.classList.add("empty"); })); else cell.classList.add("empty"); items.append(cell); }
@@ -527,6 +630,8 @@ function renderMatches(res) {
 
     li.append(idCol, main, stats, items, parts, caret, detail); list.append(li);
   }
+
+  renderAnalytics(res, ver);
 }
 
 // ===== Data loop =====

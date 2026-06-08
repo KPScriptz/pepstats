@@ -879,6 +879,27 @@ ipcMain.handle("import-runes", async (_e, championId, variantName) => {
     return { ok: false, error: e.message };
   }
 });
+// Curated build looked up by Data Dragon champion key (e.g. "Jinx") rather than
+// numeric id — used by the analytics panel for skill order / item path.
+ipcMain.handle("get-build-key", async (_e, champKey) => {
+  try {
+    const set = builds.getVariants(champKey);
+    if (!set) return null;
+    const ver = await riotApi.ddragonVersion();
+    const item = (id) => `https://ddragon.leagueoflegends.com/cdn/${ver}/img/item/${id}.png`;
+    const std = set.variants[set.order[0]];
+    return {
+      key: champKey,
+      role: std.role,
+      skills: std.skills,
+      start: std.start.map(item),
+      core: std.core.map(item),
+    };
+  } catch (e) {
+    return null;
+  }
+});
+
 ipcMain.handle("match-filters", () => riotApi.filterList());
 ipcMain.handle("get-matches", async (_e, filter, count) => {
   const cfg = loadConfig();

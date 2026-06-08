@@ -232,6 +232,33 @@
                 <ul id="mh-list" class="matches hidden"></ul>
                 <button id="mh-more" class="btn btn-ghost mh-more hidden">Show more</button>
               </div>
+
+              <!-- Right: advanced analytics (replaces the old ad column) -->
+              <aside class="mh-analytics">
+                <div class="card">
+                  <div class="card-title">Advanced Analytics</div>
+                  <div class="an-sub">Gold / min across recent games <i>vs your average</i></div>
+                  <div id="an-gpm-empty" class="muted">Play a few games to chart your economy.</div>
+                  <svg id="an-gpm" class="an-graph hidden" viewBox="0 0 240 96" preserveAspectRatio="none">
+                    <line id="an-gpm-avg" class="an-avg" x1="0" x2="240" y1="48" y2="48" />
+                    <polyline id="an-gpm-line" class="an-line" points="" />
+                  </svg>
+                  <div id="an-gpm-legend" class="an-legend hidden"><span><i class="an-dot line"></i>Per game</span><span><i class="an-dot avg"></i>Average <b id="an-gpm-avgval">—</b></span></div>
+                </div>
+
+                <div class="card">
+                  <div class="card-title">Skill Maxing Order</div>
+                  <div class="an-sub" id="an-skill-champ">Most-played champion</div>
+                  <div id="an-skill-empty" class="muted">No curated skill order for your top champion yet.</div>
+                  <div id="an-skill" class="an-skill hidden"></div>
+                </div>
+
+                <div class="card">
+                  <div class="card-title">Best &amp; Worst (Your Games)</div>
+                  <div id="an-bw-empty" class="muted">Not enough games on record.</div>
+                  <ul id="an-bw" class="an-bw hidden"></ul>
+                </div>
+              </aside>
             </div>
           </section>
 
