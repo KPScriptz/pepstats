@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld("pepstats", {
 
   // Post-game
   getLastGame: () => ipcRenderer.invoke("get-last-game"),
+  getPostgame: () => ipcRenderer.invoke("get-postgame"),
   onLastGame: (cb) => ipcRenderer.on("last-game", (_e, data) => cb(data)),
 
   // Streaming AI coach

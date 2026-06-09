@@ -15,6 +15,7 @@ const builds = require("./shared/builds");
 const advisor = require("./shared/advisor");
 const buildDataEngine = require("./utils/buildDataEngine");
 const friendsEngine = require("./utils/friendsEngine");
+const postgameEngine = require("./utils/postgameEngine");
 const processWatch = require("./shared/process");
 const replays = require("./shared/replays");
 
@@ -776,6 +777,12 @@ async function streamCoach(sender) {
 // ----- IPC ---------------------------------------------------------------
 ipcMain.on("coach-start", (e) => streamCoach(e.sender));
 ipcMain.handle("get-last-game", () => ({ scores: lastSnapshot, replay: lastReplay, coach: coachConfigStatus() }));
+ipcMain.handle("get-postgame", async () => {
+  const cfg = loadConfig();
+  const account = { riotId: cfg.riotId, region: cfg.region, riotApiKey: cfg.riotApiKey };
+  const data = await postgameEngine.analyze(account);
+  return { ...data, replay: lastReplay, coach: coachConfigStatus() };
+});
 ipcMain.handle("get-pregame", async () => {
   try {
     return await lcu.getChampSelectSession();

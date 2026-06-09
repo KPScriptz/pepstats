@@ -1,20 +1,25 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; script-src 'self'; font-src 'self';" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; script-src 'self'; font-src 'self'; img-src 'self' data: https://ddragon.leagueoflegends.com;" />
     <link rel="stylesheet" href="styles.css" />
     <title>PepStats — Post-Game</title>
   </head>
   <body>
     <header class="titlebar">
       <span class="brand">PEPSTATS<span class="sub"> · POST-GAME REVIEW</span></span>
+      <span id="outcome" class="outcome hidden"></span>
       <button id="close" class="close" title="Close">✕</button>
     </header>
 
     <main class="dash">
+      <!-- Hero metric strip -->
       <section class="cards" id="cards">
-        <div class="card"><div class="k">Champion</div><div class="v" id="c-champ">—</div></div>
+        <div class="card hero-champ">
+          <img id="c-champ-ico" class="hero-ico" alt="" />
+          <div><div class="k">Champion</div><div class="v" id="c-champ">—</div></div>
+        </div>
         <div class="card"><div class="k">KDA</div><div class="v" id="c-kda">—</div></div>
         <div class="card"><div class="k">CS</div><div class="v" id="c-cs">—</div></div>
         <div class="card"><div class="k">CS / min</div><div class="v" id="c-cspm">—</div></div>
@@ -22,42 +27,75 @@
         <div class="card"><div class="k">Duration</div><div class="v" id="c-dur">—</div></div>
       </section>
 
-      <p id="replay-line" class="muted replay-line">No replay file detected for this match.</p>
+      <p id="replay-line" class="muted replay-line"></p>
 
-      <section class="panel">
-        <div class="panel-head">
-          <h2>Gold Differential Timeline</h2>
-          <span class="badge-placeholder">Placeholder</span>
-        </div>
-        <div class="graph-wrap">
-          <svg id="gold-graph" class="graph" viewBox="0 0 600 170" preserveAspectRatio="none" aria-label="Gold differential over time">
-            <line class="graph-zero" x1="0" y1="85" x2="600" y2="85" />
-            <polyline id="graph-area-pos" class="graph-area pos" points="" />
-            <polyline id="graph-area-neg" class="graph-area neg" points="" />
-            <polyline id="graph-line" class="graph-line" points="" />
-            <line id="graph-cursor" class="graph-cursor" x1="0" y1="0" x2="0" y2="170" />
-            <circle id="graph-marker" class="graph-marker" cx="0" cy="0" r="4" />
-          </svg>
-          <div id="graph-readout" class="graph-readout">Hover the timeline</div>
-        </div>
-        <p class="muted graph-note">
-          Illustrative curve. The sanctioned Live Client API exposes only your own
-          gold, so a real minute-by-minute lane differential isn't pulled here.
-        </p>
-      </section>
+      <div class="pg-grid">
+        <!-- Left: comparison + objectives -->
+        <aside class="pg-left">
+          <section class="panel">
+            <h2>Performance vs Your Average</h2>
+            <div id="cmp-empty" class="muted">Not enough past games on this champion.</div>
+            <div id="cmp-body" class="hidden">
+              <div class="cmp-row"><span class="cmp-k">KDA</span><span class="cmp-now" id="cmp-kda-now">—</span><span class="cmp-avg" id="cmp-kda-avg">—</span></div>
+              <div class="cmp-row"><span class="cmp-k">CS / min</span><span class="cmp-now" id="cmp-cs-now">—</span><span class="cmp-avg" id="cmp-cs-avg">—</span></div>
+              <div class="cmp-note" id="cmp-note"></div>
+            </div>
+          </section>
+          <section class="panel">
+            <h2>Objective Timeline</h2>
+            <div id="obj-empty" class="muted">No neutral objectives recorded.</div>
+            <ul id="obj-list" class="obj-list hidden"></ul>
+          </section>
+        </aside>
 
-      <section class="panel coach-panel">
-        <h2>AI Tactical Review</h2>
-        <p class="muted">Free review generated from your own match data — no account or key required.</p>
-        <p id="coach-warning" class="coach-warning" hidden></p>
-        <button id="coach" class="btn-coach">
-          <span class="btn-coach-glow"></span>
-          <span class="btn-coach-label">Generate Tactical Review</span>
-        </button>
-        <div id="coach-out" class="coach-out"></div>
-      </section>
+        <!-- Center: GSE chart + skill deviation -->
+        <section class="pg-center">
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Gold Spending Efficiency &amp; Spikes</h2>
+              <span class="gse-legend"><i class="lg-line"></i>Unspent gold &nbsp; <i class="lg-warn"></i>Over-cap @ dragon</span>
+            </div>
+            <div class="graph-wrap">
+              <svg id="gse-graph" class="graph" viewBox="0 0 600 200" preserveAspectRatio="none" aria-label="Gold spending efficiency over time">
+                <line class="gse-cap" id="gse-cap" x1="0" x2="600" y1="0" y2="0" />
+                <polyline id="gse-area" class="gse-area" points="" />
+                <polyline id="gse-line" class="gse-line" points="" />
+                <g id="gse-obj"></g>
+                <line id="gse-cursor" class="graph-cursor" x1="0" y1="0" x2="0" y2="200" />
+                <circle id="gse-marker" class="graph-marker" cx="-9" cy="0" r="4" />
+              </svg>
+              <div id="gse-readout" class="graph-readout">Hover the timeline</div>
+            </div>
+            <p class="muted graph-note">Unspent gold you carried each minute (from the official match timeline). Dashed markers are neutral objectives; a red band flags 1,500+ unspent gold going into a dragon — a missed item spike.</p>
+          </section>
+
+          <section class="panel">
+            <h2>Skill Order Deviation</h2>
+            <div id="skill-empty" class="muted">No skill timeline available for this match.</div>
+            <div id="skill-body" class="hidden">
+              <div id="skill-path" class="skill-path"></div>
+              <div id="skill-note" class="skill-note"></div>
+            </div>
+          </section>
+        </section>
+
+        <!-- Right: AI review feed -->
+        <aside class="pg-right">
+          <section class="panel coach-panel">
+            <div class="panel-head"><h2>AI Tactical Review</h2></div>
+            <p class="muted">Free, from your own match data — no key required.</p>
+            <p id="coach-warning" class="coach-warning" hidden></p>
+            <button id="coach" class="btn-coach">
+              <span class="btn-coach-glow"></span>
+              <span class="btn-coach-label">Generate Tactical Review</span>
+            </button>
+            <div id="coach-out" class="coach-out"></div>
+          </section>
+        </aside>
+      </div>
     </main>
 
+    <script src="../themeEngine.js"></script>
     <script src="postgame.js"></script>
   </body>
 </html>
