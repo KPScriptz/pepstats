@@ -19,6 +19,7 @@ const postgameEngine = require("./utils/postgameEngine");
 const tftEngine = require("./utils/tftEngine");
 const tftAnalytics = require("./utils/tftAnalyticsEngine");
 const liveTelemetry = require("./utils/liveGameTelemetry");
+const liveCombat = require("./utils/liveCombatEngine");
 const processWatch = require("./shared/process");
 const replays = require("./shared/replays");
 
@@ -254,6 +255,7 @@ async function poll() {
       }
       sendTo("ingame", "force-design-mode-off");
       liveTelemetry.start(); // begin CSD telemetry for this match
+      liveCombat.start();    // begin combat threat matrix
     }
     sendTo("ingame", "overlay", { scores, compare, timers, mode: designMode ? "design" : "live" });
     return;
@@ -263,6 +265,7 @@ async function poll() {
   if (sawLiveGame && appState === STATE.INGAME) {
     appState = STATE.POSTGAME;
     liveTelemetry.stop(); // match ended — halt CSD telemetry
+    liveCombat.stop();
     try {
       lastReplay = replays.latestReplay();
     } catch (_) {
@@ -783,6 +786,8 @@ async function streamCoach(sender) {
 ipcMain.on("coach-start", (e) => streamCoach(e.sender));
 // Live CS differential vs lane opponent (read-only Live Client telemetry).
 ipcMain.handle("get-live-csd", () => liveTelemetry.get());
+// Live combat threat matrix (read-only, reformats visible scoreboard data).
+ipcMain.handle("get-combat-threats", () => liveCombat.get());
 ipcMain.handle("get-last-game", () => ({ scores: lastSnapshot, replay: lastReplay, coach: coachConfigStatus() }));
 ipcMain.handle("get-postgame", async () => {
   const cfg = loadConfig();
