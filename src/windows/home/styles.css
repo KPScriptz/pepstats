@@ -83,6 +83,7 @@ html, body { height: 100%; font-family: "SF Pro Display", "Inter", "Segoe UI", A
 /* ---- Rail ---- */
 .rail { width: var(--rail-w); flex: 0 0 auto; background: var(--rail); border-right: 1px solid var(--rail-bd); display: flex; flex-direction: column; padding: 16px 12px; gap: 6px; }
 .rail-logo { display: flex; align-items: center; justify-content: center; padding: 6px 0 16px; }
+.rail-logo-img { width: 40px; height: 40px; border-radius: 11px; display: block; object-fit: contain; box-shadow: 0 4px 14px rgba(0,0,0,.4); }
 .nav { display: flex; flex-direction: column; gap: 4px; }
 .nav-item { display: flex; align-items: center; gap: 11px; padding: 10px 12px; border: 0; border-radius: 10px; background: transparent; color: var(--muted); font-family: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; text-align: left; transition: background .15s, color .15s; }
 .nav-item .ic { width: 18px; height: 18px; fill: currentColor; flex: 0 0 auto; }
