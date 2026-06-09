@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld("pepstats", {
   onForceDesignOff: (cb) => ipcRenderer.on("force-design-mode-off", () => cb()),
   getLiveCsd: () => ipcRenderer.invoke("get-live-csd"),
   getCombatThreats: () => ipcRenderer.invoke("get-combat-threats"),
+  getObjectiveAlert: () => ipcRenderer.invoke("get-objective-alert"),
 
   // Pre-game (poll + live push from the LCU socket)
   getPregame: () => ipcRenderer.invoke("get-pregame"),
