@@ -43,6 +43,10 @@ contextBridge.exposeInMainWorld("pepstats", {
   getBuildByKey: (champKey) => ipcRenderer.invoke("get-build-key", champKey),
   exportMatches: (payload) => ipcRenderer.invoke("export-matches", payload),
 
+  // Friends tracking
+  getFriends: () => ipcRenderer.invoke("get-friends"),
+  getFriendDetail: (puuid) => ipcRenderer.invoke("get-friend-detail", puuid),
+
   // Riot account linking (first-run setup)
   getRiotRegions: () => ipcRenderer.invoke("riot-regions"),
   connectRiot: (s) => ipcRenderer.invoke("connect-riot", s),

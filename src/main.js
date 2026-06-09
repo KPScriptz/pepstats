@@ -14,6 +14,7 @@ const riotApi = require("./shared/riotApi");
 const builds = require("./shared/builds");
 const advisor = require("./shared/advisor");
 const buildDataEngine = require("./utils/buildDataEngine");
+const friendsEngine = require("./utils/friendsEngine");
 const processWatch = require("./shared/process");
 const replays = require("./shared/replays");
 
@@ -905,6 +906,15 @@ ipcMain.handle("get-build-key", async (_e, champKey) => {
   } catch (e) {
     return null;
   }
+});
+
+// Friends tracking (LCU presence + official Riot match digest).
+ipcMain.handle("get-friends", () => friendsEngine.getFriends());
+ipcMain.handle("get-friend-detail", async (_e, puuid) => {
+  const cfg = loadConfig();
+  const account = { riotId: cfg.riotId, region: cfg.region, riotApiKey: cfg.riotApiKey };
+  const digest = await friendsEngine.friendDigest(puuid, account);
+  return { ok: !!digest, digest };
 });
 
 ipcMain.handle("match-filters", () => riotApi.filterList());

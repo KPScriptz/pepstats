@@ -38,6 +38,7 @@ for (const id of ["su-close", "tb-close"]) { const el = $(id); if (el) el.addEve
 const PAGE_META = {
   dashboard: ["Dashboard", "Your ranked snapshot"],
   progress: ["Progress", "Climb history & trends"],
+  friends: ["Friends", "Live status & recent games"],
   settings: ["Settings", "Account, AI & appearance"],
 };
 document.querySelectorAll(".nav-item").forEach((b) => {
@@ -49,6 +50,8 @@ document.querySelectorAll(".nav-item").forEach((b) => {
     $("page-title").textContent = meta[0];
     $("page-sub").textContent = meta[1];
     if (page === "progress" && !matchesLoaded) loadMatches();
+    friendsActive = page === "friends";
+    if (friendsActive) startFriends();
   });
 });
 // "View all →" style shortcuts that jump to another page.
@@ -645,6 +648,107 @@ function renderMatches(res) {
   }
 
   renderAnalytics(res, ver);
+}
+
+// ===== Friends =====
+let friendsActive = false, friendsTimer = null, friendsTick = null, selectedFriend = null, friendsVer = null;
+const profIcon = (ver, id) => `https://ddragon.leagueoflegends.com/cdn/${ver}/img/profileicon/${id}.png`;
+
+function friendDuration(since) {
+  if (!since) return "";
+  const s = Math.max(0, Math.floor((Date.now() - since) / 1000));
+  const m = Math.floor(s / 60), ss = String(s % 60).padStart(2, "0");
+  return `${m}:${ss}`;
+}
+
+function startFriends() {
+  loadFriends();
+  if (!friendsTimer) friendsTimer = setInterval(() => { if (friendsActive) loadFriends(); }, 5000);
+  if (!friendsTick) friendsTick = setInterval(() => {
+    if (!friendsActive) return;
+    document.querySelectorAll(".fr-dur[data-since]").forEach((el) => { el.textContent = friendDuration(Number(el.dataset.since)); });
+    const now = $("fr-d-now");
+    if (now && now.dataset.since) now.textContent = friendDuration(Number(now.dataset.since));
+  }, 1000);
+}
+
+function friendAvatar(f, cls) {
+  if (f.champKey && friendsVer) return mkImg(champImg(friendsVer, f.champKey), cls, function () { this.style.visibility = "hidden"; });
+  if (f.iconId && friendsVer) return mkImg(profIcon(friendsVer, f.iconId), cls, function () { this.style.visibility = "hidden"; });
+  const span = document.createElement("span"); span.className = cls + " fr-avatar-fallback"; span.textContent = (f.name || "?").slice(0, 1).toUpperCase();
+  return span;
+}
+
+function renderFriendList(friends) {
+  const list = $("fr-list"); list.innerHTML = "";
+  for (const f of friends) {
+    const li = document.createElement("li");
+    li.className = "fr-item ring-" + f.status + (f.puuid === selectedFriend ? " active" : "");
+    li.append(friendAvatar(f, "fr-ico"));
+    const main = document.createElement("div"); main.className = "fr-main";
+    const name = document.createElement("div"); name.className = "fr-name"; name.textContent = f.name;
+    const sub = document.createElement("div"); sub.className = "fr-sub";
+    let subText = f.label;
+    if (f.champName && (f.status === "ingame" || f.status === "champselect")) subText = (f.status === "champselect" ? "Hovering " : "Playing ") + f.champName;
+    if (f.queue && f.status === "ingame") subText += " · " + f.queue;
+    sub.textContent = subText;
+    main.append(name, sub);
+    li.append(main);
+    if (f.status === "ingame" && f.since) {
+      const dur = document.createElement("div"); dur.className = "fr-dur"; dur.dataset.since = String(f.since); dur.textContent = friendDuration(f.since);
+      li.append(dur);
+    } else if (f.justFinished) {
+      const fin = document.createElement("div"); fin.className = "fr-fin"; fin.textContent = "Just finished"; li.append(fin);
+    }
+    li.addEventListener("click", () => selectFriend(f));
+    list.append(li);
+  }
+}
+
+async function loadFriends() {
+  if (!api.getFriends) return;
+  let res; try { res = await api.getFriends(); } catch (_) { res = null; }
+  const offline = $("fr-offline"), list = $("fr-list"), count = $("fr-count");
+  if (!res || !res.ok) { offline.classList.remove("hidden"); offline.textContent = "Open the League client to see your friends' live status."; list.classList.add("hidden"); count.textContent = ""; return; }
+  friendsVer = res.version || friendsVer;
+  const friends = res.friends || [];
+  if (!friends.length) { offline.classList.remove("hidden"); offline.textContent = "No friends found on your League account."; list.classList.add("hidden"); count.textContent = ""; return; }
+  offline.classList.add("hidden"); list.classList.remove("hidden");
+  const online = friends.filter((f) => f.status !== "offline");
+  count.textContent = online.length ? `${online.length} online` : "";
+  renderFriendList(friends);
+}
+
+async function selectFriend(f) {
+  selectedFriend = f.puuid;
+  document.querySelectorAll(".fr-item").forEach((el) => el.classList.remove("active"));
+  $("fr-empty").classList.add("hidden"); $("fr-panel").classList.remove("hidden");
+  const icon = $("fr-d-icon");
+  if (f.champKey && friendsVer) { icon.src = champImg(friendsVer, f.champKey); icon.style.visibility = "visible"; }
+  else if (f.iconId && friendsVer) { icon.src = profIcon(friendsVer, f.iconId); icon.style.visibility = "visible"; }
+  else icon.style.visibility = "hidden";
+  $("fr-d-name").textContent = f.name + (f.tag ? " #" + f.tag : "");
+  $("fr-d-status").textContent = f.champName ? `${f.label} · ${f.champName}${f.queue ? " · " + f.queue : ""}` : f.label;
+  const now = $("fr-d-now");
+  if (f.status === "ingame" && f.since) { now.dataset.since = String(f.since); now.textContent = friendDuration(f.since); }
+  else { delete now.dataset.since; now.textContent = ""; }
+
+  const tl = $("fr-d-tl"), tlEmpty = $("fr-d-tl-empty"), loading = $("fr-d-loading"), matchLbl = $("fr-d-match");
+  tl.classList.add("hidden"); tlEmpty.classList.add("hidden"); loading.classList.remove("hidden"); matchLbl.textContent = "—";
+  try {
+    const res = await api.getFriendDetail(f.puuid);
+    loading.classList.add("hidden");
+    const d = res && res.digest;
+    if (!d || !d.entries || !d.entries.length) { tlEmpty.classList.remove("hidden"); matchLbl.textContent = d && d.matchId ? d.matchId : "No recent match"; return; }
+    matchLbl.textContent = "Match " + (d.matchId || "");
+    tl.classList.remove("hidden"); tl.innerHTML = "";
+    const ICON = { "fb-you": "🩸", fb: "🩸", kill: "⚔️", obj: "🐉", skill: "🔮" };
+    for (const e of d.entries) {
+      const row = document.createElement("li"); row.className = "fr-tl-row";
+      row.innerHTML = `<span class="fr-tl-t">${e.time}</span><span class="fr-tl-i">${ICON[e.kind] || "•"}</span><span class="fr-tl-x">${e.text}</span>`;
+      tl.append(row);
+    }
+  } catch (_) { loading.classList.add("hidden"); tlEmpty.classList.remove("hidden"); }
 }
 
 // ===== Data loop =====
