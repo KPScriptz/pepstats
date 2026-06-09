@@ -70,6 +70,21 @@
           </section>
 
           <section class="panel">
+            <div class="panel-head"><h2>Team Gold Differential</h2></div>
+            <div id="tg-empty" class="muted hidden">No timeline gold data for this match.</div>
+            <div id="tg-body" class="hidden">
+              <div class="tg-bar"><div class="tg-mine" id="tg-mine"></div><div class="tg-enemy" id="tg-enemy"></div></div>
+              <div class="tg-cap"><b id="tg-lead">—</b><span id="tg-totals">—</span></div>
+              <svg id="tg-graph" class="graph tg-graph" viewBox="0 0 600 120" preserveAspectRatio="none" aria-label="Team gold differential over time">
+                <line class="tg-zero" x1="0" x2="600" y1="60" y2="60" />
+                <polyline id="tg-area" class="tg-area" points="" />
+                <polyline id="tg-line" class="tg-line" points="" />
+              </svg>
+              <p class="muted graph-note">Your team's total gold minus the enemy team's, each minute (from your own match timeline). Above the centre line = your team ahead.</p>
+            </div>
+          </section>
+
+          <section class="panel">
             <h2>Skill Order Deviation</h2>
             <div id="skill-empty" class="muted">No skill timeline available for this match.</div>
             <div id="skill-body" class="hidden">

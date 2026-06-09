@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>PepStats — UI Kit (15 components, design phase)</title>
+<!--
+  UI-ONLY component kit. Self-contained (embedded CSS, no app wiring). Lift the
+  blocks + classes into the real windows when wiring. Each card carries a
+  data-source tag so nothing gets wired to data that can't exist:
+    REAL        — powerable from sanctioned APIs today
+    POST-GAME   — only from your own completed match (match-v5)
+    YOUR GAME   — only from YOUR Live Client event stream
+    MANUAL      — user-driven only (auto would need CV/memory = forbidden)
+    STATIC      — fixed reference data only (no live signal exists)
+    PURE UI     — no data needed
+-->
+<style>
+  :root {
+    --bg-0: #0a0b0d; --bg-1: #12141c; --bg-card: #1a1d26; --bg-inset: #11141c;
+    --line: #242936; --gold: #c8aa6e; --gold-dim: #9c8350;
+    --text: #f0f3f8; --muted: #8b94a3; --muted2: #545e72;
+    --cyan: #36d6d6; --neon: #00bfff; --good: #2ec28b; --bad: #ff5d6c;
+    --warn: #e7b35e; --blue: #4f8cff;
+    --radius: 12px;
+    --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Segoe UI", Arial, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: var(--font); color: var(--text); padding: 28px;
+    background:
+      radial-gradient(1100px 700px at 15% -10%, #1b2030 0%, transparent 55%),
+      linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px), #0a0b0d;
+    background-size: auto, 34px 34px, 34px 34px;
+    -webkit-font-smoothing: antialiased; font-variant-numeric: tabular-nums;
+  }
+  .kit-title { font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: var(--gold); font-weight: 800; }
+  .kit-sub { font-size: 12px; color: var(--muted); margin: 4px 0 22px; }
+  .kit-section { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted2); margin: 26px 2px 12px; font-weight: 800; }
+  .kit-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
+  .kit-card {
+    background: rgba(18,20,28,.85); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 14px; box-shadow: 0 8px 26px rgba(0,0,0,.4); display: flex; flex-direction: column; gap: 12px;
+  }
+  .kit-card.gold { border-color: rgba(200,170,110,.4); }
+  .kit-head { display: flex; align-items: center; gap: 8px; }
+  .kit-num { font-size: 10px; font-weight: 800; color: #0c1014; background: var(--gold); border-radius: 6px; padding: 2px 7px; }
+  .kit-name { font-size: 12.5px; font-weight: 700; flex: 1; }
+  .tag { font-size: 8px; font-weight: 800; letter-spacing: .4px; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+  .tag.real { color: var(--good); border-color: rgba(46,194,139,.4); background: rgba(46,194,139,.08); }
+  .tag.post { color: var(--cyan); border-color: rgba(54,214,214,.4); background: rgba(54,214,214,.08); }
+  .tag.mine { color: var(--neon); border-color: rgba(0,191,255,.4); background: rgba(0,191,255,.08); }
+  .tag.manual { color: var(--warn); border-color: rgba(231,179,94,.4); background: rgba(231,179,94,.08); }
+  .tag.static { color: #c0a0d8; border-color: rgba(192,160,216,.4); background: rgba(192,160,216,.08); }
+  .tag.pure { color: var(--muted); }
+  .kit-body { background: var(--bg-inset); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+  .ico { width: 100%; height: 100%; border-radius: inherit; object-fit: cover; }
+  .ph { background: linear-gradient(150deg,#34506e,#1d2937); display: inline-flex; align-items: center; justify-content: center; font-weight: 800; color: #dbe6f2; }
+
+  /* ===== 1. Lobby Tilt-Radar ===== */
+  .tilt-row { display: flex; align-items: center; gap: 9px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+  .tilt-row:last-child { border-bottom: none; }
+  .tilt-ico { width: 30px; height: 30px; border-radius: 8px; flex: 0 0 auto; font-size: 12px; }
+  .tilt-name { font-size: 12.5px; font-weight: 700; flex: 1; }
+  .tilt-tags { display: flex; gap: 5px; flex-wrap: wrap; }
+  .ttag { font-size: 9px; font-weight: 800; padding: 3px 7px; border-radius: 6px; letter-spacing: .3px; }
+  .ttag.streak-l { color: var(--bad); background: rgba(255,93,108,.14); border: 1px solid rgba(255,93,108,.4); }
+  .ttag.first { color: var(--warn); background: rgba(231,179,94,.14); border: 1px solid rgba(231,179,94,.4); }
+  .ttag.streak-w { color: var(--good); background: rgba(46,194,139,.14); border: 1px solid rgba(46,194,139,.4); }
+
+  /* ===== 2. Lane Matchup Dossier ===== */
+  .dossier { display: grid; grid-template-columns: 1fr 30px 1fr; align-items: stretch; gap: 0; }
+  .dos-side { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 6px; }
+  .dos-side.you { border-right: 1px solid var(--line); }
+  .dos-champ { width: 42px; height: 42px; border-radius: 11px; border: 2px solid var(--gold); font-size: 15px; }
+  .dos-side.opp .dos-champ { border-color: var(--bad); }
+  .dos-name { font-size: 11.5px; font-weight: 700; }
+  .dos-stat { display: flex; justify-content: space-between; width: 100%; font-size: 10.5px; }
+  .dos-stat b { color: var(--text); } .dos-stat span { color: var(--muted); }
+  .dos-vs { display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; color: var(--gold-dim); }
+
+  /* ===== 3. Synergy Draft Helper ===== */
+  .syn-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .syn-tile { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 7px 4px; border-radius: 9px; background: var(--bg-card); border: 1px solid var(--line); }
+  .syn-tile.glow { border-color: var(--cyan); box-shadow: 0 0 12px color-mix(in srgb, var(--cyan) 45%, transparent); }
+  .syn-ico { width: 34px; height: 34px; border-radius: 50%; font-size: 13px; }
+  .syn-name { font-size: 9.5px; font-weight: 700; }
+  .syn-why { font-size: 8px; color: var(--muted); }
+  .syn-tile.glow .syn-why { color: var(--cyan); }
+
+  /* ===== 4. CS/Min Pace mini-graph ===== */
+  .pace-wrap { position: relative; }
+  .pace-svg { width: 100%; height: 78px; display: block; background: rgba(0,0,0,.2); border-radius: 8px; }
+  .pace-bench { stroke: var(--gold); stroke-width: 1; stroke-dasharray: 4 4; opacity: .7; vector-effect: non-scaling-stroke; }
+  .pace-line { fill: none; stroke: var(--cyan); stroke-width: 2; stroke-linejoin: round; vector-effect: non-scaling-stroke; filter: drop-shadow(0 0 3px rgba(54,214,214,.5)); }
+  .pace-area { fill: rgba(54,214,214,.1); stroke: none; }
+  .pace-legend { display: flex; justify-content: space-between; font-size: 9.5px; color: var(--muted); margin-top: 6px; }
+  .pace-legend b.up { color: var(--good); }
+
+  /* ===== 5. Camp Respawn cluster ===== */
+  .camp-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .camp-box { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 7px 2px; border-radius: 8px; background: var(--bg-card); border: 1px solid var(--line); }
+  .camp-k { font-size: 8px; letter-spacing: .5px; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+  .camp-t { font-size: 13px; font-weight: 800; color: var(--cyan); font-variant-numeric: tabular-nums; }
+  .camp-box.soon .camp-t { color: var(--warn); }
+  .camp-box.up .camp-t { color: var(--good); }
+
+  /* ===== 6. Objective Alert Vignette ===== */
+  .alert-stage { position: relative; height: 110px; border-radius: 10px; background: #0d0f16 center/cover; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+  .alert-stage .mini-map { width: 60px; height: 60px; border-radius: 8px; border: 1px solid var(--line); background: #161a24; }
+  .objective-alert { position: absolute; inset: 0; border-radius: 10px; pointer-events: none;
+    box-shadow: inset 0 0 0 2px var(--bad), inset 0 0 34px rgba(255,93,108,.55); animation: objpulse 1.4s ease-in-out infinite; }
+  @keyframes objpulse { 0%,100% { box-shadow: inset 0 0 0 2px rgba(255,93,108,.5), inset 0 0 18px rgba(255,93,108,.3); } 50% { box-shadow: inset 0 0 0 2px var(--bad), inset 0 0 40px rgba(255,93,108,.65); } }
+  .alert-label { position: absolute; bottom: 8px; font-size: 10px; font-weight: 800; letter-spacing: 1px; color: var(--bad); text-transform: uppercase; }
+
+  /* ===== 7. Enemy Spell Cooldown row ===== */
+  .spell-row { display: flex; gap: 8px; }
+  .spell-cell { position: relative; width: 42px; }
+  .spell-port { width: 42px; height: 42px; border-radius: 9px; font-size: 13px; }
+  .spell-flash { position: absolute; top: -3px; right: -3px; width: 18px; height: 18px; border-radius: 5px; background: #1c2740; border: 1px solid var(--neon); display: flex; align-items: center; justify-content: center; font-size: 10px; }
+  .spell-cd { position: absolute; inset: 0; border-radius: 9px; background: rgba(8,10,16,.72); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; color: #cdd3dc; }
+  .spell-cell.ready .spell-cd { display: none; }
+
+  /* ===== 8. Item Power-Spike ===== */
+  .item-row { display: flex; gap: 8px; }
+  .item-node { width: 40px; height: 40px; border-radius: 9px; background: var(--bg-card); border: 1px solid var(--line); }
+  .item-node.spike { border-color: var(--neon); box-shadow: 0 0 14px color-mix(in srgb, var(--neon) 55%, transparent); animation: spikeGlow 1.6s ease-in-out infinite; }
+  @keyframes spikeGlow { 0%,100% { box-shadow: 0 0 8px color-mix(in srgb, var(--neon) 40%, transparent); } 50% { box-shadow: 0 0 18px color-mix(in srgb, var(--neon) 75%, transparent); } }
+  .spike-label { margin-top: 8px; font-size: 10px; color: var(--neon); font-weight: 700; }
+
+  /* ===== 9. Team Gold Differential bar ===== */
+  .gold-bar { height: 18px; border-radius: 999px; overflow: hidden; display: flex; border: 1px solid var(--line); }
+  .gold-blue { background: linear-gradient(90deg,#3a6fd6,#4f8cff); display: flex; align-items: center; padding-left: 8px; font-size: 10px; font-weight: 800; color: #dce8ff; }
+  .gold-red { background: linear-gradient(90deg,#c2424f,#ff5d6c); display: flex; align-items: center; justify-content: flex-end; padding-right: 8px; font-size: 10px; font-weight: 800; color: #ffe0e3; flex: 1; }
+  .gold-cap { display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); margin-top: 6px; }
+  .gold-cap b.lead { color: var(--blue); }
+
+  /* ===== 10. Team Ult Availability ===== */
+  .ult-row { display: flex; gap: 8px; }
+  .ult-box { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 7px 2px; border-radius: 9px; background: var(--bg-card); border: 1px solid var(--line); }
+  .ult-ico { width: 30px; height: 30px; border-radius: 8px; font-size: 11px; }
+  .ult-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted2); }
+  .ult-box.up .ult-dot { background: var(--good); box-shadow: 0 0 7px var(--good); }
+  .ult-r { font-size: 8.5px; font-weight: 800; color: var(--muted); }
+  .ult-box.up .ult-r { color: var(--good); }
+
+  /* ===== 11. Spectator Highlight Toast ===== */
+  .toast-stage { position: relative; height: 86px; border-radius: 10px; background: #0d0f16; overflow: hidden; }
+  .toast { position: absolute; top: 12px; right: 12px; display: flex; align-items: center; gap: 9px; padding: 9px 12px; border-radius: 10px;
+    background: rgba(26,29,38,.96); border: 1px solid rgba(200,170,110,.4); box-shadow: 0 8px 24px rgba(0,0,0,.5);
+    animation: toastIn 2.6s ease-in-out infinite; }
+  @keyframes toastIn { 0% { transform: translateX(120%); opacity: 0; } 14%, 78% { transform: none; opacity: 1; } 100% { transform: translateX(120%); opacity: 0; } }
+  .toast-pip { width: 9px; height: 9px; border-radius: 50%; background: var(--bad); box-shadow: 0 0 8px var(--bad); }
+  .toast-tx { font-size: 11px; } .toast-tx b { color: var(--neon); }
+  .toast-k { font-size: 8.5px; color: var(--gold); font-weight: 800; letter-spacing: 1px; text-transform: uppercase; }
+
+  /* ===== 12. Performance Radar (SVG) ===== */
+  .radar-wrap { display: flex; align-items: center; gap: 12px; }
+  .radar { width: 150px; height: 150px; flex: 0 0 auto; }
+  .radar-ring { fill: none; stroke: var(--line); stroke-width: 1; }
+  .radar-axis { stroke: var(--line); stroke-width: 1; }
+  .radar-poly { fill: color-mix(in srgb, var(--cyan) 22%, transparent); stroke: var(--cyan); stroke-width: 2; filter: drop-shadow(0 0 5px rgba(54,214,214,.4)); }
+  .radar-dot { fill: var(--cyan); }
+  .radar-axislabel { font-size: 8px; fill: var(--muted); font-weight: 700; }
+  .radar-legend { display: flex; flex-direction: column; gap: 5px; font-size: 11px; }
+  .radar-legend span { display: flex; justify-content: space-between; gap: 14px; color: var(--muted); }
+  .radar-legend b { color: var(--text); }
+
+  /* ===== 13. Streamer Privacy Blur ===== */
+  .streamer-mode .blurable { filter: blur(6px); user-select: none; transition: filter .2s ease; }
+  .stream-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+  .stream-toggle { margin-left: auto; font-size: 9px; font-weight: 800; color: var(--neon); border: 1px solid rgba(0,191,255,.4); border-radius: 999px; padding: 3px 9px; cursor: pointer; background: rgba(0,191,255,.08); }
+
+  /* ===== 14. Game-Swap Selector Hub ===== */
+  .swap-hub { display: flex; gap: 6px; padding: 7px; background: var(--bg-card); border: 1px solid var(--line); border-radius: 12px; }
+  .swap-chip { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 4px; border-radius: 9px; border: 1px solid transparent; cursor: pointer; }
+  .swap-chip.active { background: rgba(200,170,110,.1); border-color: rgba(200,170,110,.45); }
+  .swap-ico { width: 26px; height: 26px; border-radius: 7px; font-size: 11px; }
+  .swap-l { font-size: 9.5px; font-weight: 700; color: var(--muted); }
+  .swap-chip.active .swap-l { color: var(--gold); }
+  .swap-add { display: flex; align-items: center; justify-content: center; width: 38px; border-radius: 9px; border: 1px dashed var(--line); color: var(--muted2); font-size: 16px; cursor: pointer; }
+
+  /* ===== 15. Layout Profile Exporter ===== */
+  .export-box { display: flex; flex-direction: column; gap: 8px; }
+  .export-ta { width: 100%; min-height: 56px; resize: none; border-radius: 8px; background: var(--bg-card); border: 1px solid var(--line); color: var(--cyan); font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 10.5px; padding: 9px; }
+  .export-row { display: flex; gap: 8px; }
+  .export-btn { font-size: 10px; font-weight: 800; padding: 7px 12px; border-radius: 8px; border: 1px solid var(--line); cursor: pointer; background: var(--bg-card); color: var(--text); }
+  .export-btn.gold { background: linear-gradient(180deg,var(--gold),var(--gold-dim)); color: #1a1205; border-color: var(--gold); }
+</style>
+</head>
+<body>
+  <div class="kit-title">PepStats · UI Kit</div>
+  <div class="kit-sub">15 design-phase components · matte charcoal + #c8aa6e gold + SF Pro · lift-and-drop blocks with honest data tags</div>
+
+  <!-- ============ DRAFTING & CHAMP SELECT ============ -->
+  <div class="kit-section">Drafting & Champ Select</div>
+  <div class="kit-grid">
+
+    <div class="kit-card">
+      <div class="kit-head"><span class="kit-num">01</span><span class="kit-name">Lobby Tilt-Radar</span><span class="tag real">Real · allies</span></div>
+      <div class="kit-body">
+        <div class="tilt-row"><span class="ph tilt-ico">A</span><span class="tilt-name">AshenOne</span><span class="tilt-tags"><span class="ttag streak-l">Loss Streak ×3</span></span></div>
+        <div class="tilt-row"><span class="ph tilt-ico">M</span><span class="tilt-name">MidDiff</span><span class="tilt-tags"><span class="ttag first">First-Time Champ</span></span></div>
+        <div class="tilt-row"><span class="ph tilt-ico">S</span><span class="tilt-name">SupGod</span><span class="tilt-tags"><span class="ttag streak-w">Win Streak ×4</span></span></div>
+      </div>
+    </div>
+
+    <div class="kit-card">
+      <div class="kit-head"><span class="kit-num">02</span><span class="kit-name">Lane Matchup Dossier</span><span class="tag mine">In-game</span></div>
+      <div class="kit-body">
+        <div class="dossier">
+          <div class="dos-side you">
+            <span class="ph dos-champ">A</span><span class="dos-name">Ahri · You</span>
+            <div class="dos-stat"><span>WR</span><b>54%</b></div><div class="dos-stat"><span>CSM</span><b>7.8</b></div>
+          </div>
+          <div class="dos-vs">VS</div>
+          <div class="dos-side opp">
+            <span class="ph dos-champ">Z</span><span class="dos-name">Zed · Opp</span>
+            <div class="dos-stat"><span>WR</span><b>49%</b></div><div class="dos-stat"><span>CSM</span><b>7.1</b></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="kit-card">
+      <div class="kit-head"><span class="kit-num">03</span><span class="kit-name">Synergy Draft Helper</span><span class="tag real">Real · curated</span></div>
+      <div class="kit-body">
+        <div class="syn-grid">
+          <div class="syn-tile glow"><span class="ph syn-ico">M</span><span class="syn-name">Malphite</span><span class="syn-why">AoE engage</span></div>
+          <div class="syn-tile glow"><span class="ph syn-ico">D</span><span class="syn-name">Diana</span><span class="syn-why">knock-up</span></div>
+          <div class="syn-tile"><span class="ph syn-ico">O</span><span class="syn-name">Orianna</span><span class="syn-why">follow-up</span></div>
+          <div class="syn-tile"><span class="ph syn-ico">W</span><span class="syn-name">Wukong</span><span class="syn-why">engage</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ IN-GAME TELEMETRY ============ -->
+  <div class="kit-section">In-Game Telemetry Overlay</div>
+  <div class="kit-grid">
+
+    <div class="kit-card">
+      <div class="kit-head"><span class="kit-num">04</span><span class="kit-name">CS/Min Pace Grid</span><span class="tag real">Real · :2999</span></div>
+      <div class="kit-body">
+        <div class="pace-wrap">
+          <svg class="pace-svg" viewBox="0 0 240 78" preserveAspectRatio="none">
+            <line class="pace-bench" x1="0" y1="30" x2="240" y2="30" />
+            <polyline class="pace-area" points="0,78 0,62 40,55 80,48 120,40 160,30 200,22 240,18 240,78" />
+            <polyline class="pace-line" points="0,62 40,55 80,48 120,40 160,30 200,22 240,18" />
+          </svg>
+          <div class="pace-legend"><span>CS/min trend</span><span><b class="up">7.9</b> vs 8.5 benchmark</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="kit-card">
+      <div class="kit-head"><span class="kit-num">05</span><span class="kit-name">Camp Respawn Cluster</span><span class="tag static">Static schedule</span></div>
+      <div class="kit-body">
+        <div class="camp-grid">
+          <div class="camp-box up"><span class="camp-k">Gromp</span><span class="camp-t">UP</span></div>
+          <div class="camp-box soon"><span class="camp-k">Wolves</span><span class="camp-t">0:18</span></div>
+          <div class="camp-box"><span class="camp-k">Raptors</span><span class="camp-t">1:42</span></div>
+          <div class="camp-box"><span class="camp-k">Krugs</span><span class="camp-t">2:05</span></div>
+          <div class="camp-box soon"><span class="camp-k">Blue</span><span class="camp-t">0:34</span></div>
+          <div class="camp-box"><span class="camp-k">Red</span><span class="camp-t">3:11</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="kit-card gold">
+      <div class="kit-head"><span class="kit-num">06</span><span class="kit-name">Objective Alert Vignette <code>.objective-alert</code></span><span class="tag real">Real · time</span></div>
+      <div class="kit-body" style="padding:8px">
+        <div class="alert-stage">
+          <div class="mini-map"></div>
+          <div class="objective-alert"></div>
+          <div class="alert-label">Baron spawning · 20s</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="kit-card">
+      <div class="kit-head"><span class="kit-num">07</span><span class="kit-name">Enemy Spell Cooldowns</span><span class="tag manual">Manual only</span></div>
+      <div class="kit-body">
+        <div class="spell-row">
+          <div class="spell-cell"><span class="ph spell-port">Z</span><span class="spell-flash">⚡</span><span class="spell-cd">4:12</span></div>
+          <div class="spell-cell ready"><span class="ph spell-port">K</span><span class="spell-flash">⚡</span><span class="spell-cd">—</span></div>
+          <div class="spell-cell"><span class="ph spell-port">C</span><span class="spell-flash">⚡</span><span class="spell-cd">1:38</span></div>
+          <div class="spell-cell ready"><span class="ph spell-port">R</span><span class="spell-flash">⚡</span><span class="spell-cd">—</span></div>
+          <div class="spell-cell"><span class="ph spell-port">L</span><span class="spell-flash">⚡</span><span class="spell-cd">2:50</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="kit-card">
+      <div class="kit-head"><span class="kit-num">08</span><span class="kit-name">Item Power-Spike Alert</span><span class="tag real">Real · allPlayers</span></div>
+      <div class="kit-body">
+        <div class="item-row">
+          <span class="item-node"></span><span class="item-node spike"></span><span class="item-node"></span>
+          <span class="item-node"></span><span class="item-node"></span><span class="item-node"></span>
+        </div>
+        <div class="spike-label">⚡ Spike: completed Kraken Slayer</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ FRIENDS & SPECTATOR ============ -->
+  <div class="kit-section">Friends List & Spectator</div>
+  <div class="kit-grid">
+
+    <div class="kit-card">
+      <div class="kit-head"><span class="kit-num">09</span><span class="kit-name">Team Gold Differential</span><span class="tag post">Post-game</span></div>
+      <div class="kit-body">
+        <div class="gold-bar"><div class="gold-blue" style="flex:0 0 58%">58%</div><div class="gold-red">42%</div></div>
+        <div class="gold-cap"><b class="lead">Blue +3.2k</b><span>54.1k vs 50.9k</span></div>
+      </div>
+    </div>
+
+    <div class="kit-card">
+      <div class="kit-head"><span class="kit-num">10</span><span class="kit-name">Team Ult Availability</span><span class="tag manual">Manual only</span></div>
+      <div class="kit-body">
+        <div class="ult-row">
+          <div class="ult-box up"><span class="ph ult-ico">T</span><span class="ult-dot"></span><span class="ult-r">UP</span></div>
+          <div class="ult-box"><span class="ph ult-ico">J</span><span class="ult-dot"></span><span class="ult-r">0:42</span></div>
+          <div class="ult-box up"><span class="ph ult-ico">M</span><span class="ult-dot"></span><span class="ult-r">UP</span></div>
+          <div class="ult-box up"><span class="ph ult-ico">B</span><span class="ult-dot"></span><span class="ult-r">UP</span></div>
+          <div class="ult-box"><span class="ph ult-ico">S</span><span class="ult-dot"></span><span class="ult-r">1:10</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="kit-card">
+      <div class="kit-head"><span class="kit-num">11</span><span class="kit-name">Spectator Highlight Toast</span><span class="tag mine">Your game</span></div>
+      <div class="kit-body" style="padding:8px">
+        <div class="toast-stage">
+          <div class="toast"><span class="toast-pip"></span><div><div class="toast-k">Double Kill</div><div class="toast-tx"><b>KPScriptz</b> (Ahri) — 2 kills</div></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="kit-card">
+      <div class="kit-head"><span class="kit-num">12</span><span class="kit-name">Performance Radar (SVG)</span><span class="tag post">Post-game</span></div>
+      <div class="kit-body">
+        <div class="radar-wrap">
+          <svg class="radar" viewBox="0 0 200 200">
+            <polygon class="radar-ring" points="100,40 160,100 100,160 40,100" />
+            <polygon class="radar-ring" points="100,70 130,100 100,130 70,100" />
+            <line class="radar-axis" x1="100" y1="20" x2="100" y2="180" />
+            <line class="radar-axis" x1="20" y1="100" x2="180" y2="100" />
+            <polygon class="radar-poly" points="100,44 156,100 100,148 52,100" />
+            <circle class="radar-dot" cx="100" cy="44" r="3" /><circle class="radar-dot" cx="156" cy="100" r="3" />
+            <circle class="radar-dot" cx="100" cy="148" r="3" /><circle class="radar-dot" cx="52" cy="100" r="3" />
+            <text class="radar-axislabel" x="100" y="14" text-anchor="middle">VISION</text>
+            <text class="radar-axislabel" x="186" y="103" text-anchor="end">KDA</text>
+            <text class="radar-axislabel" x="100" y="194" text-anchor="middle">FARM</text>
+            <text class="radar-axislabel" x="14" y="103" text-anchor="start">AGGRO</text>
+          </svg>
+          <div class="radar-legend">
+            <span>Vision <b>70</b></span><span>KDA <b>85</b></span><span>Farming <b>60</b></span><span>Aggression <b>90</b></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ CORE APP CONFIG ============ -->
+  <div class="kit-section">Core App Configuration</div>
+  <div class="kit-grid">
+
+    <div class="kit-card" id="streamer-demo">
+      <div class="kit-head"><span class="kit-num">13</span><span class="kit-name">Streamer Privacy Blur <code>.streamer-mode</code></span><span class="tag pure">Pure UI</span></div>
+      <div class="kit-body">
+        <div class="stream-row"><span class="ph tilt-ico">K</span><span class="tilt-name blurable">KPScriptz #NA1</span><span class="stream-toggle" onclick="document.getElementById('streamer-demo').classList.toggle('streamer-mode')">Toggle blur</span></div>
+        <div class="stream-row"><span class="ph tilt-ico">M</span><span class="tilt-name blurable">MidOrFeed #EUW</span></div>
+      </div>
+    </div>
+
+    <div class="kit-card">
+      <div class="kit-head"><span class="kit-num">14</span><span class="kit-name">Game-Swap Selector Hub</span><span class="tag pure">Pure UI</span></div>
+      <div class="kit-body" style="padding:8px">
+        <div class="swap-hub">
+          <div class="swap-chip active"><span class="ph swap-ico">LoL</span><span class="swap-l">League</span></div>
+          <div class="swap-chip"><span class="ph swap-ico">TFT</span><span class="swap-l">TFT</span></div>
+          <div class="swap-add">+</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="kit-card">
+      <div class="kit-head"><span class="kit-num">15</span><span class="kit-name">Layout Profile Exporter</span><span class="tag pure">Pure UI</span></div>
+      <div class="kit-body">
+        <div class="export-box">
+          <textarea class="export-ta" readonly>pep:overlay:v1:x=1612,y=18,s=1.05,rows=csm|kp|kda|vis;accent=#c8aa6e</textarea>
+          <div class="export-row"><button class="export-btn gold">Copy</button><button class="export-btn">Import…</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

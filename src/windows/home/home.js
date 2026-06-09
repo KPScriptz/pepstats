@@ -686,6 +686,7 @@ function renderFriendList(friends) {
   for (const f of friends) {
     const li = document.createElement("li");
     li.className = "fr-item ring-" + f.status + (f.puuid === selectedFriend ? " active" : "");
+    li.dataset.puuid = f.puuid;
     li.append(friendAvatar(f, "fr-ico"));
     const main = document.createElement("div"); main.className = "fr-main";
     const name = document.createElement("div"); name.className = "fr-name"; name.textContent = f.name;
@@ -721,10 +722,104 @@ async function loadFriends() {
   renderFriendList(friends);
 }
 
+// Rank medal + LP. Tier drives the medal color class + label.
+const TIER_NAME = { IRON: "Iron", BRONZE: "Bronze", SILVER: "Silver", GOLD: "Gold", PLATINUM: "Platinum", EMERALD: "Emerald", DIAMOND: "Diamond", MASTER: "Master", GRANDMASTER: "Grandmaster", CHALLENGER: "Challenger" };
+const TIER_CLASS = { IRON: "iron", BRONZE: "bronze", SILVER: "silver", GOLD: "gold", PLATINUM: "plat", EMERALD: "emerald", DIAMOND: "diamond", MASTER: "master", GRANDMASTER: "gm", CHALLENGER: "chall" };
+const APEX = { MASTER: 1, GRANDMASTER: 1, CHALLENGER: 1 };
+const fmtMastery = (n) => (n >= 1000 ? (n / 1000).toFixed(n >= 10000 ? 0 : 1) + "k" : String(n));
+
+function renderRank(rank) {
+  const medal = $("fr-medal"), tierEl = $("fr-rank-tier"), lpText = $("fr-lp-text"), lpNext = $("fr-lp-next"), lpFill = $("fr-lp-fill");
+  medal.setAttribute("class", "fr-medal"); // SVG: className is read-only, use setAttribute
+  if (!rank || !rank.tier) {
+    medal.classList.add("tier-unranked");
+    tierEl.textContent = "Unranked"; lpText.textContent = "—"; lpNext.textContent = ""; lpFill.style.width = "0%";
+    return;
+  }
+  const t = String(rank.tier).toUpperCase();
+  medal.classList.add("tier-" + (TIER_CLASS[t] || "unranked"));
+  tierEl.textContent = (TIER_NAME[t] || rank.tier) + (APEX[t] ? "" : (rank.division ? " " + rank.division : ""));
+  const lp = rank.lp != null ? rank.lp : 0;
+  lpText.textContent = lp + " LP";
+  const pct = Math.max(0, Math.min(100, lp));
+  lpFill.style.width = pct + "%";
+  lpNext.textContent = APEX[t] ? "" : (100 - pct) + " to promo";
+}
+
+function renderProfile(profile) {
+  renderRank(profile && profile.rank);
+  $("fr-wr").textContent = profile && profile.winRate != null ? profile.winRate + "%" : "—";
+  $("fr-matches").textContent = profile && profile.matches ? String(profile.matches) : "—";
+  $("fr-kda").textContent = profile && profile.kda != null ? Number(profile.kda).toFixed(2) : "—";
+
+  const wrap = $("fr-mastery"), empty = $("fr-mastery-empty");
+  const list = (profile && profile.mastery) || [];
+  wrap.innerHTML = "";
+  if (!list.length) { wrap.classList.add("hidden"); empty.classList.remove("hidden"); return; }
+  empty.classList.add("hidden"); wrap.classList.remove("hidden");
+  for (const m of list) {
+    const cell = document.createElement("div"); cell.className = "fr-champ";
+    const port = document.createElement("div"); port.className = "fr-champ-port";
+    if (m.icon) port.append(mkImg(m.icon, "fr-champ-img", function () { this.style.visibility = "hidden"; }));
+    else port.textContent = (m.name || "?").slice(0, 1);
+    const lvl = document.createElement("span"); lvl.className = "fr-champ-m"; lvl.textContent = "M" + (m.level || 0);
+    port.append(lvl);
+    const nm = document.createElement("div"); nm.className = "fr-champ-name"; nm.textContent = m.name;
+    const pts = document.createElement("div"); pts.className = "fr-champ-pts"; pts.textContent = fmtMastery(m.points || 0);
+    cell.append(port, nm, pts);
+    wrap.append(cell);
+  }
+}
+
+// ---- Live spectate (draft only) ----
+let spectateFor = null;
+function resetSpectate() {
+  spectateFor = null;
+  ["fr-spec", "fr-spec-loading", "fr-spec-none", "fr-spec-body"].forEach((id) => { const e = $(id); if (e) e.classList.add("hidden"); });
+}
+
+function renderSpecTeam(container, players) {
+  container.innerHTML = "";
+  for (const p of players) {
+    const row = document.createElement("div"); row.className = "fr-pl" + (p.isFriend ? " is-friend" : "");
+    const champ = document.createElement("div"); champ.className = "fr-pl-champ";
+    if (p.championIcon) champ.append(mkImg(p.championIcon, "fr-pl-img", function () { this.style.visibility = "hidden"; }));
+    else champ.textContent = (p.champion || "?").slice(0, 1);
+    const spells = document.createElement("div"); spells.className = "fr-pl-spells";
+    for (const s of p.spells || []) {
+      if (s) spells.append(mkImg(s, "fr-pl-spell", function () { this.style.visibility = "hidden"; }));
+      else { const ph = document.createElement("span"); ph.className = "fr-pl-spell"; spells.append(ph); }
+    }
+    const name = document.createElement("div"); name.className = "fr-pl-name"; name.textContent = p.name || p.champion || "";
+    row.append(champ, spells, name);
+    container.append(row);
+  }
+}
+
+async function loadSpectate(puuid) {
+  spectateFor = puuid;
+  $("fr-spec").classList.remove("hidden");
+  $("fr-spec-loading").classList.remove("hidden"); $("fr-spec-none").classList.add("hidden"); $("fr-spec-body").classList.add("hidden");
+  let res; try { res = await api.getFriendLive(puuid); } catch (_) { res = null; }
+  if (spectateFor !== puuid) return; // friend changed / panel collapsed
+  $("fr-spec-loading").classList.add("hidden");
+  if (!res || !res.ok || !res.inGame) {
+    $("fr-spec-none").classList.remove("hidden");
+    $("fr-spec-none").textContent = res && res.ok && !res.inGame ? "Not in a game right now." : "Live game data unavailable (needs a linked Riot key).";
+    return;
+  }
+  $("fr-spec-body").classList.remove("hidden");
+  const mm = Math.floor((res.gameLength || 0) / 60), ss = String((res.gameLength || 0) % 60).padStart(2, "0");
+  $("fr-spec-meta").textContent = `${res.queue || "Live game"} · ${mm}:${ss}`;
+  renderSpecTeam($("fr-blue"), res.blue || []);
+  renderSpecTeam($("fr-red"), res.red || []);
+}
+
 async function selectFriend(f) {
   selectedFriend = f.puuid;
-  document.querySelectorAll(".fr-item").forEach((el) => el.classList.remove("active"));
+  document.querySelectorAll(".fr-item").forEach((el) => el.classList.toggle("active", el.dataset.puuid === f.puuid));
   $("fr-empty").classList.add("hidden"); $("fr-panel").classList.remove("hidden");
+
   const icon = $("fr-d-icon");
   if (f.champKey && friendsVer) { icon.src = champImg(friendsVer, f.champKey); icon.style.visibility = "visible"; }
   else if (f.iconId && friendsVer) { icon.src = profIcon(friendsVer, f.iconId); icon.style.visibility = "visible"; }
@@ -735,13 +830,29 @@ async function selectFriend(f) {
   if (f.status === "ingame" && f.since) { now.dataset.since = String(f.since); now.textContent = friendDuration(f.since); }
   else { delete now.dataset.since; now.textContent = ""; }
 
+  // Watch Live only when the friend is actually in a game.
+  const inGame = f.status === "ingame";
+  const watch = $("fr-watch");
+  watch.classList.toggle("hidden", !inGame);
+  watch.onclick = inGame ? () => loadSpectate(f.puuid) : null;
+  resetSpectate();
+
+  renderProfile(null); // placeholders while the detail loads
+
   const tl = $("fr-d-tl"), tlEmpty = $("fr-d-tl-empty"), loading = $("fr-d-loading"), matchLbl = $("fr-d-match");
   tl.classList.add("hidden"); tlEmpty.classList.add("hidden"); loading.classList.remove("hidden"); matchLbl.textContent = "—";
-  try {
-    const res = await api.getFriendDetail(f.puuid);
-    loading.classList.add("hidden");
-    const d = res && res.digest;
-    if (!d || !d.entries || !d.entries.length) { tlEmpty.classList.remove("hidden"); matchLbl.textContent = d && d.matchId ? d.matchId : "No recent match"; return; }
+
+  let res; try { res = await api.getFriendDetail(f.puuid); } catch (_) { res = null; }
+  if (selectedFriend !== f.puuid) return; // a newer selection won the race
+  loading.classList.add("hidden");
+
+  if (res && res.profile) renderProfile(res.profile);
+
+  const d = res && res.digest;
+  if (!d || !d.entries || !d.entries.length) {
+    tlEmpty.classList.remove("hidden");
+    matchLbl.textContent = d && d.matchId ? "Match " + d.matchId : "No recent match";
+  } else {
     matchLbl.textContent = "Match " + (d.matchId || "");
     tl.classList.remove("hidden"); tl.innerHTML = "";
     const ICON = { "fb-you": "🩸", fb: "🩸", kill: "⚔️", obj: "🐉", skill: "🔮" };
@@ -750,7 +861,7 @@ async function selectFriend(f) {
       row.innerHTML = `<span class="fr-tl-t">${e.time}</span><span class="fr-tl-i">${ICON[e.kind] || "•"}</span><span class="fr-tl-x">${e.text}</span>`;
       tl.append(row);
     }
-  } catch (_) { loading.classList.add("hidden"); tlEmpty.classList.remove("hidden"); }
+  }
 }
 
 // ===== TFT =====

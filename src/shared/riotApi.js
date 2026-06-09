@@ -204,6 +204,25 @@ async function championIndex() {
   return _champIdx;
 }
 
+// Item id -> total gold cost (from Data Dragon item.json), cached once. Used for
+// the live gold-value inventory diff — the items themselves come from the
+// sanctioned allPlayers feed (the same items the Tab scoreboard shows).
+let _itemGold = null;
+async function itemGold() {
+  if (_itemGold) return _itemGold;
+  const ver = await ddragonVersion();
+  const map = {};
+  try {
+    const data = await getJson("ddragon.leagueoflegends.com", `/cdn/${ver}/data/en_US/item.json`);
+    for (const id of Object.keys((data && data.data) || {})) {
+      const g = data.data[id] && data.data[id].gold && data.data[id].gold.total;
+      if (typeof g === "number") map[id] = g;
+    }
+  } catch (_) {}
+  _itemGold = map;
+  return map;
+}
+
 const matchCache = new Map(); // matchId -> processed (avoids refetch on filter toggles)
 
 // Optional cross-session persistence. main.js calls setCacheDir(userData) at
@@ -435,6 +454,42 @@ async function recentByPuuid(cfg, puuid, count = 5) {
   return result;
 }
 
+// ---- Friend-profile bits (rank / mastery / spectator) — official API --------
+// Ranked entries by PUUID -> { solo, flex } (same shape as fetchProfile.ranked).
+async function rankByPuuid(account, puuid) {
+  const key = account && account.riotApiKey;
+  const reg = REGIONS[((account && account.region) || "").toUpperCase()];
+  if (!key || !reg || !puuid) return null;
+  const entries = await getJson(reg.platform + ".api.riotgames.com", `/lol/league/v4/entries/by-puuid/${puuid}`, key, 7000);
+  return { solo: leagueEntry(entries, "RANKED_SOLO_5x5"), flex: leagueEntry(entries, "RANKED_FLEX_SR") };
+}
+
+// Top-N champion mastery by PUUID.
+async function masteryTop(account, puuid, count = 3) {
+  const key = account && account.riotApiKey;
+  const reg = REGIONS[((account && account.region) || "").toUpperCase()];
+  if (!key || !reg || !puuid) return [];
+  const n = Math.max(1, Math.min(10, count));
+  const list = await getJson(reg.platform + ".api.riotgames.com", `/lol/champion-mastery/v4/champion-masteries/by-puuid/${puuid}/top?count=${n}`, key, 7000);
+  return Array.isArray(list) ? list : [];
+}
+
+// Spectator: a player's CURRENT game — DRAFT ONLY (champions, summoner spells,
+// runes, bans). The spectator API exposes NO live items / gold / KDA / events,
+// so there is no live "ticker" data here by design. null = not in a game (404).
+// spectator-v5 takes a PUUID on the by-summoner path.
+async function spectatorByPuuid(account, puuid) {
+  const key = account && account.riotApiKey;
+  const reg = REGIONS[((account && account.region) || "").toUpperCase()];
+  if (!key || !reg || !puuid) return null;
+  try {
+    return await getJson(reg.platform + ".api.riotgames.com", `/lol/spectator/v5/active-games/by-summoner/${puuid}`, key, 7000);
+  } catch (e) {
+    if (e && e.status === 404) return null; // not currently in a game
+    throw e;
+  }
+}
+
 // Resolve (and cache) the account PUUID from a linked Riot ID. Needed to map a
 // timeline's participantId back to the user.
 const _puuidCache = {};
@@ -466,6 +521,7 @@ function matchTimeline(cfg, matchId, timeoutMs = 7000) {
 
 module.exports = {
   fetchProfile, parseRiotId, regionList, REGIONS,
-  getMatches, ddragonVersion, perkMaps, championIndex, filterList, queueLabel, champKey,
+  getMatches, ddragonVersion, perkMaps, championIndex, itemGold, filterList, queueLabel, champKey,
   setCacheDir, clearCache, getJson, accountPuuid, matchTimeline, recentByPuuid,
+  rankByPuuid, masteryTop, spectatorByPuuid,
 };

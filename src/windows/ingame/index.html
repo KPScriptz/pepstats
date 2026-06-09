@@ -7,11 +7,16 @@
     <title>PepStats Overlay</title>
   </head>
   <body>
-    <!-- The frame is positioned + scaled (drag/resize in Design Mode); the inner
-         .widget keeps its own entrance animation untouched by the frame transform. -->
-    <div id="widget-frame">
-      <div id="widget" class="widget hidden">
-      <div class="brand-row" id="drag-handle">
+    <!-- Modular overlay: each .mod is an independent, free-floating companion
+         panel. In Design Mode the user drags/resizes each one and its position
+         persists. The app never anchors to, aligns with, or draws over the
+         game's own UI — you place these by eye, which is what keeps it
+         Vanguard-safe (see COMPLIANCE.md). -->
+
+    <!-- ===== Stats (main readout): brand + stats + lane dossier ===== -->
+    <div class="mod" id="mod-stats" data-mod="stats">
+      <span class="mod-label">Stats</span>
+      <div class="brand-row">
         <span class="brand">PEPSTATS</span>
         <span id="rank-tag" class="rank-tag"></span>
         <span id="live-dot" class="live-dot"></span>
@@ -26,67 +31,101 @@
               <polyline id="spark-line" class="spark-line" points="" />
               <circle id="spark-dot" class="spark-dot" cx="-9" cy="0" r="2.1" />
             </svg>
-            <!-- Pro-pace pip: green when at/above Challenger CS/min, dim red below. -->
             <span id="csm-pace" class="pace-pip hidden" title="vs Challenger pace (8.5 CS/min)"></span>
           </span>
         </div>
-
         <div class="stat-row" id="row-gpm">
           <span class="stat-label">GPM</span>
           <span class="stat-vals"><span id="gpm" class="v-you">—</span></span>
         </div>
-
         <div class="stat-row" id="row-vision">
           <span class="stat-label">VIS</span>
-          <span class="stat-vals">
-            <span id="vis-you" class="v-you">—</span>
-            <span class="v-sep">/</span>
-            <span id="vis-base" class="v-base">—</span>
-          </span>
+          <span class="stat-vals"><span id="vis-you" class="v-you">—</span><span class="v-sep">/</span><span id="vis-base" class="v-base">—</span></span>
         </div>
-
         <div class="stat-row" id="row-kp">
           <span class="stat-label">KP%</span>
-          <span class="stat-vals">
-            <span id="kp-you" class="v-you">—</span>
-            <span class="v-sep">/</span>
-            <span id="kp-base" class="v-base">—</span>
-          </span>
+          <span class="stat-vals"><span id="kp-you" class="v-you">—</span><span class="v-sep">/</span><span id="kp-base" class="v-base">—</span></span>
         </div>
-
         <div class="stat-row" id="row-kda">
           <span class="stat-label">KDA</span>
-          <span class="stat-vals">
-            <span id="kda-you" class="v-you">—</span>
-            <span class="v-sep">/</span>
-            <span id="kda-base" class="v-base">—</span>
-          </span>
+          <span class="stat-vals"><span id="kda-you" class="v-you">—</span><span class="v-sep">/</span><span id="kda-base" class="v-base">—</span></span>
         </div>
-
         <div class="stat-row" id="row-lvl">
           <span class="stat-label">LVL</span>
-          <span class="stat-vals">
-            <span id="lvl-you" class="v-you">—</span>
-          </span>
+          <span class="stat-vals"><span id="lvl-you" class="v-you">—</span></span>
         </div>
       </div>
 
-      <!-- Skill-order hint: which ability to put your next point into. -->
-      <div class="skill-row hidden" id="skill-row">
+      <!-- #2 Lane dossier: you vs your direct lane opponent. -->
+      <div class="dossier hidden" id="dossier">
+        <div class="dossier-head"><span class="stat-label">LANE</span><span class="dossier-opp" id="dossier-opp">—</span></div>
+        <div class="dossier-rows">
+          <div class="dos-r"><span class="dos-k">CSM</span><span class="dos-you" id="dos-csm-you">—</span><span class="dos-sep">/</span><span class="dos-opp" id="dos-csm-opp">—</span></div>
+          <div class="dos-r"><span class="dos-k">KDA</span><span class="dos-you" id="dos-kda-you">—</span><span class="dos-sep">/</span><span class="dos-opp" id="dos-kda-opp">—</span></div>
+          <div class="dos-r"><span class="dos-k">LVL</span><span class="dos-you" id="dos-lvl-you">—</span><span class="dos-sep">/</span><span class="dos-opp" id="dos-lvl-opp">—</span></div>
+        </div>
+      </div>
+      <span class="mod-resize" data-mod="stats"></span>
+    </div>
+
+    <!-- ===== Skill: MAX NEXT priority ===== -->
+    <div class="mod mod-pad-sm hidden" id="mod-skill" data-mod="skill">
+      <span class="mod-label">Skill</span>
+      <div class="skill-row" id="skill-row">
         <span class="stat-label">MAX NEXT</span>
         <span class="skill-badges" id="skill-badges"></span>
       </div>
-
-      <div class="divider" id="divider"></div>
-      <div class="timeline" id="timeline">
-        <!-- Objective nodes are rendered from the timers array in ingame.js -->
-      </div>
-
-      <div id="status" class="status">Waiting for a live game…</div>
-      </div>
-      <!-- Resize grip — visible only in Design Mode. -->
-      <span id="resize-handle" class="resize-handle" title="Drag to resize"></span>
+      <span class="mod-resize" data-mod="skill"></span>
     </div>
+
+    <!-- ===== Timers: now individual draggable chips, created in ingame.js;
+             each objective countdown is placed independently by the user. ===== -->
+
+    <!-- ===== Toasts: highlight notifications (transparent container) ===== -->
+    <div class="mod mod-ghost" id="mod-toasts" data-mod="toasts">
+      <span class="mod-label">Toasts</span>
+      <div id="toast-stack" class="toast-stack"></div>
+      <span class="mod-resize" data-mod="toasts"></span>
+    </div>
+
+    <!-- ===== P3.4 Gold-value inventory diff (live; from sanctioned items) ===== -->
+    <div class="mod mod-pad-sm hidden" id="mod-golddiff" data-mod="golddiff">
+      <span class="mod-label">Gold Diff</span>
+      <div class="gd-row"><span class="stat-label">ITEM GOLD</span><span id="gd-value" class="gd-value">—</span></div>
+      <span class="mod-resize" data-mod="golddiff"></span>
+    </div>
+
+    <!-- ===== P3.4 Optimal jungle pathing (curated / static) ===== -->
+    <div class="mod hidden" id="mod-jungle" data-mod="jungle">
+      <span class="mod-label">Jungle Path</span>
+      <div class="stat-label jp-head">Recommended clear</div>
+      <ol class="jp-steps">
+        <li>Red → Raptors → Blue</li>
+        <li>Wolves → Gromp → Scuttle</li>
+        <li>Recall, then gank or full-clear</li>
+      </ol>
+      <div class="jp-note">Curated full-clear · not a live read</div>
+      <span class="mod-resize" data-mod="jungle"></span>
+    </div>
+
+    <!-- ===== P3.4 Ultimate cooldowns — MANUAL placeholder ===== -->
+    <div class="mod mod-pad-sm hidden" id="mod-ult" data-mod="ult">
+      <span class="mod-label">Enemy Ults</span>
+      <div class="stat-label">Enemy Ult Timers</div>
+      <div class="ph-note">Manual-only — enemy cooldowns are in no API, and clicks can't pass through a live overlay. Needs hotkey wiring (planned).</div>
+      <span class="mod-resize" data-mod="ult"></span>
+    </div>
+
+    <!-- ===== P3.4 Flash reminders — MANUAL placeholder ===== -->
+    <div class="mod mod-pad-sm hidden" id="mod-flash" data-mod="flash">
+      <span class="mod-label">Enemy Flash</span>
+      <div class="stat-label">Enemy Flash Timers</div>
+      <div class="ph-note">Manual-only — hotkey-driven (planned). Placeholder.</div>
+      <span class="mod-resize" data-mod="flash"></span>
+    </div>
+
+    <div id="status" class="status hidden"></div>
+
     <script src="../theme.js"></script>
     <script src="../themeEngine.js"></script>
     <script src="ingame.js"></script>

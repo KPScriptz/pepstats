@@ -25,7 +25,21 @@ const C = {
   DRAGON_RESPAWN: 5 * 60,
 
   INHIB_RESPAWN: 5 * 60,     // an inhibitor regenerates 5:00 after destruction
+
+  JUNGLE_FIRST: 90,          // jungle camps first spawn at 1:30
+  SCUTTLE_FIRST: 195,        // first scuttle crab at 3:15
 };
+
+// Static spawn-SCHEDULE nodes (camps + scuttle). These are FIXED, clock-only
+// reference countdowns to the first spawn — they vanish once spawned, because
+// the sanctioned API has no "camp cleared" signal, so a live respawn timer
+// would need screen-reading/memory (forbidden). Honest, early-game only.
+function campSchedule(t) {
+  const out = [];
+  if (t < C.JUNGLE_FIRST) out.push(node("camps", "Jungle camps", "spawning", C.JUNGLE_FIRST - t));
+  if (t < C.SCUTTLE_FIRST) out.push(node("scuttle", "Scuttle", "spawning", C.SCUTTLE_FIRST - t));
+  return out;
+}
 
 // Inhibitor structure id -> lane. League names them "Barracks_T{1|2}{L|C|R}1":
 // T1 = blue side (ORDER), T2 = red side (CHAOS); L/C/R = top/mid/bottom.
@@ -148,6 +162,7 @@ function computeTimers(gameTime, events, opts) {
   if (opts && !opts.isClassic) return [];
   const t = gameTime || 0;
   return [
+    ...campSchedule(t),
     grubsState(t, events),
     heraldState(t, events),
     dragonState(t, events),

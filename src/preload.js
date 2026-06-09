@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld("pepstats", {
   onOverlay: (cb) => ipcRenderer.on("overlay", (_e, data) => cb(data)),
   onModeChange: (cb) => ipcRenderer.on("mode-change", (_e, mode) => cb(mode)),
   onForceDesignOff: (cb) => ipcRenderer.on("force-design-mode-off", () => cb()),
+  onHighlight: (cb) => ipcRenderer.on("highlight", (_e, h) => cb(h)),
   getLiveCsd: () => ipcRenderer.invoke("get-live-csd"),
   getCombatThreats: () => ipcRenderer.invoke("get-combat-threats"),
   getObjectiveAlert: () => ipcRenderer.invoke("get-objective-alert"),
@@ -56,6 +57,7 @@ contextBridge.exposeInMainWorld("pepstats", {
   // Friends tracking
   getFriends: () => ipcRenderer.invoke("get-friends"),
   getFriendDetail: (puuid) => ipcRenderer.invoke("get-friend-detail", puuid),
+  getFriendLive: (puuid) => ipcRenderer.invoke("get-friend-live", puuid),
 
   // Riot account linking (first-run setup)
   getRiotRegions: () => ipcRenderer.invoke("riot-regions"),

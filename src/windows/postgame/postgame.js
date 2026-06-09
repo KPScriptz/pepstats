@@ -113,6 +113,36 @@ function fillSkill(skill) {
   $("skill-note").textContent = skill.note || "";
 }
 
+/* ---- #9 Team gold differential ---- */
+const fmtK = (g) => (Math.abs(g) >= 1000 ? (g / 1000).toFixed(1) + "k" : String(Math.round(g)));
+function drawTeamGold(tg) {
+  const empty = $("tg-empty"), body = $("tg-body");
+  if (!tg || !tg.series || tg.series.length < 2) { empty.classList.remove("hidden"); body.classList.add("hidden"); return; }
+  empty.classList.add("hidden"); body.classList.remove("hidden");
+
+  const f = tg.final;
+  const total = (f.mine + f.enemy) || 1;
+  const minePct = Math.max(8, Math.min(92, Math.round((f.mine / total) * 100)));
+  $("tg-mine").style.flex = "0 0 " + minePct + "%";
+  $("tg-mine").textContent = minePct + "%";
+  $("tg-enemy").textContent = (100 - minePct) + "%";
+
+  const lead = $("tg-lead");
+  lead.textContent = (f.diff >= 0 ? "Your team +" : "Enemy +") + fmtK(Math.abs(f.diff)) + "g";
+  lead.className = f.diff >= 0 ? "pos" : "neg";
+  $("tg-totals").textContent = fmtK(f.mine) + " vs " + fmtK(f.enemy);
+
+  // Diff-over-time line: viewBox 600×120, centre line y=60. Above = you ahead.
+  const W = 600, cy = 60, pad = 6;
+  const maxT = tg.series[tg.series.length - 1].t || 1;
+  const maxAbs = Math.max(1000, ...tg.series.map((p) => Math.abs(p.diff)));
+  const X = (t) => (t / maxT) * W;
+  const Y = (d) => cy - (Math.max(-maxAbs, Math.min(maxAbs, d)) / maxAbs) * (cy - pad);
+  const pts = tg.series.map((p) => `${X(p.t).toFixed(1)},${Y(p.diff).toFixed(1)}`).join(" ");
+  $("tg-line").setAttribute("points", pts);
+  $("tg-area").setAttribute("points", `${X(0)},${cy} ` + pts + ` ${X(maxT)},${cy}`);
+}
+
 /* ---- Apply full analytics payload ---- */
 function applyPostgame(data) {
   if (!data) return;
@@ -123,6 +153,7 @@ function applyPostgame(data) {
     fillCompare(data.compare);
     fillObjectives(data.objectives);
     drawGSE(data.gse, data.objectives);
+    drawTeamGold(data.teamGold);
     fillSkill(data.skill);
     $("replay-line").textContent = data.replay && data.replay.name
       ? `Replay: ${data.replay.name} · ${(data.replay.sizeBytes / 1048576).toFixed(1)} MB`

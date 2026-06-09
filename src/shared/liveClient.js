@@ -185,6 +185,62 @@ function csDifferential(data) {
   };
 }
 
+// Lane-matchup dossier: you vs your direct lane opponent (champion / CS-per-min
+// / KDA / level), all from the sanctioned allPlayers feed — the same data the
+// in-game Tab scoreboard shows. hasOpp:false off-SR or before the opponent
+// resolves.
+function laneDossier(data) {
+  const me = findMe(data);
+  if (!me) return { hasOpp: false };
+  const minutes = ((data && data.gameData && data.gameData.gameTime) || 0) / 60;
+  const stat = (p) => {
+    const sc = p.scores || {};
+    return {
+      champion: p.championName || "",
+      csm: minutes > 0 ? +(((sc.creepScore || 0)) / minutes).toFixed(1) : 0,
+      kda: +kdaRatio(sc).toFixed(1),
+      lvl: p.level || 0,
+    };
+  };
+  const opp = me.position ? laneOpponent(data, me) : null;
+  return { hasOpp: !!opp, role: me.position || "", you: stat(me), opp: opp ? stat(opp) : null };
+}
+
+// Major combat milestones for the active player, for the highlight toast. Reads
+// only the public event stream (kills/multikills/objectives the scoreboard log
+// already shows). `sinceTime` filters to events newer than the last poll so each
+// fires once. Single kills are intentionally NOT toasted (too frequent) — only
+// first blood, multikills, and team/enemy epic objectives.
+const _MULTI = { 2: "Double Kill", 3: "Triple Kill", 4: "Quadra Kill", 5: "Penta Kill" };
+const _OBJ = { DragonKill: "Dragon", BaronKill: "Baron", HeraldKill: "Rift Herald" };
+function playerHighlights(data, sinceTime) {
+  const me = findMe(data);
+  const players = (data && data.allPlayers) || [];
+  const events = (data && data.events && data.events.Events) || [];
+  if (!me) return [];
+  const myNames = new Set([me.summonerName, me.riotIdGameName].filter(Boolean));
+  const teamOf = (name) => {
+    const p = players.find((x) => x.summonerName === name || x.riotIdGameName === name);
+    return p ? p.team : null;
+  };
+  const out = [];
+  for (const e of events) {
+    if (typeof e.EventTime !== "number" || e.EventTime <= sinceTime) continue;
+    const t = e.EventTime;
+    if (e.EventName === "FirstBlood" && myNames.has(e.Recipient)) {
+      out.push({ t, kind: "good", label: "First Blood", sub: me.championName || "" });
+    } else if (e.EventName === "Multikill" && myNames.has(e.KillerName)) {
+      out.push({ t, kind: "kill", label: _MULTI[e.KillStreak] || e.KillStreak + "× Kill", sub: me.championName || "" });
+    } else if (_OBJ[e.EventName]) {
+      const mine = teamOf(e.KillerName) === me.team;
+      out.push({ t, kind: mine ? "good" : "bad", label: (mine ? "Your team" : "Enemy") + " · " + _OBJ[e.EventName], sub: e.Stolen === "True" ? "Stolen!" : "" });
+    } else if (e.EventName === "Ace" && (e.AcingTeam === me.team || myNames.has(e.Acer))) {
+      out.push({ t, kind: "good", label: "ACE", sub: "" });
+    }
+  }
+  return out;
+}
+
 // Post-match performance badges, computed from the SANCTIONED
 // final allPlayers snapshot — every player's kills/deaths/assists/creepScore/
 // wardScore is in the official feed (the same data the end-game scoreboard shows
@@ -289,5 +345,7 @@ module.exports = {
   findMe,
   laneOpponent,
   csDifferential,
+  laneDossier,
+  playerHighlights,
   matchAwards,
 };

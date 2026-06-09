@@ -51,6 +51,26 @@ let lcuSocket = null;
 let accountRank = null;  // resolved once from the LCU, then cached for the session
 let liveBaseline = null; // overlay comparison baseline, refreshed off the hot path
 let liveBaselineKey = ""; // mode|role the cached baseline was computed for
+let lastHighlightTime = 0; // gameTime watermark for the highlight-toast feed
+let itemGoldMap = null;    // ddragon item -> total gold, for the live gold-value diff
+
+// Live team gold-VALUE differential from visible items (sanctioned: every
+// player's items are on the Tab scoreboard / allPlayers feed). This is item
+// value, not total gold (the live feed never exposes other players' gold).
+function computeGoldDiff(live) {
+  if (!itemGoldMap) return null;
+  const players = (live && live.allPlayers) || [];
+  const me = liveClient.findMe(live);
+  if (!me || !players.length) return null;
+  let mine = 0, enemy = 0;
+  for (const p of players) {
+    let v = 0;
+    for (const it of p.items || []) v += itemGoldMap[String(it.itemID)] || 0;
+    if (p.team === me.team) mine += v;
+    else enemy += v;
+  }
+  return { mine, enemy, diff: mine - enemy };
+}
 
 // ----- Window factories --------------------------------------------------
 function preload() {
@@ -285,8 +305,13 @@ async function poll() {
     const compare = liveClient.compareStats(live, liveBaseline);
     const timers = computeTimers(scores.gameTime, scores.events, { isClassic: info.isClassic });
     const skill = computeSkillHint(live, scores.champion);
+    const dossier = liveClient.laneDossier(live); // #2 you-vs-lane-opponent
+    const goldDiff = computeGoldDiff(live); // P3.4 live gold-value inventory diff
     if (appState !== STATE.INGAME) {
       appState = STATE.INGAME;
+      // Start watching highlights from now, so launching mid-game doesn't replay
+      // the whole match's events as toasts.
+      lastHighlightTime = scores.gameTime;
       const overlayWindow = ensure("ingame");
       showOnly("ingame");
       setDesignMode(false); // matches go live (click-through) by default
@@ -302,7 +327,13 @@ async function poll() {
       liveCombat.start();    // begin combat threat matrix
       objectiveRotator.start(); // begin time-based objective prep alerts
     }
-    sendTo("ingame", "overlay", { scores, compare, timers, skill, mode: designMode ? "design" : "live" });
+    sendTo("ingame", "overlay", { scores, compare, timers, skill, dossier, goldDiff, mode: designMode ? "design" : "live" });
+
+    // #11 — fire a highlight toast for each NEW major milestone (first blood,
+    // multikills, epic objectives) from the sanctioned event stream.
+    const highlights = liveClient.playerHighlights(live, lastHighlightTime);
+    for (const h of highlights) sendTo("ingame", "highlight", h);
+    lastHighlightTime = scores.gameTime;
     return;
   }
 
@@ -457,6 +488,10 @@ const THEME_DEFAULTS = {
     scale: 1, // 0.8 .. 1.3
     opacity: 1, // 0.5 .. 1
     rows: { csm: true, gpm: true, vision: true, kp: true, kda: true, lvl: true },
+    // Per-module on/off (toggled from the overlay's Design Mode). Disabled
+    // modules are suppressed entirely during live gameplay. The P3.4 extras
+    // default OFF (opt-in from Design Mode) so they don't clutter out of the box.
+    modules: { stats: true, skill: true, toasts: true, golddiff: false, jungle: false, ult: false, flash: false },
   },
 };
 
@@ -476,6 +511,7 @@ function resolveTheme() {
       scale: num(ov.scale, 1, 0.8, 1.3),
       opacity: num(ov.opacity, 1, 0.4, 1),
       rows: { ...THEME_DEFAULTS.overlay.rows, ...(ov.rows || {}) },
+      modules: { ...THEME_DEFAULTS.overlay.modules, ...(ov.modules || {}) },
     },
   };
 }
@@ -1032,6 +1068,7 @@ ipcMain.handle("save-theme", (_e, patch) => {
       ...cur.overlay,
       ...(p.overlay || {}),
       rows: { ...cur.overlay.rows, ...((p.overlay && p.overlay.rows) || {}) },
+      modules: { ...cur.overlay.modules, ...((p.overlay && p.overlay.modules) || {}) },
     },
   };
   saveConfig({ ui: merged });
@@ -1157,8 +1194,17 @@ ipcMain.handle("get-friends", () => friendsEngine.getFriends());
 ipcMain.handle("get-friend-detail", async (_e, puuid) => {
   const cfg = loadConfig();
   const account = { riotId: cfg.riotId, region: cfg.region, riotApiKey: cfg.riotApiKey };
-  const digest = await friendsEngine.friendDigest(puuid, account);
-  return { ok: !!digest, digest };
+  const [digest, profile] = await Promise.all([
+    friendsEngine.friendDigest(puuid, account).catch(() => null),
+    friendsEngine.friendProfile(puuid, account).catch(() => null),
+  ]);
+  return { ok: !!(digest || profile), digest, profile };
+});
+// Live spectate (draft only) — fetched lazily when the user hits "Watch Live".
+ipcMain.handle("get-friend-live", async (_e, puuid) => {
+  const cfg = loadConfig();
+  const account = { riotId: cfg.riotId, region: cfg.region, riotApiKey: cfg.riotApiKey };
+  return friendsEngine.friendLiveGame(puuid, account);
 });
 
 ipcMain.handle("match-filters", () => riotApi.filterList());
@@ -1307,6 +1353,8 @@ app.whenReady().then(() => {
 
   // Persist the match-detail cache across sessions (cuts Riot API calls).
   riotApi.setCacheDir(app.getPath("userData"));
+  // Warm the item-gold map for the live gold-value diff (best-effort).
+  riotApi.itemGold().then((m) => { itemGoldMap = m; }).catch(() => {});
 
   ensure("ingame");
   // Default to Live (click-through) mode and keep the overlay hidden until a

@@ -15,6 +15,9 @@
 
 const lcu = require("../shared/lcu");
 const riotApi = require("../shared/riotApi");
+const { SUMMONER_SPELLS } = require("../shared/builds");
+
+const DD = "https://ddragon.leagueoflegends.com/cdn";
 
 // Status display order (most "interesting" first).
 const ORDER = { ingame: 0, champselect: 1, inqueue: 2, online: 3, away: 4, mobile: 5, offline: 6 };
@@ -140,4 +143,81 @@ async function friendDigest(puuid, account) {
   }
 }
 
-module.exports = { getFriends, friendDigest, buildDigest };
+// ---- Premium profile: rank + recent form + top mastery (official API) -------
+// Win-rate / matches come from the RANKED season entry (league-v4); K/D from the
+// recent-form aggregate. All official, read-only, by the friend's PUUID.
+async function friendProfile(puuid, account) {
+  if (!puuid || !account || !account.riotApiKey || !account.region) return null;
+  let idx = { byId: {}, version: null };
+  try { idx = await riotApi.championIndex(); } catch (_) {}
+  const ver = idx.version;
+  const champ = (id) => (idx.byId && idx.byId[id]) ? idx.byId[id] : null;
+
+  const [rank, recent, mastery] = await Promise.all([
+    riotApi.rankByPuuid(account, puuid).catch(() => null),
+    riotApi.recentByPuuid(account, puuid, 10).catch(() => null),
+    riotApi.masteryTop(account, puuid, 3).catch(() => []),
+  ]);
+
+  const solo = rank && rank.solo;
+  const wins = solo ? solo.wins : 0, losses = solo ? solo.losses : 0, games = wins + losses;
+  return {
+    rank: solo ? { tier: solo.tier, division: solo.division, lp: solo.lp, wins, losses } : null,
+    winRate: games ? Math.round((wins / games) * 100) : (recent ? recent.wr : null),
+    matches: games || (recent ? recent.games : 0),
+    kda: recent ? recent.kda : null,
+    mastery: (mastery || []).map((m) => {
+      const c = champ(m.championId);
+      return {
+        name: c ? c.name : "Champion",
+        icon: ver && c ? `${DD}/${ver}/img/champion/${c.id}.png` : null,
+        level: m.championLevel || 0,
+        points: m.championPoints || 0,
+      };
+    }),
+    version: ver,
+  };
+}
+
+// ---- Live spectate: DRAFT ONLY (Spectator API) ------------------------------
+// Both teams' champions, summoner spells and bans. The spectator API exposes NO
+// live items / gold / KDA / events, so this is intentionally a draft board, not
+// a real-time ticker. { ok, inGame, blue:[...], red:[...], bans:[...] }.
+async function friendLiveGame(puuid, account) {
+  try {
+    if (!puuid || !account || !account.riotApiKey || !account.region) return { ok: false, error: "link" };
+    const game = await riotApi.spectatorByPuuid(account, puuid);
+    if (!game) return { ok: true, inGame: false };
+
+    let idx = { byId: {}, version: null };
+    try { idx = await riotApi.championIndex(); } catch (_) {}
+    const ver = idx.version;
+    const champ = (id) => (idx.byId && idx.byId[id]) ? idx.byId[id] : null;
+    const cIcon = (id) => { const c = champ(id); return ver && c ? `${DD}/${ver}/img/champion/${c.id}.png` : null; };
+    const sIcon = (id) => (ver && SUMMONER_SPELLS[id]) ? `${DD}/${ver}/img/spell/${SUMMONER_SPELLS[id]}.png` : null;
+
+    const team = (tid) => (game.participants || [])
+      .filter((p) => p.teamId === tid)
+      .map((p) => ({
+        isFriend: p.puuid === puuid,
+        champion: (champ(p.championId) || {}).name || "",
+        championIcon: cIcon(p.championId),
+        spells: [sIcon(p.spell1Id), sIcon(p.spell2Id)],
+        name: p.riotId || p.summonerName || "",
+      }));
+
+    return {
+      ok: true,
+      inGame: true,
+      queue: riotApi.queueLabel(game.gameQueueConfigId),
+      gameLength: game.gameLength || 0,
+      blue: team(100),
+      red: team(200),
+      bans: (game.bannedChampions || []).filter((b) => b.championId > 0).map((b) => ({ icon: cIcon(b.championId), teamId: b.teamId })),
+    };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+}
+
+module.exports = { getFriends, friendDigest, buildDigest, friendProfile, friendLiveGame };

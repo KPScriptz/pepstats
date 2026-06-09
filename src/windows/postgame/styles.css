@@ -96,6 +96,20 @@ html, body { height: 100%; font-family: "SF Pro Display", "Segoe UI", Arial, san
 .gse-legend i { display: inline-block; width: 12px; height: 3px; border-radius: 2px; }
 .lg-line { background: var(--accent-dynamic); } .lg-warn { background: var(--bad); }
 
+/* #9 Team gold differential */
+.tg-bar { height: 20px; border-radius: 999px; overflow: hidden; display: flex; border: 1px solid var(--card-bd); }
+.tg-mine { background: linear-gradient(90deg, #3a6fd6, #4f8cff); display: flex; align-items: center; padding-left: 9px; font-size: 11px; font-weight: 800; color: #dce8ff; min-width: 0; white-space: nowrap; }
+.tg-enemy { flex: 1; background: linear-gradient(90deg, #c2424f, #ff5d6c); display: flex; align-items: center; justify-content: flex-end; padding-right: 9px; font-size: 11px; font-weight: 800; color: #ffe0e3; white-space: nowrap; }
+.tg-cap { display: flex; justify-content: space-between; align-items: baseline; margin: 9px 0; font-size: 12px; }
+.tg-cap b { font-size: 14px; font-weight: 800; }
+.tg-cap b.pos { color: var(--good); }
+.tg-cap b.neg { color: var(--bad); }
+.tg-cap span { color: var(--muted); font-variant-numeric: tabular-nums; }
+.tg-graph { height: 120px; }
+.tg-zero { stroke: rgba(255, 255, 255, 0.18); stroke-width: 1; stroke-dasharray: 4 4; vector-effect: non-scaling-stroke; }
+.tg-line { fill: none; stroke: var(--accent-dynamic); stroke-width: 2; stroke-linejoin: round; vector-effect: non-scaling-stroke; filter: drop-shadow(0 0 3px var(--accent-dynamic-glow)); }
+.tg-area { fill: var(--accent-dynamic-glow); stroke: none; }
+
 /* Skill order */
 .skill-path { display: grid; grid-template-columns: repeat(15, 1fr); gap: 3px; margin-top: 6px; }
 .sk-cell { font-size: 9px; font-weight: 800; text-align: center; padding: 5px 0; border-radius: 4px; background: var(--inset); border: 1px solid var(--card-bd); color: var(--muted); }

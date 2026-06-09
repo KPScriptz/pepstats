@@ -37,11 +37,17 @@ A source audit confirms there are **no** calls to `keybd_event`, `SendInput`,
    personal key. Official, documented, read-only (rank, summoner, match
    history).
 3. **LCU API** — `https://127.0.0.1:<port>` using the client's own lockfile for
-   auth. A gray area Riot tolerates (Blitz, Mobalytics, etc. use it); PepStats
-   keeps to **reads** plus standard rune-page writes only — no gameplay
-   automation.
+   auth (read-only `flag:'r'`). A gray area Riot tolerates (Blitz, Mobalytics,
+   etc. use it); PepStats keeps to **reads** (gameflow phase, champ-select
+   session, `/lol-chat` friends presence, current summoner) plus exactly two
+   tolerated write types — **rune pages** (`/lol-perks`) and **item sets**
+   (`/lol-item-sets`). No queue auto-accept, no champ-select pick/ban automation,
+   no dodge, no lobby manipulation.
 4. **Data Dragon / CommunityDragon** — static, public CDN assets (champion,
    item, rune, and rank-emblem images). No auth, no game data.
+5. **Spectator API** (`spectator-v5`) — a friend's active game is read as
+   **draft only** (champions, summoner spells, bans). The API exposes no live
+   items / gold / KDA / events, and PepStats invents none.
 
 ## The overlay is not injected
 
@@ -56,6 +62,33 @@ so it never intercepts game input.
 The app registers global hotkeys (Ctrl+Shift+D/H/1/2/3/Q) via Electron's
 `globalShortcut` — standard OS-level shortcut registration. It never synthesizes
 or automates input into the game.
+
+## Where we deliberately stop (the compliant line for "tempting" features)
+
+Several requested features sit next to a forbidden technique. We build only the
+side of each line that uses sanctioned data — the other side would require
+screen-reading or memory access, which we never do:
+
+| Feature | Compliant version we allow | Forbidden version we refuse |
+| --- | --- | --- |
+| Jungle camp timers | **Static** spawn schedule from the game clock | Live per-camp "cleared" tracking (needs CV/memory — no API signal exists) |
+| Enemy summoner-spell cooldowns | **Manual** user-tapped stopwatch | Auto-detecting enemy Flash (needs screen-reading) |
+| Team ultimate availability | **Manual** user-tapped tracker | Auto ability-cooldown tracking (no API exposes it → CV/memory) |
+| Team / enemy gold differential | **Post-game** from your own match-v5 timeline | A live enemy-gold readout (the live feed exposes only *your* gold) |
+| Spectator highlight feed | Your **own** Live Client event stream | A live kill/event feed for a friend's spectated game (spectator API is draft-only) |
+| Lane-opponent comparison | **In-game** from the sanctioned `allPlayers` feed | Pre-game enemy stats (enemy identities are hidden in champ select) |
+
+Reading every player's KDA/CS/level/items from the official `allPlayers` feed is
+compliant — it's the same data the in-game Tab scoreboard already shows; it is
+**not** the bannable minimap-CV maphack.
+
+## Audit
+
+Last full-tree audit (2026-06): a pattern scan (no `opencv`/`robotjs`/`ffi`/
+`ReadProcessMemory`/`SendInput`/screen-capture/`/actions`/matchmaking-automation
+anywhere) plus a per-subsystem read of the live engines, LCU layer, web-API
+layer, the Python sidecar, and the build config. **Verdict: clean** — no
+violations at any severity.
 
 ---
 

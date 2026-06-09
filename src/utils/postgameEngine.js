@@ -83,6 +83,32 @@ function gseFrom(timeline, puuid) {
   return { gse, objectives };
 }
 
+// #9 — Team gold differential over time. The timeline's participantFrames carry
+// every player's totalGold each minute (your own completed match, official API),
+// so we can sum your team vs the enemy team per frame. Compliant: this is your
+// own post-game match data, NOT a live readout (the live feed exposes only your
+// own gold). Returns { series:[{t, mine, enemy, diff}], final } or null.
+function teamGoldFrom(timeline, puuid) {
+  const meta = timeline && timeline.metadata, info = timeline && timeline.info;
+  if (!meta || !info || !Array.isArray(meta.participants)) return null;
+  const pid = meta.participants.indexOf(puuid) + 1;
+  if (pid <= 0) return null;
+  const mineTeam = pid <= 5; // participants 1-5 = team 100
+  const series = [];
+  for (const frame of info.frames || []) {
+    const pf = frame.participantFrames || {};
+    let mine = 0, enemy = 0;
+    for (let i = 1; i <= 10; i++) {
+      const g = (pf[String(i)] && pf[String(i)].totalGold) || 0;
+      if ((i <= 5) === mineTeam) mine += g; else enemy += g;
+    }
+    series.push({ t: Math.floor((frame.timestamp || 0) / 1000), mine, enemy, diff: mine - enemy });
+  }
+  if (!series.length) return null;
+  const last = series[series.length - 1];
+  return { series, final: { mine: last.mine, enemy: last.enemy, diff: last.diff } };
+}
+
 function skillFrom(timeline, puuid, champKey) {
   const meta = timeline && timeline.metadata, info = timeline && timeline.info;
   if (!meta || !info) return null;
@@ -125,6 +151,7 @@ async function analyze(account) {
 
     const { gse, objectives } = timeline ? gseFrom(timeline, puuid) : { gse: [], objectives: [] };
     const skill = timeline && summary ? skillFrom(timeline, puuid, summary.champKey) : null;
+    const teamGold = timeline ? teamGoldFrom(timeline, puuid) : null; // #9 team gold diff
 
     // Historical comparison on this champion (this match excluded).
     let compare = null;
@@ -144,7 +171,7 @@ async function analyze(account) {
     }
 
     const version = await riotApi.ddragonVersion();
-    return { ok: true, matchId, version, summary, gse, objectives, skill, compare };
+    return { ok: true, matchId, version, summary, gse, objectives, skill, teamGold, compare };
   } catch (e) {
     console.warn("[postgameEngine] analyze failed:", e.message);
     return { ok: false, error: e.message };
