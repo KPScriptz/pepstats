@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld("pepstats", {
   onOverlay: (cb) => ipcRenderer.on("overlay", (_e, data) => cb(data)),
   onModeChange: (cb) => ipcRenderer.on("mode-change", (_e, mode) => cb(mode)),
   onForceDesignOff: (cb) => ipcRenderer.on("force-design-mode-off", () => cb()),
+  getLiveCsd: () => ipcRenderer.invoke("get-live-csd"),
 
   // Pre-game (poll + live push from the LCU socket)
   getPregame: () => ipcRenderer.invoke("get-pregame"),

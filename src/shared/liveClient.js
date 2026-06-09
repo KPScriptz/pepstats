@@ -154,10 +154,44 @@ function compareStats(data, baseline) {
   return result;
 }
 
+// Direct lane opponent = the enemy-team player sharing the active player's
+// assigned position. Only meaningful on the Rift (positions are blank off-SR).
+function laneOpponent(data, me) {
+  const players = (data && data.allPlayers) || [];
+  const self = me || findMe(data);
+  if (!self || !self.position) return null;
+  return players.find((p) => p.team !== self.team && p.position === self.position) || null;
+}
+
+// Live CS differential vs the direct lane opponent (read-only, sanctioned feed).
+// { available, you, opp, diff, role, oppChampion, oppName } — available:false in
+// no-lane modes (ARAM/Arena) or before the opponent is resolvable.
+function csDifferential(data) {
+  const me = findMe(data);
+  if (!me) return { available: false };
+  const youCs = (me.scores && me.scores.creepScore) || 0;
+  const role = me.position || "";
+  const opp = laneOpponent(data, me);
+  if (!opp) return { available: false, you: youCs, role };
+  const oppCs = (opp.scores && opp.scores.creepScore) || 0;
+  return {
+    available: true,
+    you: youCs,
+    opp: oppCs,
+    diff: youCs - oppCs,
+    role,
+    oppChampion: opp.championName || "",
+    oppName: (opp.riotIdGameName || opp.summonerName || ""),
+  };
+}
+
 module.exports = {
   getAllGameData,
   activeScores,
   compareStats,
   gameInfo,
   activeRole,
+  findMe,
+  laneOpponent,
+  csDifferential,
 };
