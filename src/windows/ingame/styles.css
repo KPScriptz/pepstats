@@ -16,9 +16,15 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
-/* Accent + overlay-size/opacity come from the shared theme (theme.js sets these
-   custom properties). Fallbacks keep the standalone preview working. */
-:root { --accent: #36d6d6; --ov-scale: 1; --ov-opacity: 1; }
+/* Design tokens. --accent (cyan data), --gold (frame), --skill-next (neon key)
+   are customizable; theme.js also feeds --ov-scale/--ov-opacity. */
+:root {
+  --accent: #36d6d6;       /* cyan telemetry accent */
+  --gold: #c8aa6e;         /* razor-thin bronze/gold frame */
+  --skill-next: #00bfff;   /* neon-cyan "max next" key */
+  --ov-scale: 1;
+  --ov-opacity: 1;
+}
 
 html, body {
   width: 100%; height: 100%;
@@ -27,23 +33,34 @@ html, body {
   font-family: "SF Pro Display", "Inter", "Segoe UI", Arial, sans-serif;
   -webkit-user-select: none; user-select: none; cursor: default;
 }
-/* Apply user overlay scale/opacity here (not on .widget) so they don't clash
-   with the widget's entrance animation's transform/opacity. */
-body { zoom: var(--ov-scale, 1); opacity: var(--ov-opacity, 1); }
+/* The body is now a full-screen transparent canvas; only opacity rides on it
+   (scale moves to the frame's transform so dragging math stays in real pixels). */
+body { opacity: var(--ov-opacity, 1); }
 
 .hidden { display: none !important; }
 
+/* Positioning + scaling layer. JS sets left/top (drag) and transform:scale
+   (resize); persisted to localStorage. Kept separate from .widget so the
+   widget's entrance animation transform never fights the layout transform. */
+#widget-frame {
+  position: absolute; top: 16px; left: 16px;
+  transform-origin: top left;
+  will-change: left, top, transform;
+}
+
 .widget {
-  position: absolute; top: 6px; left: 6px;
+  position: relative;
   width: 204px;
   padding: 9px 11px 7px;
-  border-radius: 13px;
-  /* Frosted dark glass. Deliberately translucent-but-readable — backdrop-filter
-     can't blur the game through a transparent Electron window, so the layered
-     gradient + border do the "glass" work and keep text razor-sharp. */
-  background: linear-gradient(155deg, rgba(38, 43, 52, 0.86), rgba(22, 25, 32, 0.88));
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  /* Matte charcoal glass + a razor-thin gold frame. backdrop-filter blurs only
+     same-window content (the game, behind a transparent window, stays sharp),
+     so the solid-ish fill carries readability. */
+  background: rgba(18, 20, 28, 0.85);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid var(--gold);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
   color: #e8edf3;
   -webkit-font-smoothing: antialiased;
 }
@@ -68,6 +85,11 @@ body { zoom: var(--ov-scale, 1); opacity: var(--ov-opacity, 1); }
 .live-dot {
   width: 6px; height: 6px; border-radius: 50%;
   background: #5dd6a0; box-shadow: 0 0 6px rgba(93, 214, 160, 0.85);
+  animation: livePulse 2s ease-in-out infinite;
+}
+@keyframes livePulse {
+  0%, 100% { box-shadow: 0 0 5px rgba(93, 214, 160, 0.6); opacity: 0.85; }
+  50% { box-shadow: 0 0 10px rgba(93, 214, 160, 1); opacity: 1; }
 }
 
 /* ---- Stat rows ---- */
@@ -105,6 +127,39 @@ body { zoom: var(--ov-scale, 1); opacity: var(--ov-opacity, 1); }
 }
 .spark-dot { fill: var(--accent); }
 
+/* CS pro-pace pip — green ahead of Challenger pace, dim red behind. */
+.pace-pip {
+  width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto;
+  background: #5b6473;
+  transition: background 0.3s ease, box-shadow 0.3s ease;
+}
+.pace-pip.ahead { background: #5dd6a0; box-shadow: 0 0 7px rgba(93, 214, 160, 0.85); }
+.pace-pip.behind { background: #7a3b42; box-shadow: none; }
+
+/* ---- Skill-order hint ("max next") ---- */
+.skill-row {
+  display: flex; align-items: center; justify-content: space-between;
+  min-height: 17px; margin-top: 6px;
+}
+.skill-badges { display: flex; align-items: center; gap: 4px; }
+.skill-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 17px; height: 17px; border-radius: 5px;
+  font-size: 10px; font-weight: 800; line-height: 1;
+  color: #aeb6c2; background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  transition: background 0.25s ease, color 0.25s ease, box-shadow 0.25s ease;
+}
+.skill-badge.ult { color: #e6c878; border-color: rgba(230, 200, 120, 0.30); }
+.skill-badge.next {
+  color: #04121a; background: var(--skill-next); border-color: var(--skill-next);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--skill-next) 60%, transparent);
+}
+.skill-badge.ult.next {
+  color: #1a1205; background: #e6c878; border-color: #e6c878;
+  box-shadow: 0 0 7px rgba(230, 200, 120, 0.5);
+}
+
 /* ---- Divider + objective timeline ---- */
 .divider {
   height: 1px; margin: 8px 0 6px;
@@ -140,9 +195,25 @@ body { zoom: var(--ov-scale, 1); opacity: var(--ov-opacity, 1); }
   font-size: 9px; font-style: italic; text-align: center; color: #7c8696;
 }
 
-/* ---- Design mode (placeable) vs live (click-through) ---- */
-.widget.design { border-style: dashed; border-color: color-mix(in srgb, var(--accent) 90%, transparent); }
-.widget.design .brand-row { -webkit-app-region: drag; cursor: move; }
+/* ---- Design Mode: placeable + resizable (vs Live click-through) ---- */
+/* A distinct light dashed boundary + visible grips while editing the layout. */
+body.design-mode .widget {
+  border: 1px dashed rgba(232, 237, 243, 0.85);
+  cursor: move;
+}
+body.design-mode #drag-handle { cursor: move; }
+
+/* Corner resize grip — only interactive in Design Mode. */
+.resize-handle {
+  display: none;
+  position: absolute; bottom: -6px; right: -6px;
+  width: 14px; height: 14px; border-radius: 4px;
+  background: rgba(232, 237, 243, 0.92);
+  border: 1px solid rgba(0, 0, 0, 0.45);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  cursor: nwse-resize; z-index: 5;
+}
+body.design-mode .resize-handle { display: block; }
 
 /* ---- Smoothness: entrance + animated transitions ---- */
 .widget:not(.hidden) { animation: widgetIn 0.3s cubic-bezier(0.22, 1, 0.36, 1) both; }

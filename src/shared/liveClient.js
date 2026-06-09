@@ -185,6 +185,101 @@ function csDifferential(data) {
   };
 }
 
+// Post-match performance badges, computed from the SANCTIONED
+// final allPlayers snapshot — every player's kills/deaths/assists/creepScore/
+// wardScore is in the official feed (the same data the end-game scoreboard shows
+// you). No enemy-hidden or out-of-game data. Returns an array of
+// { key, label, cls, desc } the post-game window and the coach payload share.
+function matchAwards(data) {
+  const players = (data && data.allPlayers) || [];
+  const me = findMe(data);
+  if (!me || players.length < 2) return [];
+
+  const sc = (p) => p.scores || {};
+  const kdaOf = (p) => kdaRatio(sc(p));
+  const teamSet = players.filter((p) => p.team === me.team);
+
+  // True only when `me` is the SOLE maximum of `metric` over `set` (ties don't
+  // earn the badge), and there's someone to beat.
+  const topUnique = (set, metric, minBest = -Infinity) => {
+    if (set.length < 2) return false;
+    let best = -Infinity, ties = 0;
+    for (const p of set) {
+      const v = metric(p);
+      if (v > best) { best = v; ties = 1; }
+      else if (v === best) ties++;
+    }
+    return best > minBest && ties === 1 && metric(me) === best;
+  };
+
+  const out = [];
+  const myDeaths = (sc(me).deaths || 0);
+  const myKA = (sc(me).kills || 0) + (sc(me).assists || 0);
+  const myTK = teamKills(players, me.team);
+  const myKp = myTK > 0 ? (((sc(me).kills || 0) + (sc(me).assists || 0)) / myTK) * 100 : 0;
+
+  // ACE = best KDA in the lobby; MVP = best KDA on your team (if not already ACE).
+  if (topUnique(players, kdaOf)) out.push({ key: "ace", label: "ACE", cls: "gold", desc: "Best KDA in the match" });
+  else if (topUnique(teamSet, kdaOf)) out.push({ key: "mvp", label: "MVP", cls: "gold", desc: "Best KDA on your team" });
+
+  if (topUnique(players, (p) => sc(p).wardScore || 0, 0))
+    out.push({ key: "vision", label: "Vision Demon", cls: "gold", desc: "Highest vision score in the match" });
+  if (topUnique(players, (p) => sc(p).creepScore || 0, 0))
+    out.push({ key: "cs", label: "Farm King", cls: "silver", desc: "Most CS in the match" });
+  if (myDeaths === 0 && myKA >= 5)
+    out.push({ key: "unkillable", label: "Unkillable", cls: "silver", desc: "Zero deaths" });
+  if (myKp >= 65)
+    out.push({ key: "playmaker", label: "Playmaker", cls: "silver", desc: Math.round(myKp) + "% kill participation" });
+
+  // "Troll Bait" — first to die in 3+ consecutive teamfights. Computed from the
+  // public ChampionKill event log (same combat feed the scoreboard uses): kills
+  // within 12s are one fight; a fight with 2+ kills counts as a teamfight; we
+  // track the longest run of teamfights whose FIRST victim was you.
+  const streak = firstBloodStreak(data, me);
+  if (streak >= 3)
+    out.push({ key: "trollbait", label: "Troll Bait", cls: "red", desc: "Died first in " + streak + " straight teamfights" });
+
+  return out;
+}
+
+const FIGHT_GAP = 12;        // seconds; kills within this window are one fight
+const MIN_FIGHT_KILLS = 2;   // a "teamfight" has at least this many kills
+function firstBloodStreak(data, me) {
+  const events = (data && data.events && data.events.Events) || [];
+  const myNames = new Set(
+    [me && me.summonerName, me && me.riotIdGameName].filter(Boolean)
+  );
+  if (!myNames.size) return 0;
+
+  const kills = events
+    .filter((e) => e.EventName === "ChampionKill" && typeof e.EventTime === "number")
+    .sort((a, b) => a.EventTime - b.EventTime);
+
+  // Group sequential kills into fights by time gap.
+  const fights = [];
+  let cur = [];
+  for (const k of kills) {
+    if (cur.length && k.EventTime - cur[cur.length - 1].EventTime > FIGHT_GAP) {
+      fights.push(cur);
+      cur = [];
+    }
+    cur.push(k);
+  }
+  if (cur.length) fights.push(cur);
+
+  let streak = 0, best = 0;
+  for (const f of fights) {
+    if (f.length < MIN_FIGHT_KILLS) continue; // skirmish/solo pick — not a teamfight
+    if (myNames.has(f[0].VictimName)) {
+      streak++;
+      if (streak > best) best = streak;
+    } else {
+      streak = 0;
+    }
+  }
+  return best;
+}
+
 module.exports = {
   getAllGameData,
   activeScores,
@@ -194,4 +289,5 @@ module.exports = {
   findMe,
   laneOpponent,
   csDifferential,
+  matchAwards,
 };

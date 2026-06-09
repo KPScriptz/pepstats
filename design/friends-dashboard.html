@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>PepStats — Friends Dashboard & Spectator (design mockup)</title>
+<!--
+  DESIGN MOCKUP — standalone, self-contained (embedded CSS, no external assets).
+  Data-source legend:
+    [REAL]        Friends list + status      -> LCU /lol-chat/v1/friends
+    [REAL]        Rank / WR / KDA / mastery   -> Riot Web API by PUUID
+    [REAL]        Draft (champs/spells/bans)  -> Spectator API (spectator-v5)
+    [ILLUSTRATIVE] Live item slots            -> NOT in any sanctioned API
+    [ILLUSTRATIVE] Live event feed            -> NOT in any sanctioned API
+  When integrated into the app, the CSS moves to an external stylesheet (CSP
+  forbids inline <style>), and icons load from ddragon / communitydragon.
+-->
+<style>
+  :root {
+    --bg: #12141c;
+    --panel-85: rgba(18, 20, 28, 0.85);
+    --panel: #161924;
+    --panel-2: #1b1f2b;
+    --line: rgba(255, 255, 255, 0.07);
+    --gold: #c8aa6e;
+    --gold-dim: #9c8350;
+    --text: #e8edf3;
+    --muted: #8b94a3;
+    --faint: #5b6473;
+    --cyan: #00bfff;
+    --teal: #36d6d6;
+    --green: #5dd6a0;
+    --red: #ff5d6c;
+    --blue-team: #4f8cff;
+    --red-team: #ff5d6c;
+    --radius: 12px;
+    --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Segoe UI", Arial, sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font);
+    color: var(--text);
+    background:
+      radial-gradient(1100px 720px at 15% -10%, #1c2130 0%, transparent 55%),
+      radial-gradient(900px 700px at 100% 0%, #181c28 0%, transparent 50%),
+      #0b0d12;
+    min-height: 100vh;
+    padding: 26px;
+    -webkit-font-smoothing: antialiased;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .wrap { max-width: 1180px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
+  .section-cap { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--faint); margin: 4px 2px; }
+
+  /* ---------- shared panel ---------- */
+  .panel {
+    background: var(--panel-85);
+    backdrop-filter: blur(8px);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: 0 10px 34px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+  .panel.gold { border-color: rgba(200, 170, 110, 0.45); }
+
+  /* ===================================================================
+     1. FRIENDS DASHBOARD  (sidebar + profile)
+     =================================================================== */
+  .dash { display: grid; grid-template-columns: 290px 1fr; gap: 18px; align-items: start; }
+
+  /* ---- Sidebar ---- */
+  .sidebar { padding: 14px 12px; }
+  .side-head { display: flex; align-items: center; justify-content: space-between; padding: 4px 6px 12px; }
+  .side-head h2 { font-size: 13px; letter-spacing: 2.5px; text-transform: uppercase; color: var(--gold); font-weight: 800; }
+  .side-head .count { font-size: 11px; color: var(--muted); }
+  .friend-list { display: flex; flex-direction: column; gap: 3px; }
+
+  .friend {
+    display: flex; align-items: center; gap: 11px;
+    padding: 9px 10px; border-radius: 10px; cursor: pointer;
+    border: 1px solid transparent; transition: background .15s, border-color .15s;
+  }
+  .friend:hover { background: rgba(255, 255, 255, 0.035); }
+  .friend.active { background: rgba(200, 170, 110, 0.08); border-color: rgba(200, 170, 110, 0.4); }
+
+  .avatar { position: relative; width: 40px; height: 40px; border-radius: 11px; flex: 0 0 auto;
+    background: linear-gradient(150deg, #2a3142, #1a1f2b);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 15px; color: #c7d0dc; border: 1px solid rgba(255,255,255,.06); }
+  .badge { position: absolute; right: -3px; bottom: -3px; width: 13px; height: 13px; border-radius: 50%; border: 2.5px solid var(--bg); }
+  .badge.online { background: var(--green); }
+  .badge.offline { background: var(--faint); }
+  .badge.ingame { background: var(--red); box-shadow: 0 0 0 0 rgba(255, 93, 108, 0.6); animation: pulseDot 1.6s infinite; }
+  @keyframes pulseDot {
+    0% { box-shadow: 0 0 0 0 rgba(255, 93, 108, 0.55); }
+    70% { box-shadow: 0 0 0 7px rgba(255, 93, 108, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(255, 93, 108, 0); }
+  }
+
+  .friend-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+  .friend-name { font-size: 13.5px; font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .friend-sub { font-size: 10.5px; color: var(--muted); letter-spacing: .2px; }
+  .friend-sub.ingame { color: var(--red); font-weight: 700; }
+  .friend.offline .avatar, .friend.offline .friend-name { opacity: .5; }
+
+  /* WATCH LIVE button */
+  .watch {
+    margin-left: auto; flex: 0 0 auto;
+    font-family: var(--font); font-size: 10px; font-weight: 800; letter-spacing: .6px;
+    color: #ffd7db; background: linear-gradient(180deg, #c2333f, #8e1f29);
+    border: 1px solid rgba(255, 120, 130, 0.55); border-radius: 999px;
+    padding: 5px 11px; cursor: pointer; white-space: nowrap;
+    box-shadow: 0 0 0 1px rgba(255,93,108,.2), 0 0 16px rgba(255, 60, 80, 0.45);
+    animation: glowPulse 2.2s ease-in-out infinite;
+  }
+  .watch .live-pip { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #ff5d6c; margin-right: 5px; vertical-align: middle; }
+  @keyframes glowPulse {
+    0%, 100% { box-shadow: 0 0 0 1px rgba(255,93,108,.2), 0 0 14px rgba(255, 60, 80, 0.4); }
+    50% { box-shadow: 0 0 0 1px rgba(255,93,108,.35), 0 0 22px rgba(255, 60, 80, 0.7); }
+  }
+
+  /* ---- Profile detail ---- */
+  .profile { padding: 20px 22px; }
+  .pro-head { display: flex; align-items: center; gap: 18px; padding-bottom: 18px; border-bottom: 1px solid var(--line); }
+  .pro-avatar { width: 64px; height: 64px; border-radius: 16px; flex: 0 0 auto;
+    background: linear-gradient(150deg, #313a4f, #1c2230); border: 1px solid rgba(200,170,110,.3);
+    display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 24px; color: #d8c08a; }
+  .pro-id { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
+  .pro-name { font-size: 21px; font-weight: 800; letter-spacing: .3px; }
+  .pro-name .tag { color: var(--muted); font-weight: 600; font-size: 16px; }
+  .pro-flair { font-size: 11px; color: var(--muted); letter-spacing: .3px; }
+
+  /* rank medal + progress */
+  .rank-block { display: flex; align-items: center; gap: 13px; min-width: 240px; }
+  .medal { width: 52px; height: 52px; flex: 0 0 auto; filter: drop-shadow(0 3px 6px rgba(0,0,0,.5)); }
+  .rank-meta { display: flex; flex-direction: column; gap: 5px; flex: 1; }
+  .rank-tier { font-size: 14px; font-weight: 800; color: var(--gold); letter-spacing: .5px; }
+  .lp-row { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--muted); }
+  .lp-bar { height: 6px; border-radius: 999px; background: rgba(255,255,255,.07); overflow: hidden; }
+  .lp-fill { height: 100%; width: 67%; border-radius: 999px; background: linear-gradient(90deg, var(--gold-dim), var(--gold)); }
+
+  /* seasonal grid */
+  .season { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 18px 0; }
+  .season .cell { background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 13px 15px; }
+  .cell .k { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); margin-bottom: 7px; }
+  .cell .v { font-size: 22px; font-weight: 800; color: var(--text); }
+  .cell .v.good { color: var(--green); }
+  .cell .v small { font-size: 12px; color: var(--muted); font-weight: 600; }
+
+  /* top champions */
+  .champs-cap { font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); margin-bottom: 11px; }
+  .champs { display: flex; gap: 16px; }
+  .champ { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 88px; }
+  .champ-portrait { position: relative; width: 60px; height: 60px; border-radius: 50%;
+    background: linear-gradient(150deg, #34506e, #1d2937); border: 2px solid var(--gold-dim);
+    display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 17px; color: #dbe6f2; }
+  .m-badge { position: absolute; bottom: -4px; left: 50%; transform: translateX(-50%);
+    font-size: 9px; font-weight: 800; letter-spacing: .3px; color: #1a1205;
+    background: linear-gradient(180deg, var(--gold), var(--gold-dim)); border-radius: 999px; padding: 1px 7px; border: 1px solid #0c0e14; }
+  .champ-name { font-size: 11.5px; font-weight: 700; }
+  .champ-pts { font-size: 10px; color: var(--muted); }
+
+  /* ===================================================================
+     2. LIVE SPECTATOR TICKER (slide-out)
+     =================================================================== */
+  .spectate { overflow: hidden; }
+  .spec-head { display: flex; align-items: center; gap: 12px; padding: 13px 18px; border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg, rgba(255,93,108,.06), transparent); }
+  .spec-live { font-size: 11px; font-weight: 800; letter-spacing: 1px; color: var(--red); display: flex; align-items: center; gap: 6px; }
+  .spec-live .live-pip { width: 7px; height: 7px; border-radius: 50%; background: var(--red); animation: pulseDot 1.6s infinite; }
+  .spec-title { font-size: 13px; font-weight: 700; }
+  .spec-title .sub { color: var(--muted); font-weight: 600; }
+  .spec-clock { margin-left: auto; font-size: 13px; font-weight: 800; color: var(--gold); }
+  .data-tag { font-size: 8.5px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase;
+    padding: 2px 7px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+  .data-tag.real { color: var(--green); border-color: rgba(93,214,160,.35); background: rgba(93,214,160,.08); }
+  .data-tag.mock { color: #e0b66a; border-color: rgba(224,182,106,.35); background: rgba(224,182,106,.08); }
+
+  .spec-split { display: grid; grid-template-columns: 1.55fr 1fr; }
+  .spec-left { padding: 14px 16px; border-right: 1px solid var(--line); }
+  .teams { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .team-col h3 { font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 10px; font-weight: 800; }
+  .team-col.blue h3 { color: var(--blue-team); }
+  .team-col.red h3 { color: var(--red-team); }
+
+  .p-row { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,.04); }
+  .p-champ { width: 32px; height: 32px; border-radius: 9px; flex: 0 0 auto;
+    background: linear-gradient(150deg, #34506e, #1d2937); display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 12px; color: #dbe6f2; }
+  .p-champ.friend-of { border: 2px solid var(--cyan); box-shadow: 0 0 10px rgba(0,191,255,.5); }
+  .p-spells { display: flex; flex-direction: column; gap: 3px; flex: 0 0 auto; }
+  .spell { width: 15px; height: 15px; border-radius: 4px; background: #283042; border: 1px solid rgba(255,255,255,.07); }
+  .items { display: flex; gap: 3px; margin-left: auto; }
+  .slot { width: 19px; height: 19px; border-radius: 5px; background: #0f1219; border: 1px solid rgba(255,255,255,.08); }
+  .slot.filled { background: linear-gradient(150deg, #3a2f1c, #241c10); border-color: rgba(200,170,110,.3); }
+
+  .spec-right { padding: 12px 14px; display: flex; flex-direction: column; }
+  .feed-cap { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .feed-cap span { font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); }
+  .feed { display: flex; flex-direction: column; gap: 7px; overflow: hidden; }
+  .event { display: flex; gap: 9px; padding: 9px 10px; border-radius: 9px; background: var(--panel-2); border: 1px solid var(--line);
+    border-left: 3px solid var(--faint); animation: slideIn .4s ease both; }
+  .event.kill { border-left-color: var(--red); }
+  .event.obj { border-left-color: var(--gold); }
+  .event .ts { font-size: 11px; font-weight: 800; color: var(--muted); font-variant-numeric: tabular-nums; flex: 0 0 auto; }
+  .event .txt { font-size: 12px; line-height: 1.4; color: #cdd3dc; }
+  .event .txt b.me { color: var(--cyan); font-weight: 800; }
+  .event .txt .tag-k { color: var(--red); font-weight: 800; }
+  .event .txt .tag-o { color: var(--gold); font-weight: 800; }
+  @keyframes slideIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+
+  .legend { font-size: 10.5px; color: var(--faint); padding: 9px 6px 0; line-height: 1.6; }
+  .legend b { color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ===================== FRIENDS DASHBOARD ===================== -->
+  <div class="section-cap">Friends Dashboard · Profile Viewer</div>
+  <div class="dash">
+
+    <!-- Sidebar -->
+    <aside class="panel sidebar">
+      <div class="side-head">
+        <h2>Friends</h2>
+        <span class="count">3 online · 1 in game</span>
+      </div>
+      <div class="friend-list">
+        <div class="friend active">
+          <div class="avatar">K<span class="badge ingame"></span></div>
+          <div class="friend-main">
+            <span class="friend-name">KPScriptz</span>
+            <span class="friend-sub ingame">In Game · Ranked Solo</span>
+          </div>
+          <button class="watch"><span class="live-pip"></span>WATCH LIVE</button>
+        </div>
+        <div class="friend">
+          <div class="avatar">M<span class="badge online"></span></div>
+          <div class="friend-main">
+            <span class="friend-name">MidOrFeed</span>
+            <span class="friend-sub">Online · In Lobby</span>
+          </div>
+        </div>
+        <div class="friend">
+          <div class="avatar">S<span class="badge online"></span></div>
+          <div class="friend-main">
+            <span class="friend-name">SupDiff</span>
+            <span class="friend-sub">Online · Champ Select</span>
+          </div>
+        </div>
+        <div class="friend offline">
+          <div class="avatar">J<span class="badge offline"></span></div>
+          <div class="friend-main">
+            <span class="friend-name">JungleGap</span>
+            <span class="friend-sub">Offline · 3h ago</span>
+          </div>
+        </div>
+        <div class="friend offline">
+          <div class="avatar">A<span class="badge offline"></span></div>
+          <div class="friend-main">
+            <span class="friend-name">AramAndy</span>
+            <span class="friend-sub">Offline · yesterday</span>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Profile detail -->
+    <section class="panel gold profile">
+      <div class="pro-head">
+        <div class="pro-avatar">K</div>
+        <div class="pro-id">
+          <div class="pro-name">KPScriptz <span class="tag">#NA1</span></div>
+          <div class="pro-flair">Level 214 · North America · Mid main</div>
+        </div>
+        <div class="rank-block">
+          <!-- SVG rank medal (gold tier) -->
+          <svg class="medal" viewBox="0 0 64 64" aria-label="Gold II">
+            <defs>
+              <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#e8cd86"/><stop offset="1" stop-color="#a8863f"/>
+              </linearGradient>
+            </defs>
+            <path d="M32 3 L57 17 V40 L32 61 L7 40 V17 Z" fill="url(#g)" stroke="#6d551f" stroke-width="1.5"/>
+            <path d="M32 11 L50 21 V38 L32 52 L14 38 V21 Z" fill="#1a1206" opacity=".25"/>
+            <path d="M32 18 l3.4 7 7.6 1-5.5 5.3 1.3 7.6L32 42.7 25.2 46l1.3-7.6L21 33l7.6-1z" fill="#fff4d4"/>
+          </svg>
+          <div class="rank-meta">
+            <span class="rank-tier">Gold II</span>
+            <div class="lp-row"><span>67 LP</span><span>33 to Gold I</span></div>
+            <div class="lp-bar"><div class="lp-fill"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="season">
+        <div class="cell"><div class="k">Win Rate</div><div class="v good">54%</div></div>
+        <div class="cell"><div class="k">Total Matches</div><div class="v">312</div></div>
+        <div class="cell"><div class="k">K/D Ratio</div><div class="v">2.41 <small>KDA</small></div></div>
+      </div>
+
+      <div class="champs-cap">Top Champions · Mastery</div>
+      <div class="champs">
+        <div class="champ">
+          <div class="champ-portrait">A<span class="m-badge">M7</span></div>
+          <span class="champ-name">Ahri</span><span class="champ-pts">142,380</span>
+        </div>
+        <div class="champ">
+          <div class="champ-portrait">Z<span class="m-badge">M7</span></div>
+          <span class="champ-name">Zed</span><span class="champ-pts">98,540</span>
+        </div>
+        <div class="champ">
+          <div class="champ-portrait">S<span class="m-badge">M6</span></div>
+          <span class="champ-name">Syndra</span><span class="champ-pts">61,205</span>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ===================== LIVE SPECTATOR TICKER ===================== -->
+  <div class="section-cap">Live Spectator Ticker · revealed by “Watch Live”</div>
+  <div class="panel gold spectate">
+    <div class="spec-head">
+      <span class="spec-live"><span class="live-pip"></span>LIVE</span>
+      <span class="spec-title">KPScriptz <span class="sub">· Ranked Solo</span></span>
+      <span class="data-tag real">Draft · Spectator API</span>
+      <span class="spec-clock">14:22</span>
+    </div>
+
+    <div class="spec-split">
+      <!-- LEFT: team comps + (illustrative) items -->
+      <div class="spec-left">
+        <div class="teams">
+          <div class="team-col blue">
+            <h3>Blue Team</h3>
+            <div class="p-row">
+              <div class="p-champ friend-of">A</div>
+              <div class="p-spells"><span class="spell"></span><span class="spell"></span></div>
+              <div class="items"><span class="slot filled"></span><span class="slot filled"></span><span class="slot filled"></span><span class="slot"></span><span class="slot"></span><span class="slot filled"></span></div>
+            </div>
+            <div class="p-row">
+              <div class="p-champ">V</div>
+              <div class="p-spells"><span class="spell"></span><span class="spell"></span></div>
+              <div class="items"><span class="slot filled"></span><span class="slot filled"></span><span class="slot"></span><span class="slot"></span><span class="slot"></span><span class="slot filled"></span></div>
+            </div>
+            <div class="p-row">
+              <div class="p-champ">J</div>
+              <div class="p-spells"><span class="spell"></span><span class="spell"></span></div>
+              <div class="items"><span class="slot filled"></span><span class="slot"></span><span class="slot"></span><span class="slot"></span><span class="slot"></span><span class="slot filled"></span></div>
+            </div>
+            <div class="p-row">
+              <div class="p-champ">C</div>
+              <div class="p-spells"><span class="spell"></span><span class="spell"></span></div>
+              <div class="items"><span class="slot filled"></span><span class="slot filled"></span><span class="slot filled"></span><span class="slot"></span><span class="slot"></span><span class="slot filled"></span></div>
+            </div>
+            <div class="p-row">
+              <div class="p-champ">T</div>
+              <div class="p-spells"><span class="spell"></span><span class="spell"></span></div>
+              <div class="items"><span class="slot filled"></span><span class="slot"></span><span class="slot"></span><span class="slot"></span><span class="slot"></span><span class="slot"></span></div>
+            </div>
+          </div>
+          <div class="team-col red">
+            <h3>Red Team</h3>
+            <div class="p-row">
+              <div class="p-champ">Z</div>
+              <div class="p-spells"><span class="spell"></span><span class="spell"></span></div>
+              <div class="items"><span class="slot filled"></span><span class="slot filled"></span><span class="slot"></span><span class="slot"></span><span class="slot"></span><span class="slot filled"></span></div>
+            </div>
+            <div class="p-row">
+              <div class="p-champ">K</div>
+              <div class="p-spells"><span class="spell"></span><span class="spell"></span></div>
+              <div class="items"><span class="slot filled"></span><span class="slot filled"></span><span class="slot filled"></span><span class="slot"></span><span class="slot"></span><span class="slot filled"></span></div>
+            </div>
+            <div class="p-row">
+              <div class="p-champ">L</div>
+              <div class="p-spells"><span class="spell"></span><span class="spell"></span></div>
+              <div class="items"><span class="slot filled"></span><span class="slot"></span><span class="slot"></span><span class="slot"></span><span class="slot"></span><span class="slot"></span></div>
+            </div>
+            <div class="p-row">
+              <div class="p-champ">J</div>
+              <div class="p-spells"><span class="spell"></span><span class="spell"></span></div>
+              <div class="items"><span class="slot filled"></span><span class="slot filled"></span><span class="slot"></span><span class="slot"></span><span class="slot"></span><span class="slot filled"></span></div>
+            </div>
+            <div class="p-row">
+              <div class="p-champ">N</div>
+              <div class="p-spells"><span class="spell"></span><span class="spell"></span></div>
+              <div class="items"><span class="slot filled"></span><span class="slot filled"></span><span class="slot filled"></span><span class="slot"></span><span class="slot"></span><span class="slot filled"></span></div>
+            </div>
+          </div>
+        </div>
+        <div class="legend">
+          <b>Champions, summoner spells, runes, bans</b> = real (Spectator API). <b>Item slots</b> = illustrative — live inventories aren’t exposed by any sanctioned API.
+        </div>
+      </div>
+
+      <!-- RIGHT: rolling event feed (illustrative) -->
+      <div class="spec-right">
+        <div class="feed-cap">
+          <span>Live Event Feed</span>
+          <span class="data-tag mock">Illustrative</span>
+        </div>
+        <div class="feed">
+          <div class="event kill">
+            <span class="ts">14:02</span>
+            <span class="txt"><span class="tag-k">Kill</span> · <b class="me">KPScriptz</b> (Ahri) killed EnemyMid (Zed)</span>
+          </div>
+          <div class="event obj">
+            <span class="ts">12:48</span>
+            <span class="txt"><span class="tag-o">Objective</span> · Blue Team secured Rift Herald</span>
+          </div>
+          <div class="event kill">
+            <span class="ts">11:30</span>
+            <span class="txt"><span class="tag-k">Kill</span> · JungleDiff (Vi) killed <b class="me">KPScriptz</b> (Ahri)</span>
+          </div>
+          <div class="event obj">
+            <span class="ts">10:15</span>
+            <span class="txt"><span class="tag-o">Objective</span> · Red Team secured Infernal Drake</span>
+          </div>
+          <div class="event kill">
+            <span class="ts">08:35</span>
+            <span class="txt"><span class="tag-k">Kill</span> · <b class="me">KPScriptz</b> (Ahri) killed EnemyTop (Camille)</span>
+          </div>
+          <div class="event obj">
+            <span class="ts">06:02</span>
+            <span class="txt"><span class="tag-o">Objective</span> · First Blood — Blue Team</span>
+          </div>
+        </div>
+        <div class="legend">
+          A real-time kill/objective feed for a <b>friend’s</b> game isn’t available from sanctioned APIs (only by launching League’s spectator client, ~3 min delayed).
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

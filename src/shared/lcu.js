@@ -130,4 +130,35 @@ async function importRunePage(page) {
   return request("/lol-perks/v1/pages", { method: "POST", body: { ...page, current: true } });
 }
 
-module.exports = { request, getGameflowPhase, getChampSelectSession, importRunePage, readLockfile, init };
+// Import a champion item set (tolerated LCU write, same class as rune import).
+// We read the user's existing sets, drop any prior PepStats one (by title
+// prefix), prepend ours, and PUT the whole collection back so we never clobber
+// the player's own sets. `blocks` = [{ type, items:[{id,count}] }].
+async function importItemSet({ championId, title, blocks }) {
+  const me = await request("/lol-summoner/v1/current-summoner");
+  const sid = me && me.summonerId;
+  if (!sid) throw new Error("No current summoner");
+
+  let data = {};
+  try { data = await request("/lol-item-sets/v1/item-sets/" + sid + "/sets"); } catch (_) { data = {}; }
+  const existing = data && Array.isArray(data.itemSets)
+    ? data.itemSets.filter((s) => !String((s && s.title) || "").startsWith("PepStats:"))
+    : [];
+
+  const set = {
+    title,
+    type: "custom",
+    map: "any",
+    mode: "any",
+    priority: false,
+    sortrank: 1,
+    associatedMaps: [11, 12],
+    associatedChampions: championId ? [Number(championId)] : [],
+    blocks: blocks || [],
+  };
+
+  const body = { ...(data || {}), itemSets: [set, ...existing], timestamp: Date.now() };
+  return request("/lol-item-sets/v1/item-sets/" + sid + "/sets", { method: "PUT", body });
+}
+
+module.exports = { request, getGameflowPhase, getChampSelectSession, importRunePage, importItemSet, readLockfile, init };

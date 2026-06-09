@@ -221,6 +221,7 @@ function setCacheDir(dir) {
 }
 function clearCache() {
   matchCache.clear();
+  _formCache.clear();
   _cacheDirty = false;
   try { if (_cacheFile && fs.existsSync(_cacheFile)) fs.unlinkSync(_cacheFile); } catch (_) {}
 }
@@ -381,6 +382,59 @@ async function getMatches(cfg, filterKey, count = 20) {
   return out;
 }
 
+// ----- Recent form for an arbitrary PUUID (champ-select ally lookup) --------
+// Aggregates a player's last `count` games into win-rate + average KDA using the
+// official match-v5 API. Used for teammates in champ select. The Riot ID comes
+// straight out of the match participant data (riotIdGameName/#tagLine), so no
+// extra account-v1 call is needed. Per-session cache keyed by puuid — champ
+// select re-polls, and we must not re-hit the API for the same teammate.
+const _formCache = new Map(); // puuid -> aggregated form
+async function recentByPuuid(cfg, puuid, count = 5) {
+  const key = cfg && cfg.riotApiKey;
+  const reg = REGIONS[((cfg && cfg.region) || "").toUpperCase()];
+  if (!key || !reg || !puuid) return null;
+  if (_formCache.has(puuid)) return _formCache.get(puuid);
+
+  const host = reg.cluster + ".api.riotgames.com";
+  let ids = [];
+  try {
+    ids = await getJson(host, `/lol/match/v5/matches/by-puuid/${puuid}/ids?start=0&count=${Math.min(10, Math.max(1, count))}`, key);
+  } catch (_) {
+    return null; // private match history / bad key / rate limit -> no form
+  }
+
+  let games = 0, wins = 0, kS = 0, dS = 0, aS = 0, riotId = "";
+  const champCount = {};
+  for (const mid of ids || []) {
+    let m;
+    try { m = await getJson(host, `/lol/match/v5/matches/${mid}`, key); } catch (_) { continue; }
+    const info = m && m.info;
+    const p = (info && info.participants || []).find((x) => x.puuid === puuid);
+    if (!p) continue;
+    const durSec = info.gameDuration || 0;
+    if (durSec > 0 && durSec < 300) continue; // skip remakes
+    games++;
+    if (p.win) wins++;
+    kS += p.kills || 0; dS += p.deaths || 0; aS += p.assists || 0;
+    if (!riotId && p.riotIdGameName) riotId = p.riotIdGameName + (p.riotIdTagLine ? "#" + p.riotIdTagLine : "");
+    const ck = champKey(p.championName);
+    if (ck) champCount[ck] = (champCount[ck] || 0) + 1;
+  }
+  const topChamp = Object.entries(champCount).sort((a, b) => b[1] - a[1])[0];
+  const result = {
+    games, wins,
+    wr: games ? Math.round((wins / games) * 100) : null,
+    kda: dS ? +(((kS + aS) / dS).toFixed(2)) : kS + aS,
+    k: games ? +(kS / games).toFixed(1) : 0,
+    d: games ? +(dS / games).toFixed(1) : 0,
+    a: games ? +(aS / games).toFixed(1) : 0,
+    riotId,
+    topChamp: topChamp ? topChamp[0] : "",
+  };
+  _formCache.set(puuid, result);
+  return result;
+}
+
 // Resolve (and cache) the account PUUID from a linked Riot ID. Needed to map a
 // timeline's participantId back to the user.
 const _puuidCache = {};
@@ -413,5 +467,5 @@ function matchTimeline(cfg, matchId, timeoutMs = 7000) {
 module.exports = {
   fetchProfile, parseRiotId, regionList, REGIONS,
   getMatches, ddragonVersion, perkMaps, championIndex, filterList, queueLabel, champKey,
-  setCacheDir, clearCache, getJson, accountPuuid, matchTimeline,
+  setCacheDir, clearCache, getJson, accountPuuid, matchTimeline, recentByPuuid,
 };

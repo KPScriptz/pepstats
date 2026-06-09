@@ -67,6 +67,21 @@
         </div>
       </section>
 
+      <!-- Draft coach: curated counters vs enemy locks + synergies with allies -->
+      <section class="panel draft-panel">
+        <h2>Draft Coach <span class="pill pill-ghost">Curated</span></h2>
+        <div class="draft-cols">
+          <div class="draft-col">
+            <div class="draft-k">Counter picks <span class="draft-sub">vs enemy locks</span></div>
+            <div id="draft-counters" class="draft-list"><span class="muted">Suggestions appear as enemies lock in.</span></div>
+          </div>
+          <div class="draft-col">
+            <div class="draft-k">Synergy picks <span class="draft-sub">with your team</span></div>
+            <div id="draft-synergies" class="draft-list"><span class="muted">Suggestions appear as allies lock in.</span></div>
+          </div>
+        </div>
+      </section>
+
       <!-- Build (curated, situational multi-build) + rune import -->
       <section class="panel build-panel">
         <h2>Build <span id="build-champ" class="pill pill-ally"></span></h2>
@@ -80,8 +95,8 @@
           <div class="build-row"><span class="bl">Core build</span><div id="b-core" class="b-icons"></div></div>
         </div>
         <div class="import-row">
-          <button id="import" class="btn">Import runes</button>
-          <span id="import-status" class="muted">Pushes the active variant's rune page to your client.</span>
+          <button id="import" class="btn">Import runes + items</button>
+          <span id="import-status" class="muted">Pushes the active variant's rune page + item set to your client.</span>
         </div>
       </section>
     </main>
