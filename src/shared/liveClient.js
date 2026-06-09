@@ -73,6 +73,29 @@ function activeRole(data) {
   return (me && me.position) || "";
 }
 
+// The enemy team's champions, in a stable lane order, with a fixed slot index.
+// This is the SAME roster the in-game Tab scoreboard shows (championName/team/
+// position straight from allPlayers) — it is NOT position/fog inference. It only
+// labels the manual Flash/Ult tracker rows; the timers themselves run purely off
+// the user's own hotkey presses (see main.js syncTrackers). Slot is stable so a
+// given hotkey always maps to the same enemy for the whole match.
+const _ROLE_ORDER = { TOP: 0, JUNGLE: 1, MIDDLE: 2, BOTTOM: 3, UTILITY: 4 };
+function enemyRoster(data) {
+  const players = (data && data.allPlayers) || [];
+  const me = findMe(data);
+  if (!me) return [];
+  const ord = (p) => {
+    const r = _ROLE_ORDER[p.position];
+    return typeof r === "number" ? r : 99;
+  };
+  return players
+    .filter((p) => p.team && me.team && p.team !== me.team)
+    .slice()
+    .sort((a, b) => ord(a) - ord(b) || (a.championName || "").localeCompare(b.championName || ""))
+    .slice(0, 5)
+    .map((p, i) => ({ slot: i, champion: p.championName || "?", position: p.position || "" }));
+}
+
 function activeScores(data) {
   const me = findMe(data);
   const gameTime = (data && data.gameData && data.gameData.gameTime) || 0;
@@ -343,6 +366,7 @@ module.exports = {
   gameInfo,
   activeRole,
   findMe,
+  enemyRoster,
   laneOpponent,
   csDifferential,
   laneDossier,

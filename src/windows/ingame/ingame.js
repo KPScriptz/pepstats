@@ -36,7 +36,7 @@ const mods = {};
 for (const _id of MODULES) mods[_id] = document.getElementById("mod-" + _id);
 
 // Content-presence flags drive per-module visibility in Live Mode.
-let hasSkill = false, hasTimers = false, hasGoldDiff = false;
+let hasSkill = false, hasTimers = false, hasGoldDiff = false, hasUlt = false, hasFlash = false;
 
 // ---- Per-module visibility toggles (Design Mode), persisted to config -------
 // Each module gets an eye button in Design Mode. Toggling off hides the whole
@@ -363,7 +363,7 @@ function render() {
   // Design Mode shows every module (dimmed if disabled) so each can be placed or
   // re-enabled; Live Mode shows only enabled modules that have content. Modules
   // not listed here are content-less (always "ok").
-  const contentOk = { skill: hasSkill, golddiff: hasGoldDiff };
+  const contentOk = { skill: hasSkill, golddiff: hasGoldDiff, ult: hasUlt, flash: hasFlash };
   for (const id of MODULES) {
     const ok = id in contentOk ? contentOk[id] : true;
     setMod(id, design || (liveOn && ok && modEnabled[id]));
@@ -541,6 +541,104 @@ function renderGoldDiff(goldDiff) {
   el.className = "gd-value " + (d >= 0 ? "pos" : "neg");
 }
 
+// ---- Manual Enemy Flash / Ult trackers --------------------------------------
+// A hotkey-driven stopwatch. main.js registers the global hotkeys and relays a
+// "tracker-fire" when the user presses one (having SEEN an enemy flash/ult); we
+// only run the clocks here — nothing detects the cast. Rows are labeled from the
+// sanctioned enemy roster (same champion list as the in-game Tab scoreboard).
+const FLASH_BASE = 300; // flash base cooldown (s) — shown as a 5:00 countdown
+let trackerRoster = [];
+let trackerKeys = { flash: [], ult: [] };
+let trackerRosterSig = "";
+const flashAt = {}; // slot -> ms timestamp of last flash press (undefined = untracked)
+const ultAt = {};   // slot -> ms timestamp of last ult press
+
+const trShort = (n) => (n && n.length > 9 ? n.slice(0, 9) : (n || "?"));
+const POS_TAG = { TOP: "TOP", JUNGLE: "JG", MIDDLE: "MID", BOTTOM: "BOT", UTILITY: "SUP" };
+const prettyKey = (k) => String(k || "").replace("CommandOrControl", "Ctrl");
+const mmss = (s) => { s = Math.max(0, Math.round(s)); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); };
+
+function buildTrackerRows(kind) {
+  const wrap = document.getElementById(kind === "flash" ? "flash-rows" : "ult-rows");
+  if (!wrap) return;
+  wrap.textContent = "";
+  const keys = kind === "flash" ? trackerKeys.flash : trackerKeys.ult;
+  for (const e of trackerRoster) {
+    const row = document.createElement("div");
+    row.className = "tr-row";
+    const champ = document.createElement("span");
+    champ.className = "tr-champ";
+    champ.textContent = trShort(e.champion);
+    const pos = document.createElement("span");
+    pos.className = "tr-pos";
+    pos.textContent = POS_TAG[e.position] || "";
+    const val = document.createElement("span");
+    val.className = "tr-val";
+    val.id = (kind === "flash" ? "frv-" : "urv-") + e.slot;
+    val.textContent = "·";
+    const key = document.createElement("span");
+    key.className = "tr-key";
+    key.textContent = prettyKey(keys[e.slot]);
+    row.appendChild(champ);
+    row.appendChild(pos);
+    row.appendChild(val);
+    row.appendChild(key);
+    wrap.appendChild(row);
+  }
+}
+
+function applyTrackerRoster(d) {
+  if (!d || !Array.isArray(d.roster)) return;
+  hasUlt = hasFlash = d.roster.length > 0;
+  const sig = d.roster.map((e) => e.slot + ":" + e.champion + ":" + e.position).join("|") +
+    "#" + (d.flashKeys || []).join(",") + "#" + (d.ultKeys || []).join(",");
+  if (sig === trackerRosterSig) return; // unchanged — rows already built
+  trackerRosterSig = sig;
+  trackerRoster = d.roster;
+  trackerKeys = { flash: d.flashKeys || [], ult: d.ultKeys || [] };
+  for (const k in flashAt) delete flashAt[k]; // fresh roster (new match) -> reset clocks
+  for (const k in ultAt) delete ultAt[k];
+  buildTrackerRows("flash");
+  buildTrackerRows("ult");
+  tickTrackers();
+  render();
+}
+
+function fireTracker(d) {
+  if (!d) return;
+  const now = Date.now();
+  if (d.kind === "flash") flashAt[d.slot] = now;
+  else if (d.kind === "ult") ultAt[d.slot] = now;
+  tickTrackers();
+}
+
+function tickTrackers() {
+  const now = Date.now();
+  let anyFlash = false, anyUlt = false;
+  for (const e of trackerRoster) {
+    const fv = document.getElementById("frv-" + e.slot);
+    if (fv) {
+      const t0 = flashAt[e.slot];
+      if (!t0) { fv.textContent = "·"; fv.className = "tr-val"; }
+      else {
+        anyFlash = true;
+        const rem = FLASH_BASE - (now - t0) / 1000;
+        if (rem <= 0) { fv.textContent = "UP"; fv.className = "tr-val up"; }
+        else { fv.textContent = mmss(rem); fv.className = "tr-val" + (rem <= 30 ? " soon" : ""); }
+      }
+    }
+    const uv = document.getElementById("urv-" + e.slot);
+    if (uv) {
+      const t0 = ultAt[e.slot];
+      if (!t0) { uv.textContent = "·"; uv.className = "tr-val"; }
+      else { anyUlt = true; uv.textContent = mmss((now - t0) / 1000); uv.className = "tr-val used"; }
+    }
+  }
+  const fe = document.getElementById("flash-empty"); if (fe) fe.classList.toggle("hidden", anyFlash || !trackerRoster.length);
+  const ue = document.getElementById("ult-empty"); if (ue) ue.classList.toggle("hidden", anyUlt || !trackerRoster.length);
+}
+setInterval(tickTrackers, 500);
+
 function applyOverlay({ scores, compare, timers, skill, dossier, goldDiff, mode: m }) {
   if (m) mode = m;
   applyStats(compare);
@@ -584,6 +682,12 @@ if (window.pepstats && typeof window.pepstats.onOverlay === "function") {
   if (typeof window.pepstats.onHighlight === "function") {
     window.pepstats.onHighlight(showToast);
   }
+  if (typeof window.pepstats.onTrackerRoster === "function") {
+    window.pepstats.onTrackerRoster(applyTrackerRoster);
+  }
+  if (typeof window.pepstats.onTrackerFire === "function") {
+    window.pepstats.onTrackerFire(fireTracker);
+  }
   render();
 } else {
   // Standalone browser preview: seed a believable CSM trend + demo comparison.
@@ -617,4 +721,20 @@ if (window.pepstats && typeof window.pepstats.onOverlay === "function") {
   });
   // Demo a highlight toast in standalone preview.
   showToast({ kind: "good", label: "Double Kill", sub: "Ahri" });
+  // Demo the manual Flash/Ult trackers: a full enemy roster + two live clocks.
+  applyTrackerRoster({
+    roster: [
+      { slot: 0, champion: "Garen", position: "TOP" },
+      { slot: 1, champion: "LeeSin", position: "JUNGLE" },
+      { slot: 2, champion: "Zed", position: "MIDDLE" },
+      { slot: 3, champion: "Jinx", position: "BOTTOM" },
+      { slot: 4, champion: "Thresh", position: "UTILITY" },
+    ],
+    flashKeys: ["Alt+1", "Alt+2", "Alt+3", "Alt+4", "Alt+5"],
+    ultKeys: ["CommandOrControl+Alt+1", "CommandOrControl+Alt+2", "CommandOrControl+Alt+3", "CommandOrControl+Alt+4", "CommandOrControl+Alt+5"],
+    flashBase: 300,
+  });
+  flashAt[2] = Date.now() - 120000; // Zed flashed ~2:00 ago -> 3:00 left
+  ultAt[4] = Date.now() - 35000;    // Thresh ult used 0:35 ago
+  tickTrackers();
 }

@@ -72,8 +72,8 @@ screen-reading or memory access, which we never do:
 | Feature | Compliant version we allow | Forbidden version we refuse |
 | --- | --- | --- |
 | Jungle camp timers | **Static** spawn schedule from the game clock | Live per-camp "cleared" tracking (needs CV/memory — no API signal exists) |
-| Enemy summoner-spell cooldowns | **Manual** user-tapped stopwatch | Auto-detecting enemy Flash (needs screen-reading) |
-| Team ultimate availability | **Manual** user-tapped tracker | Auto ability-cooldown tracking (no API exposes it → CV/memory) |
+| Enemy summoner-spell cooldowns | **Manual** hotkey stopwatch (shipped — Enemy Flash module, 5:00 countdown) | Auto-detecting enemy Flash (needs screen-reading) |
+| Team ultimate availability | **Manual** hotkey tracker (shipped — Enemy Ults module, counts up from your press) | Auto ability-cooldown tracking (no API exposes it → CV/memory) |
 | Team / enemy gold differential | **Post-game** from your own match-v5 timeline | A live enemy-gold readout (the live feed exposes only *your* gold) |
 | Spectator highlight feed | Your **own** Live Client event stream | A live kill/event feed for a friend's spectated game (spectator API is draft-only) |
 | Lane-opponent comparison | **In-game** from the sanctioned `allPlayers` feed | Pre-game enemy stats (enemy identities are hidden in champ select) |
@@ -81,6 +81,16 @@ screen-reading or memory access, which we never do:
 Reading every player's KDA/CS/level/items from the official `allPlayers` feed is
 compliant — it's the same data the in-game Tab scoreboard already shows; it is
 **not** the bannable minimap-CV maphack.
+
+The manual Flash/Ult trackers register **global hotkeys** (Electron `globalShortcut`)
+so the user can tap them mid-fight. This is input flowing **user → app**, the
+reverse of the forbidden **app → game** automation (no `SendInput`, no macros, no
+key/mouse synthesis into the client). The app starts a stopwatch on the keypress;
+it never detects the cast. Hotkeys register only while a match is live and the
+matching module is enabled, are released at match end, default to keys off
+League's gameplay binds, and are user-rebindable in `config.ui.overlay.flashKeys`
+/`ultKeys`. Enemy champion *names* on the rows come from the same sanctioned
+`allPlayers` roster — never from position/fog inference.
 
 ## Audit
 

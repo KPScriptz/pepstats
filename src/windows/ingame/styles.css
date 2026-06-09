@@ -147,6 +147,19 @@ body.design-mode .timer-chip.tc-off { opacity: 0.4; }
 .jp-note { margin-top: 5px; font-size: 8px; color: #7c8696; font-style: italic; }
 .ph-note { margin-top: 5px; font-size: 9px; line-height: 1.4; color: #7c8696; font-style: italic; }
 
+/* ---- Manual Flash / Ult tracker rows ---- */
+.tr-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 4px; }
+.tr-sub { font-size: 8px; color: #7c8696; font-style: italic; }
+.tr-rows { display: flex; flex-direction: column; gap: 2px; }
+.tr-row { display: grid; grid-template-columns: 1fr auto auto auto; align-items: center; gap: 6px; }
+.tr-champ { font-size: 11px; font-weight: 700; color: #d6dae2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tr-pos { font-size: 8px; font-weight: 700; color: #7c8696; letter-spacing: 0.04em; min-width: 22px; }
+.tr-val { font-size: 12px; font-weight: 800; color: #8b94a3; font-variant-numeric: tabular-nums; min-width: 30px; text-align: right; }
+.tr-val.soon { color: #ffcf5d; }
+.tr-val.up { color: #5dd6a0; }
+.tr-val.used { color: #ff8a5d; }
+.tr-key { font-size: 8px; font-weight: 700; color: #5a6473; font-variant-numeric: tabular-nums; min-width: 34px; text-align: right; }
+
 /* ---- Brand header ---- */
 .brand-row {
   display: flex; align-items: center; justify-content: space-between;

@@ -13,6 +13,8 @@ contextBridge.exposeInMainWorld("pepstats", {
   onModeChange: (cb) => ipcRenderer.on("mode-change", (_e, mode) => cb(mode)),
   onForceDesignOff: (cb) => ipcRenderer.on("force-design-mode-off", () => cb()),
   onHighlight: (cb) => ipcRenderer.on("highlight", (_e, h) => cb(h)),
+  onTrackerRoster: (cb) => ipcRenderer.on("tracker-roster", (_e, d) => cb(d)),
+  onTrackerFire: (cb) => ipcRenderer.on("tracker-fire", (_e, d) => cb(d)),
   getLiveCsd: () => ipcRenderer.invoke("get-live-csd"),
   getCombatThreats: () => ipcRenderer.invoke("get-combat-threats"),
   getObjectiveAlert: () => ipcRenderer.invoke("get-objective-alert"),
