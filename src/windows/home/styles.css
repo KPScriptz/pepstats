@@ -479,4 +479,38 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16p
 .fr-tl-i { font-size: 14px; text-align: center; }
 .fr-tl-x { font-size: 12.5px; }
 
+/* ---- TFT match history ---- */
+.tft-bar { display: flex; align-items: center; margin-bottom: var(--gap); }
+.tft-list { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.tft-card {
+  background: var(--bg-card); border: 1px solid var(--card-bd); border-left: 4px solid var(--muted2);
+  border-radius: 10px; padding: 12px 14px; box-shadow: var(--shadow);
+  transition: border-color .2s ease, box-shadow .2s ease, transform .12s ease;
+}
+.tft-card:hover { transform: translateY(-1px); border-color: color-mix(in srgb, var(--accent-dynamic) 45%, var(--card-bd)); box-shadow: var(--shadow), 0 0 14px var(--accent-dynamic-glow); }
+.tft-card.first { border-left-color: #f1c40f; background: linear-gradient(100deg, color-mix(in srgb, #f1c40f 9%, var(--bg-card)), var(--bg-card) 60%); }
+.tft-card.top { border-left-color: #22c3a6; }
+.tft-card.bot { border-left-color: var(--bad); }
+.tft-head { display: flex; align-items: center; gap: 12px; }
+.tft-place { font-size: 18px; font-weight: 900; min-width: 52px; }
+.tft-place.first { color: #f1c40f; } .tft-place.top { color: #22c3a6; } .tft-place.bot { color: var(--bad); }
+.tft-meta { flex: 1; min-width: 0; }
+.tft-q { font-size: 13px; font-weight: 700; }
+.tft-sub { font-size: 11px; color: var(--muted); margin-top: 1px; }
+.tft-traits { display: flex; flex-wrap: wrap; gap: 5px; margin: 10px 0 4px; }
+.tft-trait { font-size: 10.5px; font-weight: 700; padding: 3px 8px; border-radius: 999px; background: var(--inset); border: 1px solid var(--card-bd); color: var(--muted); }
+.tft-trait.style-1 { color: #cd7f32; border-color: rgba(205,127,50,.45); }
+.tft-trait.style-2 { color: #c8ccd2; border-color: rgba(200,204,210,.4); }
+.tft-trait.style-3 { color: #f1c40f; border-color: rgba(241,196,15,.45); }
+.tft-trait.style-4 { color: #9fe9ff; border-color: rgba(159,233,255,.5); background: color-mix(in srgb, #9fe9ff 10%, var(--inset)); }
+.tft-board { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.tft-unit { width: 78px; padding: 6px 6px 7px; border-radius: 8px; background: var(--inset); border: 1px solid var(--card-bd); border-top: 2px solid var(--muted2); text-align: center; }
+.tft-unit.cost-1 { border-top-color: #808a99; } .tft-unit.cost-2 { border-top-color: #2ecc71; }
+.tft-unit.cost-3 { border-top-color: #3498db; } .tft-unit.cost-4 { border-top-color: #9b59b6; }
+.tft-unit.cost-5 { border-top-color: #f1c40f; }
+.tft-stars { font-size: 9px; line-height: 1; letter-spacing: -1px; color: #c8ccd2; height: 10px; }
+.tft-stars.s3 { color: #f1c40f; } .tft-stars.s2 { color: #c8ccd2; }
+.tft-uname { font-size: 10.5px; font-weight: 700; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tft-uitems { font-size: 7px; color: var(--accent-dynamic); margin-top: 2px; letter-spacing: 1px; }
+
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }

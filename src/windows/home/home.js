@@ -38,6 +38,7 @@ for (const id of ["su-close", "tb-close"]) { const el = $(id); if (el) el.addEve
 const PAGE_META = {
   dashboard: ["Dashboard", "Your ranked snapshot"],
   progress: ["Progress", "Climb history & trends"],
+  tft: ["TFT", "Teamfight Tactics history"],
   friends: ["Friends", "Live status & recent games"],
   settings: ["Settings", "Account, AI & appearance"],
 };
@@ -50,6 +51,7 @@ document.querySelectorAll(".nav-item").forEach((b) => {
     $("page-title").textContent = meta[0];
     $("page-sub").textContent = meta[1];
     if (page === "progress" && !matchesLoaded) loadMatches();
+    if (page === "tft" && !tftLoaded) loadTft();
     friendsActive = page === "friends";
     if (friendsActive) startFriends();
   });
@@ -749,6 +751,66 @@ async function selectFriend(f) {
       tl.append(row);
     }
   } catch (_) { loading.classList.add("hidden"); tlEmpty.classList.remove("hidden"); }
+}
+
+// ===== TFT =====
+let tftLoaded = false;
+const PLACE_SUFFIX = { 1: "st", 2: "nd", 3: "rd" };
+const ordinal = (n) => n + (PLACE_SUFFIX[n] || "th");
+
+async function loadTft() {
+  if (!api.getTftMatches) return;
+  const loading = $("tft-loading"), access = $("tft-access"), empty = $("tft-empty"), list = $("tft-list");
+  loading.classList.remove("hidden"); access.classList.add("hidden"); empty.classList.add("hidden"); list.classList.add("hidden");
+  let res; try { res = await api.getTftMatches(10); } catch (_) { res = null; }
+  loading.classList.add("hidden");
+  if (!res || !res.ok) {
+    if (res && res.error === "tft-access") { access.classList.remove("hidden"); }
+    else { empty.classList.remove("hidden"); $("tft-empty").textContent = (res && res.error === "link") ? "Link your account in Settings first." : "Couldn't load TFT matches."; }
+    return;
+  }
+  tftLoaded = true;
+  const matches = res.matches || [];
+  if (!matches.length) { empty.classList.remove("hidden"); $("tft-empty").textContent = "No recent TFT matches found."; return; }
+  list.classList.remove("hidden"); list.innerHTML = "";
+  for (const m of matches) list.append(renderTftCard(m));
+}
+
+function renderTftCard(m) {
+  const li = document.createElement("li");
+  const tier = m.placement === 1 ? "first" : m.placement <= 4 ? "top" : "bot";
+  li.className = "tft-card " + tier;
+
+  const head = document.createElement("div"); head.className = "tft-head";
+  head.innerHTML =
+    `<span class="tft-place ${tier}">${m.placement ? ordinal(m.placement) : "—"}</span>` +
+    `<div class="tft-meta"><div class="tft-q">${m.queue}${m.set ? " · Set " + m.set : ""}</div>` +
+    `<div class="tft-sub">Lvl ${m.level} · ${Math.floor(m.length / 60)}m · ${timeAgo(m.endTs)}</div></div>`;
+  li.append(head);
+
+  if (m.traits && m.traits.length) {
+    const tr = document.createElement("div"); tr.className = "tft-traits";
+    for (const t of m.traits.slice(0, 6)) {
+      const pill = document.createElement("span"); pill.className = "tft-trait style-" + (t.style || 1);
+      pill.textContent = `${t.units} ${t.name}`;
+      tr.append(pill);
+    }
+    li.append(tr);
+  }
+
+  if (m.units && m.units.length) {
+    const board = document.createElement("div"); board.className = "tft-board";
+    for (const u of m.units) {
+      const tile = document.createElement("div"); tile.className = "tft-unit cost-" + Math.min(5, Math.max(1, u.cost));
+      const stars = document.createElement("div"); stars.className = "tft-stars s" + u.star; stars.textContent = "★".repeat(u.star);
+      const nm = document.createElement("div"); nm.className = "tft-uname"; nm.textContent = u.name;
+      tile.append(stars, nm);
+      if (u.items && u.items.length) { const it = document.createElement("div"); it.className = "tft-uitems"; it.textContent = "● ".repeat(u.items.length).trim(); it.title = u.items.join(", "); tile.append(it); }
+      board.append(tile);
+    }
+    li.append(board);
+  }
+  return li;
 }
 
 // ===== Data loop =====

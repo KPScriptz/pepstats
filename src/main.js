@@ -16,6 +16,7 @@ const advisor = require("./shared/advisor");
 const buildDataEngine = require("./utils/buildDataEngine");
 const friendsEngine = require("./utils/friendsEngine");
 const postgameEngine = require("./utils/postgameEngine");
+const tftEngine = require("./utils/tftEngine");
 const processWatch = require("./shared/process");
 const replays = require("./shared/replays");
 
@@ -913,6 +914,12 @@ ipcMain.handle("get-build-key", async (_e, champKey) => {
   } catch (e) {
     return null;
   }
+});
+
+// TFT match history (official /tft/match/v1, post-game only).
+ipcMain.handle("get-tft-matches", (_e, count) => {
+  const cfg = loadConfig();
+  return tftEngine.getMatches({ riotId: cfg.riotId, region: cfg.region, riotApiKey: cfg.riotApiKey }, count || 10);
 });
 
 // Friends tracking (LCU presence + official Riot match digest).

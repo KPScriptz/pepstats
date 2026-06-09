@@ -44,6 +44,9 @@ contextBridge.exposeInMainWorld("pepstats", {
   getBuildByKey: (champKey) => ipcRenderer.invoke("get-build-key", champKey),
   exportMatches: (payload) => ipcRenderer.invoke("export-matches", payload),
 
+  // TFT
+  getTftMatches: (count) => ipcRenderer.invoke("get-tft-matches", count),
+
   // Friends tracking
   getFriends: () => ipcRenderer.invoke("get-friends"),
   getFriendDetail: (puuid) => ipcRenderer.invoke("get-friend-detail", puuid),
