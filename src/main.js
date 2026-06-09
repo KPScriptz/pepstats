@@ -17,6 +17,7 @@ const buildDataEngine = require("./utils/buildDataEngine");
 const friendsEngine = require("./utils/friendsEngine");
 const postgameEngine = require("./utils/postgameEngine");
 const tftEngine = require("./utils/tftEngine");
+const tftAnalytics = require("./utils/tftAnalyticsEngine");
 const processWatch = require("./shared/process");
 const replays = require("./shared/replays");
 
@@ -920,6 +921,13 @@ ipcMain.handle("get-build-key", async (_e, champKey) => {
 ipcMain.handle("get-tft-matches", (_e, count) => {
   const cfg = loadConfig();
   return tftEngine.getMatches({ riotId: cfg.riotId, region: cfg.region, riotApiKey: cfg.riotApiKey }, count || 10);
+});
+// Deep TFT analytics: fetch history then run the local analytics engine.
+ipcMain.handle("get-tft-analytics", async (_e, count) => {
+  const cfg = loadConfig();
+  const res = await tftEngine.getMatches({ riotId: cfg.riotId, region: cfg.region, riotApiKey: cfg.riotApiKey }, count || 20);
+  if (!res.ok) return res; // propagate tft-access / link / error
+  return { ok: true, matches: res.matches, analytics: tftAnalytics.analyze(res.matches) };
 });
 
 // Friends tracking (LCU presence + official Riot match digest).
