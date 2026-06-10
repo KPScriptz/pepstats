@@ -72,8 +72,8 @@ screen-reading or memory access, which we never do:
 | Feature | Compliant version we allow | Forbidden version we refuse |
 | --- | --- | --- |
 | Jungle camp timers | **Static** spawn schedule from the game clock | Live per-camp "cleared" tracking (needs CV/memory — no API signal exists) |
-| Enemy summoner-spell cooldowns | **Manual** hotkey stopwatch (shipped — Enemy Flash module, 5:00 countdown) | Auto-detecting enemy Flash (needs screen-reading) |
-| Team ultimate availability | **Manual** hotkey tracker (shipped — Enemy Ults module, counts up from your press) | Auto ability-cooldown tracking (no API exposes it → CV/memory) |
+| Enemy summoner-spell cooldowns | **Nothing.** Removed in 0.5.11 — Riot's third-party policy forbids "tracking of enemy summoner spells cooldowns, **or facilitating players tracking these with timers**", so even a hand-driven stopwatch is out | Any flash timer, manual or automatic |
+| Enemy ultimate availability | **Nothing.** Removed in 0.5.11 — Riot banned enemy **ultimate timers** outright in third-party apps (policy update effective 2025-03-13; Porofessor was required to remove the same feature) | Any enemy ult timer, manual or automatic |
 | Team / enemy gold differential | **Post-game** from your own match-v5 timeline | A live enemy-gold readout (the live feed exposes only *your* gold) |
 | Spectator highlight feed | Your **own** Live Client event stream | A live kill/event feed for a friend's spectated game (spectator API is draft-only) |
 | Lane-opponent comparison | **In-game** from the sanctioned `allPlayers` feed | Pre-game enemy stats (enemy identities are hidden in champ select) |
@@ -82,15 +82,18 @@ Reading every player's KDA/CS/level/items from the official `allPlayers` feed is
 compliant — it's the same data the in-game Tab scoreboard already shows; it is
 **not** the bannable minimap-CV maphack.
 
-The manual Flash/Ult trackers register **global hotkeys** (Electron `globalShortcut`)
-so the user can tap them mid-fight. This is input flowing **user → app**, the
-reverse of the forbidden **app → game** automation (no `SendInput`, no macros, no
-key/mouse synthesis into the client). The app starts a stopwatch on the keypress;
-it never detects the cast. Hotkeys register only while a match is live and the
-matching module is enabled, are released at match end, default to keys off
-League's gameplay binds, and are user-rebindable in `config.ui.overlay.flashKeys`
-/`ultKeys`. Enemy champion *names* on the rows come from the same sanctioned
-`allPlayers` roster — never from position/fog inference.
+**Removed feature — a compliance lesson (0.5.11).** Versions 0.5.4–0.5.10
+shipped manual, hotkey-driven Enemy-Flash and Enemy-Ult trackers, reasoned from
+the *technical* layer: input flowed user → app (`globalShortcut`), nothing
+detected the cast, nothing touched the game. That reasoning is necessary but
+**not sufficient** — Riot's third-party policy bans *feature categories*
+regardless of implementation. Enemy **ultimate timers** are "strictly forbidden"
+(policy update effective 2025-03-13), and the policy also prohibits "tracking of
+enemy summoner spells cooldowns, **or facilitating players tracking these with
+timers**" — which describes a manual tracker exactly. Both modules, their
+hotkeys, the IPC channels, and the `enemyRoster` helper were removed in 0.5.11.
+The rule going forward: a feature must clear **both** tests — technically clean
+(no memory/screen/input) *and* explicitly permitted by Riot's written policy.
 
 ## Audit
 
@@ -104,9 +107,15 @@ optional user-configured baseline URL — zero third-party stat sites), the
 complete LCU write surface (rune pages + item sets only), every
 `child_process` call (`tasklist`/`pgrep` process detection and a read-only
 `reg query` for install discovery — nothing executes or injects), and the
-dependency tree (`ws` is the only runtime dep). The manual Flash/Ult tracker
-hotkeys were re-verified as user→app input only — nothing synthesizes input
-toward the game. **Verdict: clean** — no violations at any severity.
+dependency tree (`ws` is the only runtime dep). **Verdict: clean** — no
+violations at any severity.
+
+**Policy addendum (2026-06-10, same day):** the manual Enemy-Flash/Ult trackers
+— technically clean per the audit above — were nonetheless **removed in 0.5.11**
+after checking Riot's written third-party policy: enemy ultimate timers are
+banned outright (2025-03-13 enforcement), and facilitating enemy summoner-spell
+cooldown tracking with timers is prohibited even when manual. Earlier installers
+(0.5.4–0.5.10) contain the feature; do not redistribute them.
 
 ---
 

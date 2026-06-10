@@ -73,33 +73,10 @@ function activeRole(data) {
   return (me && me.position) || "";
 }
 
-// The enemy team's champions, in a stable lane order, with a fixed slot index.
-// This is the SAME roster the in-game Tab scoreboard shows (championName/team/
-// position straight from allPlayers) — it is NOT position/fog inference. It only
-// labels the manual Flash/Ult tracker rows; the timers themselves run purely off
-// the user's own hotkey presses (see main.js syncTrackers). Slot is stable so a
-// given hotkey always maps to the same enemy for the whole match.
-const _ROLE_ORDER = { TOP: 0, JUNGLE: 1, MIDDLE: 2, BOTTOM: 3, UTILITY: 4 };
-function enemyRoster(data) {
-  const players = (data && data.allPlayers) || [];
-  const me = findMe(data);
-  if (!me) return [];
-  const ord = (p) => {
-    const r = _ROLE_ORDER[p.position];
-    return typeof r === "number" ? r : 99;
-  };
-  return players
-    .filter((p) => p.team && me.team && p.team !== me.team)
-    .slice()
-    .sort((a, b) =>
-      ord(a) - ord(b) ||
-      (a.championName || "").localeCompare(b.championName || "") ||
-      // Final deterministic tiebreak so the slot→hotkey mapping stays stable even
-      // off-Rift (blank positions) or if a feed ever omits championName.
-      (a.summonerName || a.riotIdGameName || "").localeCompare(b.summonerName || b.riotIdGameName || ""))
-    .slice(0, 5)
-    .map((p, i) => ({ slot: i, champion: p.championName || "?", position: p.position || "" }));
-}
+// NOTE: the manual Enemy-Flash/Ult trackers (and their enemyRoster helper) were
+// REMOVED in 0.5.11. Riot's third-party policy (2025-03) forbids enemy ultimate
+// timers and "facilitating players tracking [enemy summoner spell] cooldowns
+// with timers" — even hand-driven ones. See COMPLIANCE.md.
 
 function activeScores(data) {
   const me = findMe(data);
@@ -371,7 +348,6 @@ module.exports = {
   gameInfo,
   activeRole,
   findMe,
-  enemyRoster,
   laneOpponent,
   csDifferential,
   laneDossier,

@@ -72,65 +72,6 @@ function computeGoldDiff(live) {
   return { mine, enemy, diff: mine - enemy };
 }
 
-// ----- Manual Enemy Flash / Ult trackers ---------------------------------
-// COMPLIANCE: this is a hand-driven stopwatch, not detection. The app registers
-// global hotkeys (input the USER gives to the overlay — never input sent into the
-// game) and, while a match is live, maps each one to an enemy slot. When the user
-// SEES an enemy flash/ult and presses the key, main relays a "tracker-fire" to the
-// overlay, which runs the countdown. No game memory, no screen reading, no
-// detection of the enemy's actions — only the user's own observation + keypress.
-// We only label the rows with the enemy champion names, which are already on the
-// sanctioned allPlayers scoreboard feed (same as the in-game Tab screen).
-let _trackerSig = "";
-let trackerMatchReset = false; // set on INGAME entry; tells the overlay to wipe clocks once
-let _trackerRegistered = []; // the accelerators ACTUALLY registered, so we can
-// release exactly those even if the configured keys change underneath us.
-function _trackerKeys() {
-  const t = resolveTheme();
-  const ov = (t && t.overlay) || {};
-  const mods = ov.modules || {};
-  return {
-    fk: keys5(ov.flashKeys, THEME_DEFAULTS.overlay.flashKeys),
-    uk: keys5(ov.ultKeys, THEME_DEFAULTS.overlay.ultKeys),
-    wantFlash: mods.flash === true,
-    wantUlt: mods.ult === true,
-  };
-}
-// Reconcile registered hotkeys with the live roster + enabled modules. Cheap
-// no-op when nothing changed (guarded by a signature), so it's safe per tick.
-function syncTrackers(live) {
-  const { fk, uk, wantFlash, wantUlt } = _trackerKeys();
-  const roster = liveClient.enemyRoster(live);
-  const sig = JSON.stringify({
-    r: roster.map((e) => e.slot + ":" + e.champion),
-    wantFlash, wantUlt, fk, uk,
-  });
-  if (sig !== _trackerSig) {
-    // Roster or config changed — release exactly what we registered before (NOT
-    // the current config keys, which may have changed), then rebind.
-    for (const k of _trackerRegistered) { try { globalShortcut.unregister(k); } catch (_) {} }
-    _trackerRegistered = [];
-    for (const e of roster) {
-      if (wantFlash && fk[e.slot]) {
-        try { globalShortcut.register(fk[e.slot], () => sendTo("ingame", "tracker-fire", { kind: "flash", slot: e.slot })); _trackerRegistered.push(fk[e.slot]); } catch (_) {}
-      }
-      if (wantUlt && uk[e.slot]) {
-        try { globalShortcut.register(uk[e.slot], () => sendTo("ingame", "tracker-fire", { kind: "ult", slot: e.slot })); _trackerRegistered.push(uk[e.slot]); } catch (_) {}
-      }
-    }
-    _trackerSig = sig;
-  }
-  // Push the roster every tick (cheap); the renderer rebuilds its rows only when
-  // the roster actually changes, so a dropped first frame can't strand the labels.
-  sendTo("ingame", "tracker-roster", { roster, flashKeys: fk, ultKeys: uk, flashBase: 300, reset: trackerMatchReset });
-  trackerMatchReset = false;
-}
-function clearTrackers() {
-  for (const k of _trackerRegistered) { try { globalShortcut.unregister(k); } catch (_) {} }
-  _trackerRegistered = [];
-  _trackerSig = "";
-}
-
 // ----- Window factories --------------------------------------------------
 function preload() {
   return path.join(__dirname, "preload.js");
@@ -394,12 +335,10 @@ async function _pollImpl() {
       liveTelemetry.start(); // begin CSD telemetry for this match
       liveCombat.start();    // begin combat threat matrix
       objectiveRotator.start(); // begin time-based objective prep alerts
-      trackerMatchReset = true; // new match -> overlay drops all Flash/Ult clocks
       // The ddragon item-gold map loads once at startup; if that fetch failed
       // (offline launch), retry as a match starts so gold-diff isn't dead forever.
       if (!itemGoldMap) riotApi.itemGold().then((m) => { itemGoldMap = m; }).catch(() => {});
     }
-    syncTrackers(live); // reconcile manual Flash/Ult hotkeys + push enemy roster
     sendTo("ingame", "overlay", { scores, compare, timers, skill, dossier, goldDiff, mode: designMode ? "design" : "live" });
 
     // #11 — fire a highlight toast for each NEW major milestone (first blood,
@@ -416,7 +355,6 @@ async function _pollImpl() {
     liveTelemetry.stop(); // match ended — halt CSD telemetry
     liveCombat.stop();
     objectiveRotator.stop();
-    clearTrackers(); // release the manual Flash/Ult hotkeys until the next match
     try {
       lastReplay = replays.latestReplay();
     } catch (_) {
@@ -436,9 +374,6 @@ async function _pollImpl() {
     clientPhase = "None";
     // The client closed. If we were parked in a match-flow window (post-game or
     // champ-select), fall back to home instead of staying stuck there forever.
-    // clearTrackers is idempotent — belt-and-suspenders so no hotkey can outlive
-    // a match no matter which path the state machine took out of INGAME.
-    clearTrackers();
     if (appState !== STATE.IDLE) showHome();
     else ensure("home");
     return;
@@ -594,13 +529,7 @@ const THEME_DEFAULTS = {
     // Per-module on/off (toggled from the overlay's Design Mode). Disabled
     // modules are suppressed entirely during live gameplay. The P3.4 extras
     // default OFF (opt-in from Design Mode) so they don't clutter out of the box.
-    modules: { stats: true, skill: true, toasts: true, golddiff: false, jungle: false, ult: false, flash: false },
-    // Manual Enemy-Flash / Enemy-Ult tracker hotkeys (one per enemy slot 1-5,
-    // lane order). Registered only while a match is live AND the matching module
-    // is enabled. The user presses one when they SEE an enemy flash/ult — the app
-    // never detects it. Rebindable here; kept off League's default gameplay keys.
-    flashKeys: ["Alt+1", "Alt+2", "Alt+3", "Alt+4", "Alt+5"],
-    ultKeys: ["CommandOrControl+Alt+1", "CommandOrControl+Alt+2", "CommandOrControl+Alt+3", "CommandOrControl+Alt+4", "CommandOrControl+Alt+5"],
+    modules: { stats: true, skill: true, toasts: true, golddiff: false, jungle: false },
   },
 };
 
@@ -621,18 +550,10 @@ function resolveTheme() {
       opacity: num(ov.opacity, 1, 0.4, 1),
       rows: { ...THEME_DEFAULTS.overlay.rows, ...(ov.rows || {}) },
       modules: { ...THEME_DEFAULTS.overlay.modules, ...(ov.modules || {}) },
-      flashKeys: keys5(ov.flashKeys, THEME_DEFAULTS.overlay.flashKeys),
-      ultKeys: keys5(ov.ultKeys, THEME_DEFAULTS.overlay.ultKeys),
     },
   };
 }
 
-// A tracker key list is valid only if it's exactly 5 non-empty strings.
-function keys5(v, fallback) {
-  return Array.isArray(v) && v.length === 5 && v.every((k) => typeof k === "string" && k.trim())
-    ? v.slice()
-    : fallback.slice();
-}
 
 // Push the current theme to every open window so changes apply live.
 function broadcastTheme() {
@@ -1521,14 +1442,12 @@ ipcMain.handle("connect-client", async () => {
 ipcMain.on("overlay-reposition", () => setDesignMode(true));
 ipcMain.on("open-review", () => {
   // Reachable mid-game (Ctrl+Shift+H shows home over the overlay). Leaving
-  // INGAME through this side door must release the live-match machinery —
-  // otherwise the poll loop's postgame branch never fires and the tracker
-  // hotkeys stay registered until app quit.
+  // INGAME through this side door must stop the live-match engines — otherwise
+  // the poll loop's postgame branch never fires and they run until app quit.
   if (appState === STATE.INGAME) {
     liveTelemetry.stop();
     liveCombat.stop();
     objectiveRotator.stop();
-    clearTrackers();
     sawLiveGame = false;
   }
   ensure("postgame");

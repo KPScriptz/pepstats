@@ -108,25 +108,9 @@
       <span class="mod-resize" data-mod="jungle"></span>
     </div>
 
-    <!-- ===== P3.4 Enemy ult tracker — MANUAL (hotkey-driven stopwatch) =====
-         Counts UP from when YOU press the hotkey on seeing an enemy ult. The app
-         never detects the cast; rows are labeled from the sanctioned roster. -->
-    <div class="mod mod-pad-sm hidden" id="mod-ult" data-mod="ult">
-      <span class="mod-label">Enemy Ults</span>
-      <div class="tr-head"><span class="stat-label">ENEMY R</span><span class="tr-sub">since used</span></div>
-      <div class="tr-rows" id="ult-rows"></div>
-      <div class="ph-note" id="ult-empty">Press the hotkey the moment an enemy ults — this counts up so you know it's down.</div>
-      <span class="mod-resize" data-mod="ult"></span>
-    </div>
-
-    <!-- ===== P3.4 Enemy flash tracker — MANUAL (hotkey-driven 5:00 countdown) -->
-    <div class="mod mod-pad-sm hidden" id="mod-flash" data-mod="flash">
-      <span class="mod-label">Enemy Flash</span>
-      <div class="tr-head"><span class="stat-label">FLASH</span><span class="tr-sub">5:00 base</span></div>
-      <div class="tr-rows" id="flash-rows"></div>
-      <div class="ph-note" id="flash-empty">Press the hotkey the moment an enemy flashes — counts down from 5:00.</div>
-      <span class="mod-resize" data-mod="flash"></span>
-    </div>
+    <!-- The Enemy-Ult / Enemy-Flash manual trackers were REMOVED (0.5.11):
+         Riot's third-party policy forbids enemy ultimate timers and facilitating
+         enemy summoner-spell cooldown tracking, even manually. See COMPLIANCE.md. -->
 
     <div id="status" class="status hidden"></div>
 
