@@ -137,6 +137,14 @@
               </div>
             </div>
 
+            <!-- Shown only when no Claude key is set (body.no-ai). All AI features
+                 stay hidden until the user adds their own key in Settings. -->
+            <div class="card ai-locked" id="ai-locked">
+              <div class="card-title">AI features are off</div>
+              <p class="card-sub">Climb advice, champion picks and post-game reviews run on your own Claude API key. PepStats ships with no key — add yours in <b>Settings → AI</b> to switch them on.</p>
+              <button id="ai-locked-btn" class="btn btn-accent">Open AI settings</button>
+            </div>
+
             <div class="db-grid">
               <div class="card">
                 <div class="card-head">
@@ -277,8 +285,12 @@
                     <div class="card-title">Friends</div>
                     <span id="fr-count" class="fr-count"></span>
                   </div>
+                  <div class="fr-search-wrap">
+                    <input id="fr-search" class="fr-search" type="text" placeholder="Search friends…" spellcheck="false" autocomplete="off" />
+                  </div>
                   <div id="fr-offline" class="muted">Open the League client to see your friends' live status.</div>
                   <ul id="fr-list" class="fr-list hidden"></ul>
+                  <div id="fr-noresults" class="muted hidden">No friends match your search.</div>
                 </div>
               </aside>
 
@@ -385,12 +397,12 @@
 
                 <div class="card">
                   <div class="card-title">AI</div>
-                  <p class="card-sub ai-note">Climb advice, champion picks and post-match reviews are <b>free</b> and built in — they run on your own match data, no account or key required.</p>
-                  <div class="opt"><span class="opt-lbl">Use my own Claude key <i>(advanced, paid)</i></span>
-                    <div class="seg" id="seg-claude">
-                      <button data-v="off" class="active">Off</button><button data-v="on">On</button>
-                    </div></div>
-                  <label class="field"><span>Claude API key <i>(only needed for Claude mode)</i></span>
+                  <p class="card-sub ai-note">AI climb advice, champion picks and post-match reviews require <b>your own</b> Claude API key. PepStats ships with no key — until you add one below, all AI features stay hidden. Your key is stored locally in your config and used only for your own requests.</p>
+                  <!-- The Claude toggle was removed: AI is gated purely on a valid key being present. -->
+                  <div class="seg hidden" id="seg-claude">
+                    <button data-v="off" class="active">Off</button><button data-v="on">On</button>
+                  </div>
+                  <label class="field"><span>Claude API key <i>(get one at console.anthropic.com)</i></span>
                     <input id="set-key" type="password" placeholder="sk-ant-…" spellcheck="false" /></label>
                   <label class="field"><span>Baseline URL <i>(optional)</i></span>
                     <input id="set-baseline" type="text" placeholder="https://…/{rank}/{role}" spellcheck="false" /></label>

@@ -779,13 +779,16 @@ async function buildHomeData() {
   }
 
   const key = cfg.anthropicApiKey;
+  const hasAiKey = hasValidAiKey(key);
   return {
     needsSetup: !configured && !cfg.riotSkipped,
     configured,
+    hasAiKey, // gates every AI feature in the UI — hidden until the user adds a key
     summary,
     status: { clientUp, phase: clientPhase },
     settings: {
-      anthropicApiKey: key && !String(key).startsWith("sk-ant-...") ? key : "",
+      anthropicApiKey: hasAiKey ? key : "",
+      hasAiKey,
       baselineApiUrl: cfg.baselineApiUrl || "",
       coachUseClaude: cfg.coachUseClaude === true,
       overlayDefaultDesign: cfg.overlayDefaultDesign === true,
@@ -800,18 +803,21 @@ async function buildHomeData() {
   };
 }
 
-// Single source of truth for whether the Claude coach can run. Drives both the
-// stream gate and the proactive post-game warning, so a missing config.json or
-// absent API key degrades to a friendly banner instead of an unhandled error.
-// True only when the user has explicitly opted into using their OWN Claude API
-// key (which costs them per token). Otherwise PepStats uses the free, built-in
-// advisor — no tokens, no key, no cost. Default is the free engine.
+// A Claude API key is "valid" when it's a non-empty string that isn't the
+// `sk-ant-...` placeholder shipped in config.example.json. We never bake in or
+// assume a key — the user supplies their own.
+function hasValidAiKey(key) {
+  return !!(key && typeof key === "string" && key.trim() && !key.startsWith("sk-ant-..."));
+}
+
+// Single source of truth for whether the AI features run. They are gated purely
+// on the user having added their OWN Claude API key: no key -> every AI feature
+// is hidden (see hasAiKey in buildHomeData); a valid key -> AI is enabled and
+// every request goes to Claude with that key. There is no baked-in/assumed key.
 function useClaudeAI() {
   let cfg = {};
   try { cfg = loadConfig(); } catch (_) { cfg = {}; }
-  const key = cfg && cfg.anthropicApiKey;
-  const hasKey = key && typeof key === "string" && !key.startsWith("sk-ant-...");
-  return cfg.coachUseClaude === true && hasKey;
+  return hasValidAiKey(cfg && cfg.anthropicApiKey);
 }
 
 // The built-in advisor needs no key, so the AI features are always ready. This
@@ -824,15 +830,11 @@ function coachConfigStatus() {
   } catch (_) {
     cfg = {};
   }
-  if (cfg.coachUseClaude === true) {
-    const key = cfg.anthropicApiKey;
-    if (!key || typeof key !== "string" || key.startsWith("sk-ant-...")) {
-      return {
-        ready: false,
-        message:
-          "Claude mode is on but no valid AI key is set — add your key in Settings, or turn Claude mode off to use the free built-in coach.",
-      };
-    }
+  if (!hasValidAiKey(cfg.anthropicApiKey)) {
+    return {
+      ready: false,
+      message: "AI review needs your own Claude API key — add it in Settings to enable AI features.",
+    };
   }
   return { ready: true, message: "" };
 }
@@ -1113,9 +1115,10 @@ ipcMain.handle("home-predict", () => predictRankUp());
 ipcMain.handle("home-champs", () => champAdvice());
 ipcMain.handle("save-settings", (_e, s) => {
   const patch = {};
-  // Only overwrite the AI key when a non-empty value is submitted — prevents an
-  // empty Settings field from silently wiping a previously-saved key.
-  if (s && typeof s.anthropicApiKey === "string" && s.anthropicApiKey.trim()) patch.anthropicApiKey = s.anthropicApiKey.trim();
+  // The Settings field is pre-filled with the current key, so an empty submit is
+  // a deliberate "remove my key" — honor it (the user can clear AI access), and
+  // store a non-empty value as the new key.
+  if (s && typeof s.anthropicApiKey === "string") patch.anthropicApiKey = s.anthropicApiKey.trim();
   if (s && typeof s.baselineApiUrl === "string") patch.baselineApiUrl = s.baselineApiUrl;
   if (s && typeof s.coachUseClaude === "boolean") patch.coachUseClaude = s.coachUseClaude;
   if (s && typeof s.overlayDefaultDesign === "boolean") patch.overlayDefaultDesign = s.overlayDefaultDesign;

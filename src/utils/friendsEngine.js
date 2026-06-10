@@ -22,9 +22,15 @@ const DD = "https://ddragon.leagueoflegends.com/cdn";
 // Status display order (most "interesting" first).
 const ORDER = { ingame: 0, champselect: 1, inqueue: 2, online: 3, away: 4, mobile: 5, offline: 6 };
 
-// Normalize one raw LCU friend record into the shape the UI consumes.
+// Normalize one raw LCU friend record into the shape the UI consumes. We key on
+// puuid when present (needed for the official Riot API: rank/recent/spectate) but
+// no longer DROP a friend that lacks one — some client versions omit puuid on
+// offline friends, and those should still appear in the list (their profile +
+// live game just stay unavailable until a puuid is known).
 function normalize(f, idx) {
-  if (!f || !f.puuid) return null;
+  if (!f) return null;
+  const id = f.puuid || f.id || f.summonerId || f.pid || f.name || f.gameName;
+  if (!id) return null;
   const av = String(f.availability || "").toLowerCase();
   const lol = f.lol || {};
   const gs = String(lol.gameStatus || "").toLowerCase();
@@ -43,7 +49,8 @@ function normalize(f, idx) {
   const queue = lol.gameQueueType || (queueId ? riotApi.queueLabel(queueId) : "");
 
   return {
-    puuid: f.puuid,
+    key: String(id), // stable identity for the UI (DOM reconciliation / selection)
+    puuid: f.puuid || "",
     name: f.gameName || f.name || "Summoner",
     tag: f.gameTag || "",
     status, label,
@@ -60,9 +67,9 @@ function normalize(f, idx) {
 const _prevStatus = new Map();
 function detectTransitions(friends) {
   for (const f of friends) {
-    const prev = _prevStatus.get(f.puuid);
+    const prev = _prevStatus.get(f.key);
     if (prev === "ingame" && f.status !== "ingame") f.justFinished = true;
-    _prevStatus.set(f.puuid, f.status);
+    _prevStatus.set(f.key, f.status);
   }
 }
 

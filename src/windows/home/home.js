@@ -141,6 +141,7 @@ function render(data) {
   const { summary, status, settings, lastMatch } = data;
   lastSettings = settings;
   lastHome = data;
+  applyAiGate(!!data.hasAiKey); // hide all AI features until the user adds a Claude key
 
   const p = (summary && summary.progress) || {};
   const solo = summary && summary.solo;
@@ -674,48 +675,108 @@ function startFriends() {
   }, 1000);
 }
 
+const friendKey = (f) => f.key || f.puuid || f.name;
+function avatarSrc(f) {
+  if (f.champKey && friendsVer) return champImg(friendsVer, f.champKey);
+  if (f.iconId && friendsVer) return profIcon(friendsVer, f.iconId);
+  return null;
+}
 function friendAvatar(f, cls) {
-  if (f.champKey && friendsVer) return mkImg(champImg(friendsVer, f.champKey), cls, function () { this.style.visibility = "hidden"; });
-  if (f.iconId && friendsVer) return mkImg(profIcon(friendsVer, f.iconId), cls, function () { this.style.visibility = "hidden"; });
+  const src = avatarSrc(f);
+  if (src) return mkImg(src, cls, function () { this.style.visibility = "hidden"; });
   const span = document.createElement("span"); span.className = cls + " fr-avatar-fallback"; span.textContent = (f.name || "?").slice(0, 1).toUpperCase();
   return span;
 }
+function friendSubText(f) {
+  let subText = f.label;
+  if (f.champName && (f.status === "ingame" || f.status === "champselect")) subText = (f.status === "champselect" ? "Hovering " : "Playing ") + f.champName;
+  if (f.queue && f.status === "ingame") subText += " · " + f.queue;
+  return subText;
+}
 
+// Friends search. Filters by name or champion; re-renders from the cached list
+// without re-fetching (so it stays instant and doesn't touch the LCU each keystroke).
+let friendQuery = "";
+let allFriends = [];
+function friendMatches(f) {
+  if (!friendQuery) return true;
+  return (f.name || "").toLowerCase().includes(friendQuery) || (f.champName || "").toLowerCase().includes(friendQuery);
+}
+
+// Keyed DOM reconciliation: each friend keeps its <li> (and its avatar <img>)
+// across the 5s refresh, so we update text/status in place instead of tearing the
+// list down. Rebuilding every poll is what made the profile pictures flash —
+// brand-new <img> elements re-requested every cycle. Now the <img> is recreated
+// ONLY when its source actually changes (champion swap / icon change).
+const frNodes = new Map(); // key -> { li, avatarEl, avatarSrc, nameEl, subEl, sideEl, f }
 function renderFriendList(friends) {
-  const list = $("fr-list"); list.innerHTML = "";
-  for (const f of friends) {
-    const li = document.createElement("li");
-    li.className = "fr-item ring-" + f.status + (f.puuid === selectedFriend ? " active" : "");
-    li.dataset.puuid = f.puuid;
-    li.append(friendAvatar(f, "fr-ico"));
-    const main = document.createElement("div"); main.className = "fr-main";
-    const name = document.createElement("div"); name.className = "fr-name"; name.textContent = f.name;
-    const sub = document.createElement("div"); sub.className = "fr-sub";
-    let subText = f.label;
-    if (f.champName && (f.status === "ingame" || f.status === "champselect")) subText = (f.status === "champselect" ? "Hovering " : "Playing ") + f.champName;
-    if (f.queue && f.status === "ingame") subText += " · " + f.queue;
-    sub.textContent = subText;
-    main.append(name, sub);
-    li.append(main);
-    if (f.status === "ingame" && f.since) {
-      const dur = document.createElement("div"); dur.className = "fr-dur"; dur.dataset.since = String(f.since); dur.textContent = friendDuration(f.since);
-      li.append(dur);
-    } else if (f.justFinished) {
-      const fin = document.createElement("div"); fin.className = "fr-fin"; fin.textContent = "Just finished"; li.append(fin);
+  const list = $("fr-list");
+  const visible = friends.filter(friendMatches);
+  const seen = new Set();
+  for (const f of visible) {
+    const key = friendKey(f);
+    seen.add(key);
+    let node = frNodes.get(key);
+    if (!node) {
+      const li = document.createElement("li");
+      const avatarEl = friendAvatar(f, "fr-ico");
+      const main = document.createElement("div"); main.className = "fr-main";
+      const nameEl = document.createElement("div"); nameEl.className = "fr-name";
+      const subEl = document.createElement("div"); subEl.className = "fr-sub";
+      main.append(nameEl, subEl);
+      const sideEl = document.createElement("div");
+      li.append(avatarEl, main, sideEl);
+      node = { li, avatarEl, avatarSrc: avatarSrc(f), nameEl, subEl, sideEl, f };
+      li.addEventListener("click", () => selectFriend(node.f));
+      frNodes.set(key, node);
     }
-    li.addEventListener("click", () => selectFriend(f));
-    list.append(li);
+    node.f = f;
+    node.li.className = "fr-item ring-" + f.status + (key === selectedFriend ? " active" : "");
+    node.li.dataset.key = key;
+    node.li.dataset.puuid = f.puuid || "";
+    // Swap the avatar element ONLY when its source changed — this is what stops the flashing.
+    const src = avatarSrc(f);
+    if (src !== node.avatarSrc) {
+      node.avatarSrc = src;
+      const fresh = friendAvatar(f, "fr-ico");
+      node.li.replaceChild(fresh, node.avatarEl);
+      node.avatarEl = fresh;
+    }
+    node.nameEl.textContent = f.name;
+    node.subEl.textContent = friendSubText(f);
+    if (f.status === "ingame" && f.since) { node.sideEl.className = "fr-dur"; node.sideEl.dataset.since = String(f.since); node.sideEl.textContent = friendDuration(f.since); }
+    else if (f.justFinished) { node.sideEl.className = "fr-fin"; delete node.sideEl.dataset.since; node.sideEl.textContent = "Just finished"; }
+    else { node.sideEl.className = ""; delete node.sideEl.dataset.since; node.sideEl.textContent = ""; }
+    list.append(node.li); // re-append keeps sorted order without recreating the <img>
   }
+  for (const [key, node] of frNodes) { if (!seen.has(key)) { node.li.remove(); frNodes.delete(key); } }
+  const noRes = $("fr-noresults");
+  if (noRes) noRes.classList.toggle("hidden", !(friends.length && !visible.length));
 }
 
 async function loadFriends() {
   if (!api.getFriends) return;
   let res; try { res = await api.getFriends(); } catch (_) { res = null; }
-  const offline = $("fr-offline"), list = $("fr-list"), count = $("fr-count");
-  if (!res || !res.ok) { offline.classList.remove("hidden"); offline.textContent = "Open the League client to see your friends' live status."; list.classList.add("hidden"); count.textContent = ""; return; }
+  const offline = $("fr-offline"), list = $("fr-list"), count = $("fr-count"), noRes = $("fr-noresults");
+  const clearList = () => { for (const [, n] of frNodes) n.li.remove(); frNodes.clear(); allFriends = []; };
+  if (!res || !res.ok) {
+    clearList();
+    offline.classList.remove("hidden");
+    offline.textContent = res && res.error === "client"
+      ? "Open the League client to see your friends."
+      : "Couldn't reach your friends list — is the League client running?";
+    list.classList.add("hidden"); if (noRes) noRes.classList.add("hidden"); count.textContent = "";
+    return;
+  }
   friendsVer = res.version || friendsVer;
   const friends = res.friends || [];
-  if (!friends.length) { offline.classList.remove("hidden"); offline.textContent = "No friends found on your League account."; list.classList.add("hidden"); count.textContent = ""; return; }
+  if (!friends.length) {
+    clearList();
+    offline.classList.remove("hidden"); offline.textContent = "No friends found on your League account.";
+    list.classList.add("hidden"); if (noRes) noRes.classList.add("hidden"); count.textContent = "";
+    return;
+  }
+  allFriends = friends;
   offline.classList.add("hidden"); list.classList.remove("hidden");
   const online = friends.filter((f) => f.status !== "offline");
   count.textContent = online.length ? `${online.length} online` : "";
@@ -815,9 +876,20 @@ async function loadSpectate(puuid) {
   renderSpecTeam($("fr-red"), res.red || []);
 }
 
+// Wire the friends search box (filters the cached list, no refetch).
+(function wireFriendSearch() {
+  const inp = $("fr-search");
+  if (!inp) return;
+  inp.addEventListener("input", () => {
+    friendQuery = inp.value.trim().toLowerCase();
+    if (allFriends.length) renderFriendList(allFriends);
+  });
+})();
+
 async function selectFriend(f) {
-  selectedFriend = f.puuid;
-  document.querySelectorAll(".fr-item").forEach((el) => el.classList.toggle("active", el.dataset.puuid === f.puuid));
+  const key = friendKey(f);
+  selectedFriend = key;
+  document.querySelectorAll(".fr-item").forEach((el) => el.classList.toggle("active", el.dataset.key === key));
   $("fr-empty").classList.add("hidden"); $("fr-panel").classList.remove("hidden");
 
   const icon = $("fr-d-icon");
@@ -842,8 +914,22 @@ async function selectFriend(f) {
   const tl = $("fr-d-tl"), tlEmpty = $("fr-d-tl-empty"), loading = $("fr-d-loading"), matchLbl = $("fr-d-match");
   tl.classList.add("hidden"); tlEmpty.classList.add("hidden"); loading.classList.remove("hidden"); matchLbl.textContent = "—";
 
+  // Rank / recent form / mastery + the live game all come from the official Riot
+  // API, which needs a linked key. Without one (or without a puuid) show a clear
+  // prompt instead of spinning forever.
+  const needKey = !f.puuid || !(lastSettings && lastSettings.hasRiotKey);
+  if (needKey) {
+    loading.classList.add("hidden");
+    tlEmpty.classList.remove("hidden");
+    tlEmpty.textContent = !(lastSettings && lastSettings.hasRiotKey)
+      ? "Link a Riot API key in Settings to see ranks, recent form and live games."
+      : "Profile unavailable for this friend.";
+    matchLbl.textContent = "—";
+    return;
+  }
+
   let res; try { res = await api.getFriendDetail(f.puuid); } catch (_) { res = null; }
-  if (selectedFriend !== f.puuid) return; // a newer selection won the race
+  if (selectedFriend !== key) return; // a newer selection won the race
   loading.classList.add("hidden");
 
   if (res && res.profile) renderProfile(res.profile);
@@ -851,6 +937,7 @@ async function selectFriend(f) {
   const d = res && res.digest;
   if (!d || !d.entries || !d.entries.length) {
     tlEmpty.classList.remove("hidden");
+    tlEmpty.textContent = "No notable events from the last game.";
     matchLbl.textContent = d && d.matchId ? "Match " + d.matchId : "No recent match";
   } else {
     matchLbl.textContent = "Match " + (d.matchId || "");
@@ -949,16 +1036,22 @@ $("champ-btn").addEventListener("click", async () => {
   finally { btn.disabled = false; }
 });
 
+// AI features are gated purely on a valid Claude key being present. body.no-ai
+// hides every AI surface (dashboard cards) until the user adds one in Settings.
+function applyAiGate(hasKey) {
+  document.body.classList.toggle("no-ai", !hasKey);
+}
+const aiLockedBtn = $("ai-locked-btn");
+if (aiLockedBtn) aiLockedBtn.addEventListener("click", () => {
+  const target = document.querySelector('.nav-item[data-page="settings"]');
+  if (target) target.click();
+  const k = $("set-key"); if (k) k.focus();
+});
+
 // ===== Settings: AI save + re-link =====
 let settingsDirty = false;
-let claudeMode = false;
-function setClaudeMode(on) {
-  claudeMode = !!on;
-  $("seg-claude").querySelectorAll("button").forEach((b) => b.classList.toggle("active", (b.dataset.v === "on") === claudeMode));
-}
-$("seg-claude").querySelectorAll("button").forEach((b) =>
-  b.addEventListener("click", () => { setClaudeMode(b.dataset.v === "on"); settingsDirty = true; })
-);
+let claudeMode = false; // legacy flag; AI is now key-gated. Kept true when a key exists.
+function setClaudeMode(on) { claudeMode = !!on; }
 $("set-key").addEventListener("input", () => (settingsDirty = true));
 $("set-baseline").addEventListener("input", () => (settingsDirty = true));
 
@@ -972,14 +1065,17 @@ $("set-mhcount").addEventListener("change", () => (settingsDirty = true));
 $("set-save").addEventListener("click", async () => {
   const st = $("set-status");
   try {
+    const aiKey = $("set-key").value.trim();
     await api.saveSettings({
-      anthropicApiKey: $("set-key").value.trim(),
+      anthropicApiKey: aiKey,
       baselineApiUrl: $("set-baseline").value.trim(),
-      coachUseClaude: claudeMode,
+      coachUseClaude: !!aiKey, // AI is on whenever a valid key is present
       overlayDefaultDesign: ovDesignMode,
       matchCount: parseInt($("set-mhcount").value, 10) || 20,
     });
-    settingsDirty = false; st.textContent = "Saved"; st.classList.add("show"); setTimeout(() => st.classList.remove("show"), 1800);
+    settingsDirty = false; st.textContent = aiKey ? "Saved — AI features enabled" : "Saved"; st.classList.add("show"); setTimeout(() => st.classList.remove("show"), 2200);
+    // Reflect the new gate immediately without waiting for the 5s refresh.
+    applyAiGate(!!aiKey);
   } catch (_) { st.textContent = "Save failed"; st.classList.add("show"); }
 });
 $("set-relink").addEventListener("click", () => {
@@ -1038,7 +1134,18 @@ const ROWS = [["csm", "CSM"], ["gpm", "GPM"], ["vision", "VIS"], ["kp", "KP%"], 
   ROWS.forEach(([key, lbl]) => { const b = document.createElement("button"); b.className = "chip"; b.textContent = lbl; b.dataset.row = key; b.addEventListener("click", () => { const cur = currentTheme(); const rows = { ...(cur.overlay.rows || {}) }; rows[key] = !rows[key]; saveTheme({ overlay: { rows } }); }); rt.append(b); });
 })();
 
-$("accent-custom").addEventListener("input", (e) => saveTheme({ accent: e.target.value }));
+// Custom accent picker. The native <input type="color"> fires `input` rapidly
+// while dragging; firing an async saveTheme on every event meant the IPC response
+// wrote the value back INTO the open picker mid-drag, which made it jump/glitch.
+// Fix: debounce the persist, and (in syncAppearance) never write the value back
+// while the picker is the active element.
+let _accentTimer = null;
+$("accent-custom").addEventListener("input", (e) => {
+  const v = e.target.value;
+  clearTimeout(_accentTimer);
+  _accentTimer = setTimeout(() => saveTheme({ accent: v }), 140);
+});
+$("accent-custom").addEventListener("change", (e) => { clearTimeout(_accentTimer); saveTheme({ accent: e.target.value }); });
 $("seg-theme").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => saveTheme({ theme: b.dataset.v })));
 $("seg-champsync").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => saveTheme({ championSync: b.dataset.v === "on" })));
 $("seg-density").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => saveTheme({ density: b.dataset.v })));
@@ -1060,7 +1167,10 @@ function syncAppearance(t) {
   if (window.syncAppTheme) window.syncAppTheme("", false);
   $("seg-density").querySelectorAll("button").forEach((b) => b.classList.toggle("active", b.dataset.v === t.density));
   document.querySelectorAll("#swatches .sw").forEach((s) => s.classList.toggle("active", s.dataset.c.toLowerCase() === (t.accent || "").toLowerCase()));
-  $("accent-custom").value = /^#[0-9a-fA-F]{6}$/.test(t.accent) ? t.accent : "#36d6d6";
+  // Don't overwrite the picker's value while the user is actively picking — that
+  // writeback is what made it glitch.
+  const ac = $("accent-custom");
+  if (document.activeElement !== ac) ac.value = /^#[0-9a-fA-F]{6}$/.test(t.accent) ? t.accent : "#36d6d6";
   $("rng-font").value = t.fontScale; $("val-font").textContent = Math.round(t.fontScale * 100) + "%";
   $("rng-ovscale").value = t.overlay.scale; $("val-ovscale").textContent = Math.round(t.overlay.scale * 100) + "%";
   $("rng-ovop").value = t.overlay.opacity; $("val-ovop").textContent = Math.round(t.overlay.opacity * 100) + "%";
