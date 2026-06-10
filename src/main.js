@@ -20,6 +20,7 @@ const postgameEngine = require("./utils/postgameEngine");
 const tftEngine = require("./utils/tftEngine");
 const tftAnalytics = require("./utils/tftAnalyticsEngine");
 const liveTelemetry = require("./utils/liveGameTelemetry");
+const lcuHistory = require("./shared/lcuHistory");
 const deepCoach = require("./shared/deepCoach");
 const processWatch = require("./shared/process");
 const replays = require("./shared/replays");
@@ -1240,23 +1241,38 @@ ipcMain.handle("get-build-key", async (_e, champKey) => {
   }
 });
 
-// TFT match history (official /tft/match/v1, post-game only).
-ipcMain.handle("get-tft-matches", (_e, count) => {
+// TFT history: Riot key when present; otherwise the running client serves the
+// player's own TFT history locally (keyless out-of-box path).
+async function fetchTftMatches(count) {
   const cfg = loadConfig();
-  return tftEngine.getMatches({ riotId: cfg.riotId, region: cfg.region, riotApiKey: cfg.riotApiKey }, count || 10);
-});
+  if (cfg.riotId && cfg.region && cfg.riotApiKey) {
+    return tftEngine.getMatches({ riotId: cfg.riotId, region: cfg.region, riotApiKey: cfg.riotApiKey }, count);
+  }
+  if (!clientUp) return { ok: false, error: "link" };
+  try {
+    return { ok: true, partial: true, source: "lcu", matches: await lcuHistory.tftMatches(count) };
+  } catch (_) {
+    return { ok: false, error: "Couldn't read TFT history from the client — is it fully logged in?" };
+  }
+}
+ipcMain.handle("get-tft-matches", (_e, count) => fetchTftMatches(count || 10));
 // Deep TFT analytics: fetch history then run the local analytics engine.
 ipcMain.handle("get-tft-analytics", async (_e, count) => {
-  const cfg = loadConfig();
-  const res = await tftEngine.getMatches({ riotId: cfg.riotId, region: cfg.region, riotApiKey: cfg.riotApiKey }, count || 20);
+  const res = await fetchTftMatches(count || 20);
   if (!res.ok) return res; // propagate tft-access / link / error
-  return { ok: true, matches: res.matches, analytics: tftAnalytics.analyze(res.matches) };
+  return { ...res, analytics: tftAnalytics.analyze(res.matches) };
 });
-// Ranked TFT entry (official tft-league-v1, read-only).
+// Ranked TFT entry: official tft-league-v1 with a key, else the client's own
+// current-ranked-stats (both read-only).
 ipcMain.handle("get-tft-rank", async () => {
   const cfg = loadConfig();
-  try { return await riotApi.tftRank({ riotId: cfg.riotId, region: cfg.region, riotApiKey: cfg.riotApiKey }); }
-  catch (_) { return null; }
+  try {
+    if (cfg.riotId && cfg.region && cfg.riotApiKey) {
+      return await riotApi.tftRank({ riotId: cfg.riotId, region: cfg.region, riotApiKey: cfg.riotApiKey });
+    }
+    if (clientUp) return await lcuHistory.tftRankLcu();
+    return null;
+  } catch (_) { return null; }
 });
 // Static item-recipe table from CommunityDragon (per-patch, never live data).
 ipcMain.handle("get-tft-recipes", async () => {
@@ -1283,30 +1299,56 @@ ipcMain.handle("get-friend-live", async (_e, puuid) => {
 });
 
 ipcMain.handle("match-filters", () => riotApi.filterList());
+// Dropdown filter -> queue ids, for filtering LCU-sourced rows locally (the
+// Riot-key path filters server-side via match-v5 params instead).
+const LOCAL_QUEUE_FILTER = {
+  ranked: [420], flex: [440], normal: [400, 430, 490], aram: [450], arena: [1700, 1710],
+};
+
+// Champion performance + "last N" summary from a match-row array. Shared by the
+// Riot-key and keyless LCU paths (remakes excluded from both).
+function aggregateMatches(matches) {
+  const champs = {};
+  let w = 0, l = 0, games = 0, kS = 0, dS = 0, aS = 0;
+  for (const m of matches) {
+    if (m.remake) continue;
+    games++; m.win ? w++ : l++; kS += m.k; dS += m.d; aS += m.a;
+    const c = champs[m.champion] || (champs[m.champion] = { champion: m.champion, champKey: m.champKey, games: 0, wins: 0, k: 0, d: 0, a: 0 });
+    c.games++; if (m.win) c.wins++; c.k += m.k; c.d += m.d; c.a += m.a;
+  }
+  const champList = Object.values(champs)
+    .map((c) => ({ champion: c.champion, champKey: c.champKey, games: c.games, wins: c.wins, wr: Math.round((c.wins / c.games) * 100), kda: c.d ? +(((c.k + c.a) / c.d).toFixed(2)) : c.k + c.a }))
+    .sort((a, b) => b.games - a.games).slice(0, 6);
+  const summary = { w, l, games, kda: dS ? +(((kS + aS) / dS).toFixed(2)) : kS + aS, avgK: games ? +(kS / games).toFixed(1) : 0, avgD: games ? +(dS / games).toFixed(1) : 0, avgA: games ? +(aS / games).toFixed(1) : 0 };
+  return { champs: champList, summary };
+}
+
 ipcMain.handle("get-matches", async (_e, filter, count) => {
   const cfg = loadConfig();
-  if (!(cfg.riotId && cfg.region && cfg.riotApiKey)) return { ok: false, error: "Link your account first." };
+  const hasKey = !!(cfg.riotId && cfg.region && cfg.riotApiKey);
+  // Keyless out-of-box path: the running client serves the player's own match
+  // history locally (rows marked partial — no KP%/team-damage without the full
+  // lobby, which only match-v5 provides).
+  if (!hasKey) {
+    if (!clientUp) return { ok: false, error: "Open the League client (or link a Riot key in Settings) to see matches." };
+    try {
+      let matches = await lcuHistory.lolMatches(count || 20);
+      const want = LOCAL_QUEUE_FILTER[filter];
+      if (want) matches = matches.filter((m) => want.includes(m.queueId));
+      const version = await riotApi.ddragonVersion();
+      let runes = null; try { runes = await riotApi.perkMaps(); } catch (_) {}
+      return { ok: true, partial: true, source: "lcu", matches, ...aggregateMatches(matches), version, runes };
+    } catch (e) {
+      return { ok: false, error: "Couldn't read match history from the client — is it fully logged in?" };
+    }
+  }
   try {
     const account = { riotId: cfg.riotId, region: cfg.region, riotApiKey: cfg.riotApiKey };
     const matches = await riotApi.getMatches(account, filter || "all", count || 20);
     const version = await riotApi.ddragonVersion();
     const runes = await riotApi.perkMaps();
 
-    // Aggregate champion performance + a "last N" summary (remakes excluded).
-    const champs = {};
-    let w = 0, l = 0, games = 0, kS = 0, dS = 0, aS = 0;
-    for (const m of matches) {
-      if (m.remake) continue;
-      games++; m.win ? w++ : l++; kS += m.k; dS += m.d; aS += m.a;
-      const c = champs[m.champion] || (champs[m.champion] = { champion: m.champion, champKey: m.champKey, games: 0, wins: 0, k: 0, d: 0, a: 0 });
-      c.games++; if (m.win) c.wins++; c.k += m.k; c.d += m.d; c.a += m.a;
-    }
-    const champList = Object.values(champs)
-      .map((c) => ({ champion: c.champion, champKey: c.champKey, games: c.games, wins: c.wins, wr: Math.round((c.wins / c.games) * 100), kda: c.d ? +(((c.k + c.a) / c.d).toFixed(2)) : c.k + c.a }))
-      .sort((a, b) => b.games - a.games).slice(0, 6);
-    const summary = { w, l, games, kda: dS ? +(((kS + aS) / dS).toFixed(2)) : kS + aS, avgK: games ? +(kS / games).toFixed(1) : 0, avgD: games ? +(dS / games).toFixed(1) : 0, avgA: games ? +(aS / games).toFixed(1) : 0 };
-
-    return { ok: true, matches, champs: champList, summary, version, runes };
+    return { ok: true, matches, ...aggregateMatches(matches), version, runes };
   } catch (e) {
     return { ok: false, error: e.message };
   }

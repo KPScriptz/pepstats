@@ -333,9 +333,11 @@ async function loadDashboardExtras(force) {
 function matchGrade(m) {
   let s = 34;
   s += ((m.kda || 0) - 2.5) * 7;
-  s += ((m.kp || 0) - 50) * 0.35;
+  // LCU-sourced rows lack KP%/damage-share (no full lobby) — score those terms
+  // as neutral instead of zero so keyless grades aren't unfairly tanked.
+  s += ((typeof m.kp === "number" ? m.kp : 50) - 50) * 0.35;
   s += ((m.csPerMin || 0) - 6) * 3.5;
-  s += ((m.dmgShare || 0) - 20) * 0.5;
+  s += ((typeof m.dmgShare === "number" ? m.dmgShare : 20) - 20) * 0.5;
   s += Math.min(12, (m.vision || 0) * 0.25);
   s += m.win ? 6 : -3;
   s = Math.max(0, Math.min(100, s));
@@ -358,10 +360,10 @@ function buildMatchRow(m, ver) {
       `<div class="mr-st"><span class="mr-res">${resTxt}</span>` +
         `<span class="mr-kda"><b>${m.k}</b>/<b class="d">${m.d}</b>/<b>${m.a}</b></span>` +
         `<span class="mr-kdar">${m.kda} KDA</span></div></div>` +
-    `<div class="mr-col"><span class="mr-k">Vis/Min</span><b>${visMin}</b><span class="mr-sub">${m.kp}% KP</span></div>` +
+    `<div class="mr-col"><span class="mr-k">Vis/Min</span><b>${visMin}</b><span class="mr-sub">${typeof m.kp === "number" ? m.kp + "% KP" : "—"}</span></div>` +
     `<div class="mr-col"><span class="mr-k">CS/Min</span><b>${m.csPerMin}</b><span class="mr-sub">${m.cs} CS</span></div>` +
     `<div class="mr-grade-col"><span class="mr-grade g-${grade[0]}">${grade}</span>` +
-      `<div class="mr-dmg"><span class="mr-k">Dmg/Min</span><b>${kFmt(dmgMin)}</b><span class="mr-sub">${m.dmgShare}% of team</span></div></div>` +
+      `<div class="mr-dmg"><span class="mr-k">Dmg/Min</span><b>${kFmt(dmgMin)}</b><span class="mr-sub">${typeof m.dmgShare === "number" ? m.dmgShare + "% of team" : "—"}</span></div></div>` +
     `<div class="mr-meta"><span class="mr-role">${role}</span><span>${m.queue || "Game"}</span><span>${timeAgo(m.endTs)}</span></div>`;
   const slot = li.querySelector(".mr-champ-slot");
   if (slot) slot.replaceWith(mkImg(champImg(ver, m.champKey), "mr-champ", function () { this.style.visibility = "hidden"; }));
@@ -696,7 +698,7 @@ function renderMatches(res) {
     stats.innerHTML =
       `<div class="m-kda"><b>${m.k} / <span class="d">${m.d}</span> / ${m.a}</b><span class="m-kdar">${m.kda} KDA</span></div>` +
       `<div class="m-cs">${m.cs} CS · ${m.csPerMin}/min</div>` +
-      `<div class="m-extra">P/Kill ${m.kp}% · ${kFmt(m.dmg)} dmg</div>`;
+      `<div class="m-extra">${typeof m.kp === "number" ? "P/Kill " + m.kp + "% · " : ""}${kFmt(m.dmg)} dmg</div>`;
     const badges = matchBadges(m);
     if (badges.length) {
       const bw = document.createElement("div"); bw.className = "m-badges";
@@ -719,13 +721,19 @@ function renderMatches(res) {
     }
     parts.append(teams[100], teams[200]);
 
-    const caret = document.createElement("button"); caret.className = "m-caret"; caret.textContent = "▾"; caret.title = "Match details";
-    const detail = buildDetail(m, ver);
-    const toggle = () => { const open = detail.classList.toggle("hidden"); caret.classList.toggle("open", !open); };
-    caret.addEventListener("click", (e) => { e.stopPropagation(); toggle(); });
-    li.addEventListener("click", toggle);
-
-    li.append(idCol, main, stats, items, parts, caret, detail); list.append(li);
+    // The expandable 10-player scoreboard needs the full lobby — LCU-sourced
+    // rows only carry the player's own slot, so skip the caret entirely there.
+    if (m.participants && m.participants.length) {
+      const caret = document.createElement("button"); caret.className = "m-caret"; caret.textContent = "▾"; caret.title = "Match details";
+      const detail = buildDetail(m, ver);
+      const toggle = () => { const open = detail.classList.toggle("hidden"); caret.classList.toggle("open", !open); };
+      caret.addEventListener("click", (e) => { e.stopPropagation(); toggle(); });
+      li.addEventListener("click", toggle);
+      li.append(idCol, main, stats, items, parts, caret, detail);
+    } else {
+      li.append(idCol, main, stats, items, parts);
+    }
+    list.append(li);
   }
 
   renderAnalytics(res, ver);
@@ -1166,7 +1174,7 @@ async function loadTft() {
   loading.classList.add("hidden");
   if (!res || !res.ok) {
     if (res && res.error === "tft-access") { access.classList.remove("hidden"); }
-    else { empty.classList.remove("hidden"); $("tft-empty").textContent = (res && res.error === "link") ? "Link your account in Settings first." : "Couldn't load TFT matches."; }
+    else { empty.classList.remove("hidden"); $("tft-empty").textContent = (res && res.error === "link") ? "Open the League client (or link a Riot key in Settings) to load TFT history." : (res && res.error) || "Couldn't load TFT matches."; }
     return;
   }
   tftLoaded = true;
