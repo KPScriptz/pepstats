@@ -164,6 +164,17 @@ complete LCU write surface (rune pages + item sets only), every
 dependency tree (`ws` is the only runtime dep). **Verdict: clean** — no
 violations at any severity.
 
+**Delta audit (2026-06-10, v0.7.0 "Cuzzy Wuzzy"):** everything added across
+0.6.1–0.6.6 was re-audited adversarially on top of the standing full-tree
+checks: the keyless LCU history layer (read-only, own data, Brawl excluded),
+the TFT dashboard/planner/odds/over-cap/radar (static set data + the player's
+own history; zero augment/legend stats), the Learn hub (curated text), and the
+Riot Sign-On plumbing (credentials live only in `server/rso-proxy/`, which is
+NOT bundled into the exe; loopback binds 127.0.0.1; signed state + sessions;
+the proxy's data routes refuse anything that isn't the signed-in player's own).
+Outbound hosts, LCU write surface, child_process usage, and the dependency
+tree are unchanged. **Verdict: clean** — no violations at any severity.
+
 **Policy addendum (2026-06-10, same day):** the manual Enemy-Flash/Ult trackers
 — technically clean per the audit above — were nonetheless **removed in 0.5.11**
 after checking Riot's written third-party policy: enemy ultimate timers are
