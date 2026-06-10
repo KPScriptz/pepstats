@@ -758,7 +758,15 @@ async function loadFriends() {
   if (!api.getFriends) return;
   let res; try { res = await api.getFriends(); } catch (_) { res = null; }
   const offline = $("fr-offline"), list = $("fr-list"), count = $("fr-count"), noRes = $("fr-noresults");
-  const clearList = () => { for (const [, n] of frNodes) n.li.remove(); frNodes.clear(); allFriends = []; };
+  const clearList = () => {
+    for (const [, n] of frNodes) n.li.remove();
+    frNodes.clear(); allFriends = [];
+    // Drop any open profile — the friend it referenced is gone from the list.
+    selectedFriend = null;
+    const panel = $("fr-panel"), empty = $("fr-empty");
+    if (panel) panel.classList.add("hidden");
+    if (empty) empty.classList.remove("hidden");
+  };
   if (!res || !res.ok) {
     clearList();
     offline.classList.remove("hidden");

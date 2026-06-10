@@ -262,7 +262,7 @@ function renderTimers(timers) {
     const el = getChip(t.key);
     el.querySelector(".tc-label").textContent = t.label;
     el.querySelector(".tc-num").textContent = t.display;
-    el.className = "timer-chip tc-" + (STATUS_CLS[t.status] || "");
+    el.className = "timer-chip " + (STATUS_CLS[t.status] || ""); // CSS targets .timer-chip.up/.soon (no tc- prefix)
     if (timerLayouts[t.key] && timerLayouts[t.key].hidden) el.classList.add("tc-off");
     applyChip(t.key);
   }

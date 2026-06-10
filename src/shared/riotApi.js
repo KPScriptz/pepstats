@@ -450,7 +450,10 @@ async function recentByPuuid(cfg, puuid, count = 5) {
     riotId,
     topChamp: topChamp ? topChamp[0] : "",
   };
-  _formCache.set(puuid, result);
+  // Only cache a result with real games. An empty aggregate (all recent games
+  // were remakes, or the fetch returned nothing) must not stick for the session —
+  // otherwise the friend/ally never re-resolves once they actually play.
+  if (games > 0) _formCache.set(puuid, result);
   return result;
 }
 

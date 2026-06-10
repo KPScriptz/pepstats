@@ -169,8 +169,9 @@ function applyLastGame(d) {
   if (!d || !d.scores) return;
   if (!$("c-champ").textContent || $("c-champ").textContent === "—" || $("c-champ").textContent === "No game") {
     const s = d.scores;
-    fillHero({ champion: s.champion, champKey: s.champion, win: s.win, k: s.kda.k, d: s.kda.d, a: s.kda.a,
-      kda: s.kda.d ? +(((s.kda.k + s.kda.a) / s.kda.d).toFixed(2)) : s.kda.k + s.kda.a,
+    const kda = s.kda || { k: 0, d: 0, a: 0 };
+    fillHero({ champion: s.champion, champKey: s.champion, win: s.win, k: kda.k, d: kda.d, a: kda.a,
+      kda: kda.d ? +(((kda.k + kda.a) / kda.d).toFixed(2)) : kda.k + kda.a,
       cs: s.cs, csPerMin: s.csPerMin, gold: s.gold, durationSec: s.gameTime });
   }
   renderCoachStatus(d.coach);
@@ -202,18 +203,21 @@ function mdReview(src) {
 
 /* ---- Streaming AI review ---- */
 let coachRaw = "";
+const api = window.pepstats; // the preload bridge; absent only in standalone preview
 coachBtn.addEventListener("click", () => {
   coachBtn.disabled = true; coachRaw = ""; out.innerHTML = ""; out.classList.add("streaming");
-  window.pepstats.startCoach();
+  if (api && api.startCoach) api.startCoach();
 });
-window.pepstats.onCoachChunk((text) => { coachRaw += text; out.innerHTML = mdReview(coachRaw); out.scrollTop = out.scrollHeight; });
-window.pepstats.onCoachDone(() => { out.innerHTML = mdReview(coachRaw); coachBtn.disabled = false; out.classList.remove("streaming"); });
-window.pepstats.onCoachError((msg) => { out.textContent = msg; coachBtn.disabled = false; out.classList.remove("streaming"); });
 
 /* ---- Init ---- */
 wireGSEHover();
-window.pepstats.onLastGame(applyLastGame); // pushed when a match ends
-(async () => {
-  try { applyLastGame(await window.pepstats.getLastGame()); } catch (_) {}
-  try { applyPostgame(await window.pepstats.getPostgame()); } catch (_) {}
-})();
+if (api) {
+  api.onCoachChunk((text) => { coachRaw += text; out.innerHTML = mdReview(coachRaw); out.scrollTop = out.scrollHeight; });
+  api.onCoachDone(() => { out.innerHTML = mdReview(coachRaw); coachBtn.disabled = false; out.classList.remove("streaming"); });
+  api.onCoachError((msg) => { out.textContent = msg; coachBtn.disabled = false; out.classList.remove("streaming"); });
+  api.onLastGame(applyLastGame); // pushed when a match ends
+  (async () => {
+    try { applyLastGame(await api.getLastGame()); } catch (_) {}
+    try { applyPostgame(await api.getPostgame()); } catch (_) {}
+  })();
+}

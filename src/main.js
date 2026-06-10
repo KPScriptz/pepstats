@@ -82,6 +82,8 @@ function computeGoldDiff(live) {
 // We only label the rows with the enemy champion names, which are already on the
 // sanctioned allPlayers scoreboard feed (same as the in-game Tab screen).
 let _trackerSig = "";
+let _trackerRegistered = []; // the accelerators ACTUALLY registered, so we can
+// release exactly those even if the configured keys change underneath us.
 function _trackerKeys() {
   const t = resolveTheme();
   const ov = (t && t.overlay) || {};
@@ -103,14 +105,16 @@ function syncTrackers(live) {
     wantFlash, wantUlt, fk, uk,
   });
   if (sig !== _trackerSig) {
-    // Roster or config changed — rebind the hotkeys.
-    for (const k of [...fk, ...uk]) { try { globalShortcut.unregister(k); } catch (_) {} }
+    // Roster or config changed — release exactly what we registered before (NOT
+    // the current config keys, which may have changed), then rebind.
+    for (const k of _trackerRegistered) { try { globalShortcut.unregister(k); } catch (_) {} }
+    _trackerRegistered = [];
     for (const e of roster) {
       if (wantFlash && fk[e.slot]) {
-        try { globalShortcut.register(fk[e.slot], () => sendTo("ingame", "tracker-fire", { kind: "flash", slot: e.slot })); } catch (_) {}
+        try { globalShortcut.register(fk[e.slot], () => sendTo("ingame", "tracker-fire", { kind: "flash", slot: e.slot })); _trackerRegistered.push(fk[e.slot]); } catch (_) {}
       }
       if (wantUlt && uk[e.slot]) {
-        try { globalShortcut.register(uk[e.slot], () => sendTo("ingame", "tracker-fire", { kind: "ult", slot: e.slot })); } catch (_) {}
+        try { globalShortcut.register(uk[e.slot], () => sendTo("ingame", "tracker-fire", { kind: "ult", slot: e.slot })); _trackerRegistered.push(uk[e.slot]); } catch (_) {}
       }
     }
     _trackerSig = sig;
@@ -120,8 +124,8 @@ function syncTrackers(live) {
   sendTo("ingame", "tracker-roster", { roster, flashKeys: fk, ultKeys: uk, flashBase: 300 });
 }
 function clearTrackers() {
-  const { fk, uk } = _trackerKeys();
-  for (const k of [...fk, ...uk]) { try { globalShortcut.unregister(k); } catch (_) {} }
+  for (const k of _trackerRegistered) { try { globalShortcut.unregister(k); } catch (_) {} }
+  _trackerRegistered = [];
   _trackerSig = "";
 }
 
@@ -333,7 +337,16 @@ function computeSkillHint(live, championName) {
 }
 
 // ----- Engine 2: phase-detection heartbeat -------------------------------
+// Re-entrancy guard: poll() awaits network/LCU calls and runs on a fixed
+// interval, so a slow tick must not overlap the next one (double window
+// transitions, interleaved tracker register/unregister).
+let _polling = false;
 async function poll() {
+  if (_polling) return;
+  _polling = true;
+  try { await _pollImpl(); } finally { _polling = false; }
+}
+async function _pollImpl() {
   let live = null;
   try {
     live = await liveClient.getAllGameData(LIVE_TIMEOUT_MS);
@@ -415,7 +428,10 @@ async function poll() {
   // app still has a taskbar presence.
   if (!clientUp) {
     clientPhase = "None";
-    if (appState === STATE.IDLE) ensure("home");
+    // The client closed. If we were parked in a match-flow window (post-game or
+    // champ-select), fall back to home instead of staying stuck there forever.
+    if (appState !== STATE.IDLE) showHome();
+    else ensure("home");
     return;
   }
 
@@ -1390,6 +1406,10 @@ ipcMain.handle("connect-riot", async (_e, s) => {
     const profile = await riotApi.fetchProfile(cfg);
     saveConfig({ ...cfg, riotSkipped: false });
     accountRank = null; // re-resolve baseline rank against the linked account
+    // The match cache is keyed by matchId only and stores the *linked PUUID's*
+    // perspective (win/KDA/items), so a new account must start from a clean cache
+    // or it would show the previous account's stats for any shared match.
+    try { riotApi.clearCache(); } catch (_) {}
     return { ok: true, name: profile.summoner.name, tag: profile.summoner.tagLine };
   } catch (e) {
     return { ok: false, error: e.message };

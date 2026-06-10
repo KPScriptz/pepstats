@@ -91,7 +91,12 @@ function enemyRoster(data) {
   return players
     .filter((p) => p.team && me.team && p.team !== me.team)
     .slice()
-    .sort((a, b) => ord(a) - ord(b) || (a.championName || "").localeCompare(b.championName || ""))
+    .sort((a, b) =>
+      ord(a) - ord(b) ||
+      (a.championName || "").localeCompare(b.championName || "") ||
+      // Final deterministic tiebreak so the slot→hotkey mapping stays stable even
+      // off-Rift (blank positions) or if a feed ever omits championName.
+      (a.summonerName || a.riotIdGameName || "").localeCompare(b.summonerName || b.riotIdGameName || ""))
     .slice(0, 5)
     .map((p, i) => ({ slot: i, champion: p.championName || "?", position: p.position || "" }));
 }

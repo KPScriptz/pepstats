@@ -29,7 +29,12 @@ const ORDER = { ingame: 0, champselect: 1, inqueue: 2, online: 3, away: 4, mobil
 // live game just stay unavailable until a puuid is known).
 function normalize(f, idx) {
   if (!f) return null;
-  const id = f.puuid || f.id || f.summonerId || f.pid || f.name || f.gameName;
+  // Key on the chat identity (always present + stable across polls), NOT puuid —
+  // some client versions report puuid only while online, so keying on puuid would
+  // change a friend's identity when they go offline, breaking the "just finished"
+  // transition and the renderer's per-friend DOM reuse. puuid is kept separately
+  // below for the official Riot API calls.
+  const id = f.id || f.summonerId || f.pid || f.puuid || f.name || f.gameName;
   if (!id) return null;
   const av = String(f.availability || "").toLowerCase();
   const lol = f.lol || {};

@@ -48,7 +48,7 @@ function summaryFrom(detail, puuid) {
 // Gold Spending Efficiency series + objective markers + over-cap warnings.
 function gseFrom(timeline, puuid) {
   const meta = timeline && timeline.metadata, info = timeline && timeline.info;
-  if (!meta || !info) return { gse: [], objectives: [] };
+  if (!meta || !info || !Array.isArray(meta.participants)) return { gse: [], objectives: [] };
   const pid = meta.participants.indexOf(puuid) + 1;
   if (pid <= 0) return { gse: [], objectives: [] };
   const team100 = pid <= 5;
@@ -111,7 +111,7 @@ function teamGoldFrom(timeline, puuid) {
 
 function skillFrom(timeline, puuid, champKey) {
   const meta = timeline && timeline.metadata, info = timeline && timeline.info;
-  if (!meta || !info) return null;
+  if (!meta || !info || !Array.isArray(meta.participants)) return null;
   const pid = meta.participants.indexOf(puuid) + 1;
   if (pid <= 0) return null;
   const path = [];
