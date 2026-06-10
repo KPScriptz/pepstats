@@ -20,8 +20,6 @@ const postgameEngine = require("./utils/postgameEngine");
 const tftEngine = require("./utils/tftEngine");
 const tftAnalytics = require("./utils/tftAnalyticsEngine");
 const liveTelemetry = require("./utils/liveGameTelemetry");
-const liveCombat = require("./utils/liveCombatEngine");
-const objectiveRotator = require("./utils/objectiveRotator");
 const deepCoach = require("./shared/deepCoach");
 const processWatch = require("./shared/process");
 const replays = require("./shared/replays");
@@ -333,8 +331,6 @@ async function _pollImpl() {
       }
       sendTo("ingame", "force-design-mode-off");
       liveTelemetry.start(); // begin CSD telemetry for this match
-      liveCombat.start();    // begin combat threat matrix
-      objectiveRotator.start(); // begin time-based objective prep alerts
       // The ddragon item-gold map loads once at startup; if that fetch failed
       // (offline launch), retry as a match starts so gold-diff isn't dead forever.
       if (!itemGoldMap) riotApi.itemGold().then((m) => { itemGoldMap = m; }).catch(() => {});
@@ -353,8 +349,6 @@ async function _pollImpl() {
   if (sawLiveGame && appState === STATE.INGAME) {
     appState = STATE.POSTGAME;
     liveTelemetry.stop(); // match ended — halt CSD telemetry
-    liveCombat.stop();
-    objectiveRotator.stop();
     try {
       lastReplay = replays.latestReplay();
     } catch (_) {
@@ -968,10 +962,6 @@ async function streamCoach(sender) {
 ipcMain.on("coach-start", (e) => streamCoach(e.sender));
 // Live CS differential vs lane opponent (read-only Live Client telemetry).
 ipcMain.handle("get-live-csd", () => liveTelemetry.get());
-// Live combat threat matrix (read-only, reformats visible scoreboard data).
-ipcMain.handle("get-combat-threats", () => liveCombat.get());
-// Time-based objective prep alert (no positional data — see module note).
-ipcMain.handle("get-objective-alert", () => objectiveRotator.get());
 ipcMain.handle("get-last-game", () => ({ scores: lastSnapshot, replay: lastReplay, coach: coachConfigStatus() }));
 ipcMain.handle("get-postgame", async () => {
   try {
@@ -1028,16 +1018,22 @@ async function getLobbyAllies() {
   try { idx = await riotApi.championIndex(); } catch (_) {}
 
   const allies = [];
+  let allyN = 0;
   for (const m of team) {
     let recent = null;
     try { recent = await riotApi.recentByPuuid(acc, m.puuid, 5); } catch (_) { recent = null; }
     const champ = idx && m.championId ? idx.byId[String(m.championId)] : null;
+    allyN++;
     allies.push({
       cellId: m.cellId,
       position: (m.assignedPosition || "").toUpperCase(),
       championId: m.championId || 0,
       champion: champ ? champ.name : "",
-      riotId: (recent && recent.riotId) || "",
+      // Riot's champ-select anonymity rule: non-party summoner names must be
+      // replaced with neutral designations during champion select. We anonymize
+      // EVERY non-self ally (over-compliance is fine) — the form stats stay,
+      // the identity does not.
+      label: "Ally " + allyN,
       recent: recent
         ? { games: recent.games, wr: recent.wr, kda: recent.kda, k: recent.k, d: recent.d, a: recent.a, topChamp: recent.topChamp }
         : null,
@@ -1446,8 +1442,6 @@ ipcMain.on("open-review", () => {
   // the poll loop's postgame branch never fires and they run until app quit.
   if (appState === STATE.INGAME) {
     liveTelemetry.stop();
-    liveCombat.stop();
-    objectiveRotator.stop();
     sawLiveGame = false;
   }
   ensure("postgame");

@@ -52,23 +52,9 @@ function placementDistribution(matches) {
   };
 }
 
-// ---- 3. Augment performance matrix -----------------------------------------
-function parseAugmentMetrics(matches) {
-  const map = new Map();
-  try {
-    for (const m of matches || []) {
-      if (!(m.placement >= 1 && m.placement <= 8)) continue;
-      for (const a of m.augments || []) {
-        const e = map.get(a) || { name: a, picks: 0, sum: 0, top4: 0 };
-        e.picks++; e.sum += m.placement; if (m.placement <= 4) e.top4++;
-        map.set(a, e);
-      }
-    }
-  } catch (_) {}
-  return [...map.values()]
-    .map((e) => ({ name: e.name, picks: e.picks, avgPlacement: +(e.sum / e.picks).toFixed(2), top4Rate: Math.round((e.top4 / e.picks) * 100) }))
-    .sort((a, b) => a.avgPlacement - b.avgPlacement || b.picks - a.picks);
-}
+// ---- 3. (removed) Augment performance matrix --------------------------------
+// Riot's TFT policy prohibits displaying augment win rates and augment average
+// placements — even computed from the player's own matches. Removed in 0.6.0.
 
 // ---- 4. Per-composition trends ---------------------------------------------
 function compTrends(matches) {
@@ -138,7 +124,6 @@ function analyze(matches) {
     return {
       ok: true,
       distribution: placementDistribution(matches),
-      augments: parseAugmentMetrics(matches),
       comps: compTrends(matches),
       perMatch,
     };
@@ -148,6 +133,6 @@ function analyze(matches) {
 }
 
 module.exports = {
-  classifyComposition, placementDistribution, parseAugmentMetrics,
+  classifyComposition, placementDistribution,
   compTrends, auditEconomy, carryItemization, analyze,
 };

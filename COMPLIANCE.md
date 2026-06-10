@@ -95,6 +95,34 @@ hotkeys, the IPC channels, and the `enemyRoster` helper were removed in 0.5.11.
 The rule going forward: a feature must clear **both** tests — technically clean
 (no memory/screen/input) *and* explicitly permitted by Riot's written policy.
 
+## Riot policy parse — feature-by-feature (2026-06-10, v0.6.0 "SwissCheese")
+
+Riot's written third-party rules (developer policies + the platform compliance
+doc approved apps operate under) were parsed in full and every PepStats feature
+was judged against them. The rules that bind us, and our status:
+
+| Riot rule (near-verbatim) | PepStats feature affected | Action |
+| --- | --- | --- |
+| Enemy **ultimate timers** are strictly forbidden | Enemy Ults tracker | **Removed (0.5.11)** |
+| No tracking of enemy **summoner-spell cooldowns**, "or facilitating players tracking these with timers" | Enemy Flash tracker | **Removed (0.5.11)** |
+| No notifications that **dictate player action** from the current game state (e.g. gank suggestions) | objectiveRotator — "X spawning in 30s — set up vision and prep your recall/wave" | **Removed (0.6.0)** — the passive timer chips already show spawn countdowns with no prescription |
+| No alerts on enemy **power spikes** (e.g. "X hit level 6"); no action-dictating output | liveCombatEngine — "priority target" threat ranking + "fed" flags | **Removed (0.6.0)** — naming a priority target dictates action; the factual Tab data it reformatted remains visible via the lane dossier |
+| **Champ-select anonymity**: non-party summoner names must be replaced with neutral designations ("Ally 1…") in lobby/draft displays | Pre-game ally recent-form showed ally Riot IDs | **Anonymized (0.6.0)** — every non-self ally now renders as "Ally N"; the form stats stay, the identity does not |
+| TFT: no displaying **augment win rates** or **augment average placements** | TFT analytics "augment performance matrix" (avg placement + top-4 rate per augment) | **Removed (0.6.0)** — even own-match-derived augment tables are the banned shape |
+| No aggregating or displaying **Brawl** match-history data | Match history / summaries could include queue 480 | **Excluded (0.6.0)** — Brawl games are dropped from every list and aggregate |
+| No deanonymization, scripting, automation, memory reads, screen capture, fog-of-war info | — | Never present (see Audit) |
+
+Features re-verified as **allowed** under the same parse: own-performance
+overlay stats + rank-baseline comparison, CSM sparkline/pace pip, own skill
+hint, lane dossier (passive Tab-visible data, no alerts), highlight toasts (own
+milestones only — celebration, not direction), static camp/scuttle schedule and
+objective/inhib respawn timers (the native HUD shows these), gold-value item
+diff (arithmetic on Tab-visible items; appears in no prohibition), curated
+draft coach (static knowledge, champ-select-stage advice like every approved
+app), rune/item-set import (the two tolerated LCU writes), Friends tab (LCU
+presence + official API), spectator draft view, TFT match history (placements,
+comps, units — not augment/legend stat tables), AI coach on the user's own key.
+
 ## Audit
 
 Last full-tree audit (**2026-06-10**, adversarial): pattern scan (no `opencv`/

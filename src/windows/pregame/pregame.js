@@ -116,7 +116,7 @@ function renderTeam(container, members, localCellId, withStats) {
     sub.className = "player-sub";
     sub.textContent =
       m.cellId === localCellId ? "You"
-      : (form && form.riotId) ? form.riotId
+      : (form && form.label) ? form.label
       : (m.assignedPosition ? ROLE_SHORT[m.assignedPosition] + " lane" : "Assigned role");
     main.append(champ, sub);
 

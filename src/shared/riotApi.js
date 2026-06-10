@@ -299,6 +299,9 @@ function pStats(p, puuid) {
 function processMatch(m, puuid) {
   const info = m && m.info;
   if (!info) return null;
+  // Riot's policy prohibits aggregating or displaying Brawl match history data
+  // (queue 480) — drop those games from every list and summary.
+  if (info.queueId === 480) return null;
   const parts = info.participants || [];
   const me = parts.find((p) => p.puuid === puuid);
   if (!me) return null;
