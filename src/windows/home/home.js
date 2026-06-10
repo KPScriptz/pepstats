@@ -138,7 +138,10 @@ function showSetup(show) {
     loadRegions();
     probeClientAccount();
     // Re-probe while the setup screen is open so opening League mid-setup updates it.
-    if (!setupProbeTimer) setupProbeTimer = setInterval(() => { if (!$("setup").classList.contains("hidden")) probeClientAccount(); }, 3500);
+    if (!setupProbeTimer) setupProbeTimer = setInterval(probeClientAccount, 3500);
+  } else if (setupProbeTimer) {
+    clearInterval(setupProbeTimer);
+    setupProbeTimer = null;
   }
 }
 // One-click: connect from the running client (saves the account, no key needed).
@@ -200,9 +203,11 @@ function render(data) {
 
   // KPIs
   const wk = (summary && summary.weekly) || {};
+  // kpi-weekly is now a <b> inside an .rk cell — color via pos/neg only, and
+  // don't fight the .rk b sizing with the old .kpi-val class.
   const wkEl = $("kpi-weekly");
-  if (wk.tracking || wk.gain == null) { wkEl.textContent = "tracking…"; wkEl.className = "kpi-val"; wkEl.style.fontSize = "13px"; }
-  else { wkEl.textContent = signedLp(wk.gain) + " LP"; wkEl.className = "kpi-val " + (wk.gain > 0 ? "pos" : wk.gain < 0 ? "neg" : ""); wkEl.style.fontSize = ""; }
+  if (wk.tracking || wk.gain == null) { wkEl.textContent = "tracking…"; wkEl.className = ""; wkEl.style.fontSize = "11px"; }
+  else { wkEl.textContent = signedLp(wk.gain) + " LP"; wkEl.className = wk.gain > 0 ? "pos" : wk.gain < 0 ? "neg" : ""; wkEl.style.fontSize = ""; }
   $("kpi-level").textContent = sm && sm.level ? sm.level : "—";
   $("kpi-wr").textContent = p.winRate != null ? p.winRate + "%" : "—";
 
@@ -404,7 +409,10 @@ function drawLpGraph(history, ids) {
   const scores = pts.map((e) => e.score);
   let min = Math.min(...scores), max = Math.max(...scores);
   if (max === min) { max += 1; min -= 1; }
-  const W = 240, H = 90, pad = 8, n = pts.length;
+  // Read the drawing space from the SVG itself — the dashboard sparkline is
+  // 240x60 while the Progress graph is 240x90; hardcoding clips the shorter one.
+  const vb = svg.viewBox && svg.viewBox.baseVal;
+  const W = (vb && vb.width) || 240, H = (vb && vb.height) || 90, pad = 8, n = pts.length;
   const xs = (i) => pad + (i / (n - 1)) * (W - 2 * pad);
   const ys = (v) => pad + (1 - (v - min) / (max - min)) * (H - 2 * pad);
   line.setAttribute("points", pts.map((e, i) => `${xs(i).toFixed(1)},${ys(e.score).toFixed(1)}`).join(" "));
@@ -1023,7 +1031,12 @@ async function selectFriend(f) {
     const ICON = { "fb-you": "🩸", fb: "🩸", kill: "⚔️", obj: "🐉", skill: "🔮" };
     for (const e of d.entries) {
       const row = document.createElement("li"); row.className = "fr-tl-row";
-      row.innerHTML = `<span class="fr-tl-t">${e.time}</span><span class="fr-tl-i">${ICON[e.kind] || "•"}</span><span class="fr-tl-x">${e.text}</span>`;
+      // textContent, not innerHTML — entry text is engine-built today, but keep
+      // remote-derived strings out of HTML on principle.
+      const t = document.createElement("span"); t.className = "fr-tl-t"; t.textContent = e.time;
+      const i = document.createElement("span"); i.className = "fr-tl-i"; i.textContent = ICON[e.kind] || "•";
+      const x = document.createElement("span"); x.className = "fr-tl-x"; x.textContent = e.text;
+      row.append(t, i, x);
       tl.append(row);
     }
   }

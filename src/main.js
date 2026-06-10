@@ -82,6 +82,7 @@ function computeGoldDiff(live) {
 // We only label the rows with the enemy champion names, which are already on the
 // sanctioned allPlayers scoreboard feed (same as the in-game Tab screen).
 let _trackerSig = "";
+let trackerMatchReset = false; // set on INGAME entry; tells the overlay to wipe clocks once
 let _trackerRegistered = []; // the accelerators ACTUALLY registered, so we can
 // release exactly those even if the configured keys change underneath us.
 function _trackerKeys() {
@@ -121,7 +122,8 @@ function syncTrackers(live) {
   }
   // Push the roster every tick (cheap); the renderer rebuilds its rows only when
   // the roster actually changes, so a dropped first frame can't strand the labels.
-  sendTo("ingame", "tracker-roster", { roster, flashKeys: fk, ultKeys: uk, flashBase: 300 });
+  sendTo("ingame", "tracker-roster", { roster, flashKeys: fk, ultKeys: uk, flashBase: 300, reset: trackerMatchReset });
+  trackerMatchReset = false;
 }
 function clearTrackers() {
   for (const k of _trackerRegistered) { try { globalShortcut.unregister(k); } catch (_) {} }
@@ -392,6 +394,10 @@ async function _pollImpl() {
       liveTelemetry.start(); // begin CSD telemetry for this match
       liveCombat.start();    // begin combat threat matrix
       objectiveRotator.start(); // begin time-based objective prep alerts
+      trackerMatchReset = true; // new match -> overlay drops all Flash/Ult clocks
+      // The ddragon item-gold map loads once at startup; if that fetch failed
+      // (offline launch), retry as a match starts so gold-diff isn't dead forever.
+      if (!itemGoldMap) riotApi.itemGold().then((m) => { itemGoldMap = m; }).catch(() => {});
     }
     syncTrackers(live); // reconcile manual Flash/Ult hotkeys + push enemy roster
     sendTo("ingame", "overlay", { scores, compare, timers, skill, dossier, goldDiff, mode: designMode ? "design" : "live" });
@@ -430,6 +436,9 @@ async function _pollImpl() {
     clientPhase = "None";
     // The client closed. If we were parked in a match-flow window (post-game or
     // champ-select), fall back to home instead of staying stuck there forever.
+    // clearTrackers is idempotent — belt-and-suspenders so no hotkey can outlive
+    // a match no matter which path the state machine took out of INGAME.
+    clearTrackers();
     if (appState !== STATE.IDLE) showHome();
     else ensure("home");
     return;
@@ -640,6 +649,10 @@ async function getCurrentSummary() {
   // Client open: live read from the LCU (no key needed) — and cache it for later.
   if (clientUp) {
     const s = await rankProgress.summary(lcu, dir);
+    // Race: the client can die between the process check and the LCU read,
+    // yielding a summoner-less shell. Serve the saved snapshot instead of a
+    // blank profile (saveLastSummary already refuses to store the shell).
+    if (!s || !s.summoner) return loadLastSummary() || s;
     saveLastSummary(s);
     return s;
   }
@@ -1040,10 +1053,14 @@ ipcMain.handle("get-combat-threats", () => liveCombat.get());
 ipcMain.handle("get-objective-alert", () => objectiveRotator.get());
 ipcMain.handle("get-last-game", () => ({ scores: lastSnapshot, replay: lastReplay, coach: coachConfigStatus() }));
 ipcMain.handle("get-postgame", async () => {
-  const cfg = loadConfig();
-  const account = { riotId: cfg.riotId, region: cfg.region, riotApiKey: cfg.riotApiKey };
-  const data = await postgameEngine.analyze(account);
-  return { ...data, replay: lastReplay, coach: coachConfigStatus() };
+  try {
+    const cfg = loadConfig();
+    const account = { riotId: cfg.riotId, region: cfg.region, riotApiKey: cfg.riotApiKey };
+    const data = await postgameEngine.analyze(account);
+    return { ...data, replay: lastReplay, coach: coachConfigStatus() };
+  } catch (e) {
+    return { ok: false, error: e.message, replay: lastReplay, coach: coachConfigStatus() };
+  }
 });
 ipcMain.handle("get-pregame", async () => {
   try {
@@ -1164,7 +1181,7 @@ async function getDraftAdvice() {
   const advice = draftCoach.advise({ allyKeys, enemyKeys, takenKeys });
   return { ok: true, counters: decorate(advice.counters), synergies: decorate(advice.synergies) };
 }
-ipcMain.handle("get-draft-advice", () => getDraftAdvice());
+ipcMain.handle("get-draft-advice", () => getDraftAdvice().catch((e) => ({ ok: false, error: e.message })));
 
 // Home / client window
 ipcMain.handle("get-home", () => buildHomeData());
@@ -1489,6 +1506,10 @@ ipcMain.handle("connect-client", async () => {
     if (!acc || !acc.gameName) return { ok: false, error: "Couldn't read your account from the League client." };
     const riotId = acc.tagLine ? acc.gameName + "#" + acc.tagLine : acc.gameName;
     const region = riotApi.platformToRegion(acc.region) || (loadConfig().region || "");
+    // A saved account needs a region (buildHomeData treats riotId+region as
+    // "set up"). Saving "" would leave the user half-connected on the setup
+    // screen forever — fail loudly with a fix instead.
+    if (!region) return { ok: false, error: "Couldn't detect your region from the client — pick it below and connect manually." };
     saveConfig({ riotId, region, puuid: acc.puuid || "", riotSkipped: false });
     accountRank = null;
     try { riotApi.clearCache(); } catch (_) {}
@@ -1499,6 +1520,17 @@ ipcMain.handle("connect-client", async () => {
 });
 ipcMain.on("overlay-reposition", () => setDesignMode(true));
 ipcMain.on("open-review", () => {
+  // Reachable mid-game (Ctrl+Shift+H shows home over the overlay). Leaving
+  // INGAME through this side door must release the live-match machinery —
+  // otherwise the poll loop's postgame branch never fires and the tracker
+  // hotkeys stay registered until app quit.
+  if (appState === STATE.INGAME) {
+    liveTelemetry.stop();
+    liveCombat.stop();
+    objectiveRotator.stop();
+    clearTrackers();
+    sawLiveGame = false;
+  }
   ensure("postgame");
   showOnly("postgame");
   appState = STATE.POSTGAME;

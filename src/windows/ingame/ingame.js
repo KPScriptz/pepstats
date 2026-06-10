@@ -550,8 +550,8 @@ const FLASH_BASE = 300; // flash base cooldown (s) — shown as a 5:00 countdown
 let trackerRoster = [];
 let trackerKeys = { flash: [], ult: [] };
 let trackerRosterSig = "";
-const flashAt = {}; // slot -> ms timestamp of last flash press (undefined = untracked)
-const ultAt = {};   // slot -> ms timestamp of last ult press
+const flashAt = {}; // champion -> ms timestamp of last flash press (undefined = untracked)
+const ultAt = {};   // champion -> ms timestamp of last ult press
 
 const trShort = (n) => (n && n.length > 9 ? n.slice(0, 9) : (n || "?"));
 const POS_TAG = { TOP: "TOP", JUNGLE: "JG", MIDDLE: "MID", BOTTOM: "BOT", UTILITY: "SUP" };
@@ -590,14 +590,25 @@ function buildTrackerRows(kind) {
 function applyTrackerRoster(d) {
   if (!d || !Array.isArray(d.roster)) return;
   hasUlt = hasFlash = d.roster.length > 0;
+  // Explicit new-match reset from main (INGAME entry) — the only time clocks wipe.
+  if (d.reset) {
+    for (const k in flashAt) delete flashAt[k];
+    for (const k in ultAt) delete ultAt[k];
+  }
   const sig = d.roster.map((e) => e.slot + ":" + e.champion + ":" + e.position).join("|") +
     "#" + (d.flashKeys || []).join(",") + "#" + (d.ultKeys || []).join(",");
-  if (sig === trackerRosterSig) return; // unchanged — rows already built
+  if (sig === trackerRosterSig) { if (d.reset) tickTrackers(); return; } // rows already built
   trackerRosterSig = sig;
   trackerRoster = d.roster;
   trackerKeys = { flash: d.flashKeys || [], ult: d.ultKeys || [] };
-  for (const k in flashAt) delete flashAt[k]; // fresh roster (new match) -> reset clocks
-  for (const k in ultAt) delete ultAt[k];
+  // Clocks are keyed by CHAMPION (not slot), so a mid-game roster re-sort —
+  // positions resolving from "" a few ticks in re-orders the slots — relabels
+  // the rows without wiping or mis-assigning running clocks. Prune clocks for
+  // champions no longer on the roster. (Clone modes like One-for-All collapse
+  // to one shared clock — acceptable for a manual stopwatch.)
+  const champs = new Set(d.roster.map((e) => e.champion));
+  for (const k in flashAt) if (!champs.has(k)) delete flashAt[k];
+  for (const k in ultAt) if (!champs.has(k)) delete ultAt[k];
   buildTrackerRows("flash");
   buildTrackerRows("ult");
   tickTrackers();
@@ -606,9 +617,11 @@ function applyTrackerRoster(d) {
 
 function fireTracker(d) {
   if (!d) return;
+  const e = trackerRoster.find((x) => x.slot === d.slot);
+  if (!e) return; // hotkey for a slot we don't know yet — roster not in sync
   const now = Date.now();
-  if (d.kind === "flash") flashAt[d.slot] = now;
-  else if (d.kind === "ult") ultAt[d.slot] = now;
+  if (d.kind === "flash") flashAt[e.champion] = now;
+  else if (d.kind === "ult") ultAt[e.champion] = now;
   tickTrackers();
 }
 
@@ -618,7 +631,7 @@ function tickTrackers() {
   for (const e of trackerRoster) {
     const fv = document.getElementById("frv-" + e.slot);
     if (fv) {
-      const t0 = flashAt[e.slot];
+      const t0 = flashAt[e.champion];
       if (!t0) { fv.textContent = "·"; fv.className = "tr-val"; }
       else {
         anyFlash = true;
@@ -629,7 +642,7 @@ function tickTrackers() {
     }
     const uv = document.getElementById("urv-" + e.slot);
     if (uv) {
-      const t0 = ultAt[e.slot];
+      const t0 = ultAt[e.champion];
       if (!t0) { uv.textContent = "·"; uv.className = "tr-val"; }
       else { anyUlt = true; uv.textContent = mmss((now - t0) / 1000); uv.className = "tr-val used"; }
     }
@@ -655,10 +668,12 @@ function applyOverlay({ scores, compare, timers, skill, dossier, goldDiff, mode:
 
   gameActive = true;
   clearTimeout(watchdog);
+  // 7s, not 3s: the push cadence is ~1s, but one slow Live-Client read past 3s
+  // would blank every module mid-fight and flash them back a tick later.
   watchdog = setTimeout(() => {
     gameActive = false;
     render();
-  }, 3000);
+  }, 7000);
   render();
 }
 
@@ -734,7 +749,7 @@ if (window.pepstats && typeof window.pepstats.onOverlay === "function") {
     ultKeys: ["CommandOrControl+Alt+1", "CommandOrControl+Alt+2", "CommandOrControl+Alt+3", "CommandOrControl+Alt+4", "CommandOrControl+Alt+5"],
     flashBase: 300,
   });
-  flashAt[2] = Date.now() - 120000; // Zed flashed ~2:00 ago -> 3:00 left
-  ultAt[4] = Date.now() - 35000;    // Thresh ult used 0:35 ago
+  flashAt["Zed"] = Date.now() - 120000;   // Zed flashed ~2:00 ago -> 3:00 left
+  ultAt["Thresh"] = Date.now() - 35000;   // Thresh ult used 0:35 ago
   tickTrackers();
 }

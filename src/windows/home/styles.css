@@ -420,6 +420,7 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16p
 .rank-kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; border-top: 1px solid var(--card-bd); padding-top: 12px; }
 .rk { text-align: center; }
 .rk b { display: block; font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.rk b.pos { color: var(--good); } .rk b.neg { color: var(--bad); }
 .rk span { font-size: 8.5px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: var(--muted); }
 
 /* Performance (top champions) */

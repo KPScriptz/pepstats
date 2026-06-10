@@ -94,11 +94,19 @@ League's gameplay binds, and are user-rebindable in `config.ui.overlay.flashKeys
 
 ## Audit
 
-Last full-tree audit (2026-06): a pattern scan (no `opencv`/`robotjs`/`ffi`/
-`ReadProcessMemory`/`SendInput`/screen-capture/`/actions`/matchmaking-automation
-anywhere) plus a per-subsystem read of the live engines, LCU layer, web-API
-layer, the Python sidecar, and the build config. **Verdict: clean** — no
-violations at any severity.
+Last full-tree audit (**2026-06-10**, adversarial): pattern scan (no `opencv`/
+`robotjs`/`ffi`/`memoryjs`/`ReadProcessMemory`/`SendInput`/`desktopCapturer`/
+screen-capture/`eval`/`/actions`/matchmaking-automation anywhere), a full
+enumeration of every outbound host (only `127.0.0.1:2999`, the LCU lockfile
+port, `*.api.riotgames.com`, `ddragon.leagueoflegends.com`,
+`raw.communitydragon.org`, `api.anthropic.com` with the user's own key, and the
+optional user-configured baseline URL — zero third-party stat sites), the
+complete LCU write surface (rune pages + item sets only), every
+`child_process` call (`tasklist`/`pgrep` process detection and a read-only
+`reg query` for install discovery — nothing executes or injects), and the
+dependency tree (`ws` is the only runtime dep). The manual Flash/Ult tracker
+hotkeys were re-verified as user→app input only — nothing synthesizes input
+toward the game. **Verdict: clean** — no violations at any severity.
 
 ---
 
