@@ -314,6 +314,16 @@ body.design-mode .mod {
   border: 1px dashed color-mix(in srgb, var(--gold) 75%, #fff);
   cursor: move;
 }
+/* Tactile "workspace unlocked" cue. Deliberately an OPACITY pulse on an
+   overlay ring, never a transform: each module's transform is owned by the
+   drag engine (inline per-module scale), and design mode is out-of-combat so
+   the pulse costs nothing during live play (where it never runs). */
+body.design-mode .mod::after, body.design-mode .timer-chip::after {
+  content: ""; position: absolute; inset: -4px; border-radius: inherit; pointer-events: none;
+  border: 1px dashed color-mix(in srgb, var(--gold) 80%, transparent);
+  animation: designPulse 1.6s ease-in-out infinite;
+}
+@keyframes designPulse { 0%, 100% { opacity: 0.25; } 50% { opacity: 0.85; } }
 /* The transparent toast module needs a faint placeholder box so it's grabbable. */
 body.design-mode .mod.mod-ghost {
   border: 1px dashed color-mix(in srgb, var(--gold) 55%, transparent);
