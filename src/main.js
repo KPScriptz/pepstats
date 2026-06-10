@@ -548,6 +548,29 @@ function saveConfig(patch) {
   return next;
 }
 
+// ----- Saved profile snapshot (works with the client closed) -----------------
+// Whenever we successfully build the home summary (from the live client or the
+// Riot API) we cache it to disk. When the client is later closed AND no Riot key
+// is set, we serve this snapshot so the app still shows the user's saved account
+// instead of an empty screen.
+function lastSummaryFile() {
+  return path.join(app.getPath("userData"), "last-summary.json");
+}
+function saveLastSummary(summary) {
+  if (!summary || !summary.summoner) return;
+  try {
+    fs.writeFileSync(lastSummaryFile(), JSON.stringify({ ...summary, savedAt: Date.now() }, null, 2));
+  } catch (_) { /* best effort */ }
+}
+function loadLastSummary() {
+  try {
+    const s = JSON.parse(fs.readFileSync(lastSummaryFile(), "utf8"));
+    return s && s.summoner ? { ...s, cached: true } : null;
+  } catch (_) {
+    return null;
+  }
+}
+
 // ----- Theme / customization -------------------------------------------------
 const THEME_DEFAULTS = {
   theme: "dark", // "dark" | "light"
@@ -613,12 +636,24 @@ function broadcastTheme() {
 async function getCurrentSummary() {
   const cfg = loadConfig();
   const riotCfg = { riotId: cfg.riotId, region: cfg.region, riotApiKey: cfg.riotApiKey };
-  if (clientUp) return rankProgress.summary(lcu, app.getPath("userData"));
+  const dir = app.getPath("userData");
+  // Client open: live read from the LCU (no key needed) — and cache it for later.
+  if (clientUp) {
+    const s = await rankProgress.summary(lcu, dir);
+    saveLastSummary(s);
+    return s;
+  }
+  // Client closed but a Riot key is linked: live read from the official API.
   if (riotCfg.riotId && riotCfg.region && riotCfg.riotApiKey) {
     const profile = await riotApi.fetchProfile(riotCfg);
-    return rankProgress.buildSummary(app.getPath("userData"), profile.summoner, profile.ranked, "riot");
+    const s = rankProgress.buildSummary(dir, profile.summoner, profile.ranked, "riot");
+    saveLastSummary(s);
+    return s;
   }
-  return null;
+  // Client closed and no key: serve the last saved snapshot so the saved account
+  // still shows (rather than an empty screen). Live updates resume when the client
+  // is reopened or a Riot key is added.
+  return loadLastSummary();
 }
 
 // One-shot (non-streaming) Claude call that estimates the player's climb from
@@ -783,7 +818,11 @@ async function champAdvice() {
 async function buildHomeData() {
   const cfg = loadConfig();
   const riotCfg = { riotId: cfg.riotId, region: cfg.region, riotApiKey: cfg.riotApiKey };
-  const configured = !!(riotCfg.riotId && riotCfg.region && riotCfg.riotApiKey);
+  const configured = !!(riotCfg.riotId && riotCfg.region && riotCfg.riotApiKey); // full API access
+  // An account is "saved" once we know who the user is (Riot ID + region) — whether
+  // that came from a full key link OR a one-click connect via the running client.
+  // Either way, setup is done; a saved account also unlocks the client-closed view.
+  const accountSaved = !!(cfg.riotId && cfg.region);
 
   // Prefer the live LCU when the client is open; otherwise use the linked Riot
   // account via the official API so stats still show with the client closed.
@@ -797,8 +836,10 @@ async function buildHomeData() {
   const key = cfg.anthropicApiKey;
   const hasAiKey = hasValidAiKey(key);
   return {
-    needsSetup: !configured && !cfg.riotSkipped,
+    needsSetup: !accountSaved && !cfg.riotSkipped,
     configured,
+    hasAccount: accountSaved,
+    cached: !!(summary && summary.cached), // showing a saved snapshot (client closed, no key)
     hasAiKey, // gates every AI feature in the UI — hidden until the user adds a key
     summary,
     status: { clientUp, phase: clientPhase },
@@ -1418,6 +1459,43 @@ ipcMain.handle("connect-riot", async (_e, s) => {
 ipcMain.handle("skip-riot", () => {
   saveConfig({ riotSkipped: true });
   return { ok: true };
+});
+
+// Probe the running client for the signed-in account (used by the setup screen to
+// offer one-click connect + pre-fill the fields). { available, riotId, region, name }.
+ipcMain.handle("client-account", async () => {
+  if (!clientUp) return { available: false };
+  try {
+    const acc = await lcu.account();
+    if (!acc || !acc.gameName) return { available: false };
+    return {
+      available: true,
+      name: acc.gameName,
+      riotId: acc.tagLine ? acc.gameName + "#" + acc.tagLine : acc.gameName,
+      region: riotApi.platformToRegion(acc.region),
+    };
+  } catch (_) {
+    return { available: false };
+  }
+});
+
+// Connect by simply having League open: read the account from the client and save
+// it (Riot ID + region + puuid, no key required). The app then works live while the
+// client is open, and shows the saved snapshot when it's closed.
+ipcMain.handle("connect-client", async () => {
+  if (!clientUp) return { ok: false, error: "Open the League client first, then try again." };
+  try {
+    const acc = await lcu.account();
+    if (!acc || !acc.gameName) return { ok: false, error: "Couldn't read your account from the League client." };
+    const riotId = acc.tagLine ? acc.gameName + "#" + acc.tagLine : acc.gameName;
+    const region = riotApi.platformToRegion(acc.region) || (loadConfig().region || "");
+    saveConfig({ riotId, region, puuid: acc.puuid || "", riotSkipped: false });
+    accountRank = null;
+    try { riotApi.clearCache(); } catch (_) {}
+    return { ok: true, name: acc.gameName, riotId, region };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
 });
 ipcMain.on("overlay-reposition", () => setDesignMode(true));
 ipcMain.on("open-review", () => {

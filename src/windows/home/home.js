@@ -115,18 +115,50 @@ async function loadRegions() {
     regionsLoaded = true;
   } catch (_) {}
 }
+// Probe the running League client and surface the one-click connect option
+// (and pre-fill the manual fields) when an account is readable.
+let setupProbeTimer = null;
+async function probeClientAccount() {
+  if (!api.clientAccount) return;
+  let res; try { res = await api.clientAccount(); } catch (_) { res = null; }
+  const box = $("su-client-box"), hint = $("su-client-hint");
+  if (res && res.available) {
+    box.classList.remove("hidden"); hint.classList.add("hidden");
+    $("su-client-name").textContent = res.riotId || res.name || "";
+    if (res.riotId && !$("su-riotid").value) $("su-riotid").value = res.riotId;
+    if (res.region) loadRegions().then(() => { if (res.region && !$("su-region").value) $("su-region").value = res.region; });
+  } else {
+    box.classList.add("hidden"); hint.classList.remove("hidden");
+  }
+}
 function showSetup(show) {
   $("setup").classList.toggle("hidden", !show);
   $("app").classList.toggle("hidden", show);
-  if (show) loadRegions();
+  if (show) {
+    loadRegions();
+    probeClientAccount();
+    // Re-probe while the setup screen is open so opening League mid-setup updates it.
+    if (!setupProbeTimer) setupProbeTimer = setInterval(() => { if (!$("setup").classList.contains("hidden")) probeClientAccount(); }, 3500);
+  }
 }
+// One-click: connect from the running client (saves the account, no key needed).
+$("su-client").addEventListener("click", async () => {
+  const btn = $("su-client"), err = $("su-error");
+  err.classList.add("hidden"); btn.disabled = true; const prev = btn.textContent; btn.textContent = "Connecting…";
+  try {
+    const res = await api.connectClient();
+    if (res && res.ok) { showSetup(false); refresh(); }
+    else { err.textContent = (res && res.error) || "Couldn't connect via the League client."; err.classList.remove("hidden"); }
+  } catch (e) { err.textContent = "Connection failed: " + (e && e.message ? e.message : "error"); err.classList.remove("hidden"); }
+  finally { btn.disabled = false; btn.textContent = prev; }
+});
 $("su-connect").addEventListener("click", async () => {
   const btn = $("su-connect"), err = $("su-error");
   err.classList.add("hidden"); btn.disabled = true; const prev = btn.textContent; btn.textContent = "Connecting…";
   try {
     const res = await api.connectRiot({ riotId: $("su-riotid").value, region: $("su-region").value, riotApiKey: $("su-key").value });
     if (res && res.ok) { showSetup(false); refresh(); }
-    else { err.textContent = (res && res.error) || "Couldn't connect. Check your details."; err.classList.remove("hidden"); }
+    else { err.textContent = (res && res.error) || "Couldn't connect. Check your details, or use the League client above."; err.classList.remove("hidden"); }
   } catch (e) { err.textContent = "Connection failed: " + (e && e.message ? e.message : "error"); err.classList.remove("hidden"); }
   finally { btn.disabled = false; btn.textContent = prev; }
 });

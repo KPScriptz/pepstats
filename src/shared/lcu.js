@@ -161,4 +161,31 @@ async function importItemSet({ championId, title, blocks }) {
   return request("/lol-item-sets/v1/item-sets/" + sid + "/sets", { method: "PUT", body });
 }
 
-module.exports = { request, getGameflowPhase, getChampSelectSession, importRunePage, importItemSet, readLockfile, init };
+// Read the signed-in account straight from the running client — Riot ID, puuid
+// and region — so the user can connect by just having League open (no typing).
+// current-summoner carries gameName/tagLine/puuid; region comes from the Riot
+// Client locale, with a platform-config fallback. Returns null if the client is
+// unreachable.
+async function account() {
+  const me = await request("/lol-summoner/v1/current-summoner");
+  if (!me || !(me.gameName || me.displayName)) return null;
+  let region = "";
+  try {
+    const rl = await request("/riotclient/region-locale");
+    region = (rl && (rl.region || rl.webRegion)) || "";
+  } catch (_) { /* fall through */ }
+  if (!region) {
+    try {
+      region = await request("/lol-platform-config/v1/namespaces/LoginDataPacket/platformId");
+      region = typeof region === "string" ? region.replace(/"/g, "") : "";
+    } catch (_) { /* best effort */ }
+  }
+  return {
+    gameName: me.gameName || me.displayName || "",
+    tagLine: me.tagLine || "",
+    puuid: me.puuid || "",
+    region, // a region code ("NA") or a platformId ("NA1") — normalized in main
+  };
+}
+
+module.exports = { request, getGameflowPhase, getChampSelectSession, importRunePage, importItemSet, account, readLockfile, init };

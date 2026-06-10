@@ -64,6 +64,8 @@ contextBridge.exposeInMainWorld("pepstats", {
   // Riot account linking (first-run setup)
   getRiotRegions: () => ipcRenderer.invoke("riot-regions"),
   connectRiot: (s) => ipcRenderer.invoke("connect-riot", s),
+  connectClient: () => ipcRenderer.invoke("connect-client"),
+  clientAccount: () => ipcRenderer.invoke("client-account"),
   skipRiot: () => ipcRenderer.invoke("skip-riot"),
 
   // Theme / customization

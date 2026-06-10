@@ -34,6 +34,17 @@ function regionList() {
   return Object.keys(REGIONS).map((k) => ({ code: k, label: REGIONS[k].label }));
 }
 
+// Normalize whatever the League client reports — a region code ("NA"), a webRegion
+// ("OC1"), or a platformId ("NA1") — into one of our REGIONS keys, or "" if unknown.
+function platformToRegion(p) {
+  if (!p) return "";
+  const up = String(p).toUpperCase();
+  if (REGIONS[up]) return up;                 // already a region code (NA, OCE, …)
+  const low = String(p).toLowerCase();
+  for (const k of Object.keys(REGIONS)) if (REGIONS[k].platform === low) return k; // platformId (na1, oc1, …)
+  return "";
+}
+
 function getJson(host, pathname, apiKey, timeoutMs = 6000) {
   return new Promise((resolve, reject) => {
     const req = https.get(
@@ -523,7 +534,7 @@ function matchTimeline(cfg, matchId, timeoutMs = 7000) {
 }
 
 module.exports = {
-  fetchProfile, parseRiotId, regionList, REGIONS,
+  fetchProfile, parseRiotId, regionList, platformToRegion, REGIONS,
   getMatches, ddragonVersion, perkMaps, championIndex, itemGold, filterList, queueLabel, champKey,
   setCacheDir, clearCache, getJson, accountPuuid, matchTimeline, recentByPuuid,
   rankByPuuid, masteryTop, spectatorByPuuid,

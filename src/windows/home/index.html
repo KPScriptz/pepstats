@@ -21,17 +21,30 @@
       </header>
       <div class="setup-wrap">
         <div class="setup-card">
-          <div class="setup-mark"></div>
+          <img class="setup-mark" src="../logo.png" alt="PepStats" />
           <h1 class="setup-title">Connect your Riot account</h1>
           <p class="setup-sub">
-            PepStats reads your rank and match stats from your Riot account. Enter
-            your Riot ID and paste a free Riot key — it stays on this PC and is
-            never shared.
+            Just open the League client — PepStats reads your account and saves it, so
+            it keeps working even when the client is closed. Or link a free Riot key
+            for live stats anytime. Everything stays on this PC.
           </p>
+
+          <!-- One-click: connect from the running client (no typing, no key) -->
+          <div id="su-client-box" class="su-client-box hidden">
+            <div class="su-client-row">
+              <span class="su-client-dot"></span>
+              <div class="su-client-txt"><b>League client detected</b><span id="su-client-name" class="su-client-name"></span></div>
+            </div>
+            <button id="su-client" class="btn btn-accent btn-block">Connect with League client</button>
+          </div>
+          <div id="su-client-hint" class="su-client-hint">Open the League client and we'll connect you automatically — no typing needed.</div>
+
+          <div class="su-or"><span>or link a Riot key</span></div>
+
           <label class="field"><span>Riot ID</span>
             <input id="su-riotid" type="text" placeholder="Name#Tag" spellcheck="false" /></label>
           <label class="field"><span>Region</span><select id="su-region"></select></label>
-          <label class="field"><span>Riot key</span>
+          <label class="field"><span>Riot key <i>(optional — for live stats with the client closed)</i></span>
             <input id="su-key" type="password" placeholder="RGAPI-…" spellcheck="false" /></label>
           <p class="setup-help">
             Get a free key at <b>developer.riotgames.com</b> → sign in with Riot →
@@ -40,7 +53,7 @@
           <div id="su-error" class="banner-error hidden"></div>
           <div class="row">
             <button id="su-connect" class="btn btn-accent">Connect account</button>
-            <button id="su-skip" class="btn btn-ghost">Use League client only</button>
+            <button id="su-skip" class="btn btn-ghost">Skip for now</button>
           </div>
         </div>
       </div>
