@@ -19,6 +19,16 @@
   --gap: 14px; --pad: 16px; --radius: 12px; --rail-w: 220px;
   --good: #00e676; --bad: #ff5d6c; /* Blitz win-green */
 
+  /* Liquid-glass tokens. backdrop-filter is applied to CARDS ONLY — list rows
+     get translucent fills without per-row blur (blurring 20 rows is real
+     compositing cost). The in-game overlay window gets NONE of this: Chromium
+     cannot blur the game behind a transparent window, so glass there is inert. */
+  --glass-card: rgba(21, 24, 33, 0.55);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-blur: blur(14px);
+  --neon-glow: color-mix(in srgb, var(--accent) 40%, transparent);
+  --cyan-glow: color-mix(in srgb, var(--cyan, #00bfff) 30%, transparent);
+
   /* Motion tokens — every animation in the app rides transform/opacity only
      (GPU-composited; no layout thrash, no in-game CPU cost). */
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
@@ -57,6 +67,8 @@
   --shadow: 0 10px 26px rgba(40,55,80,.1);
   --grid-line: rgba(20,30,50,.02);
   --app-bg: var(--bg-primary);
+  --glass-card: rgba(255, 255, 255, 0.6);
+  --glass-border: rgba(20, 30, 50, 0.1);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -100,7 +112,8 @@ html, body { height: 100%; font-family: "SF Pro Display", "Inter", "Segoe UI", A
   transition: transform var(--anim-fast) var(--ease-out-expo), opacity var(--anim-fast) ease; }
 .nav-item:hover { background: var(--hover); color: var(--text); }
 .nav-item.active { background: var(--accent-soft); color: var(--accent); }
-.nav-item.active::before { transform: scaleY(1); opacity: 1; }
+.nav-item.active::before { transform: scaleY(1); opacity: 1; box-shadow: 0 0 12px var(--neon-glow); }
+.nav-item.active { text-shadow: 0 0 16px var(--neon-glow); }
 .rail-foot { margin-top: auto; }
 .rank-chip { display: flex; align-items: center; gap: 9px; padding: 9px 11px; border-radius: 11px; background: var(--inset); border: 1px solid var(--card-bd); }
 .rc-em { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; font-weight: 900; color: var(--accent); background: var(--accent-soft); border: 1px solid var(--accent-line); font-size: 13px; }
@@ -129,20 +142,22 @@ html, body { height: 100%; font-family: "SF Pro Display", "Inter", "Segoe UI", A
 
 /* ---- Cards ---- */
 .card {
-  background: var(--card); border: 1px solid var(--card-bd); border-radius: var(--radius);
-  padding: var(--pad) calc(var(--pad) + 1px); box-shadow: var(--shadow);
+  background: var(--glass-card); border: 1px solid var(--glass-border); border-radius: var(--radius);
+  backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+  padding: var(--pad) calc(var(--pad) + 1px);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.13), 0 8px 32px rgba(0, 0, 0, 0.5);
   transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.18s ease;
 }
 .card:hover {
-  border-color: color-mix(in srgb, var(--accent-dynamic) 55%, var(--card-bd));
-  box-shadow: var(--shadow), 0 0 0 1px var(--accent-dynamic-glow), 0 6px 34px var(--accent-dynamic-glow);
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--glass-border));
+  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.2), 0 12px 24px var(--neon-glow);
 }
 .card-title { font-size: 11px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); }
 .card-sub { font-size: 12px; color: var(--muted); margin-top: 3px; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap); }
 .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--gap); }
 @media (max-width: 720px) { .grid2, .grid3 { grid-template-columns: 1fr; } }
-.grid2 .card:hover, .grid3 .card:hover { transform: translateY(-2px); border-color: var(--card-hover); }
+.grid2 .card:hover, .grid3 .card:hover { transform: translateY(-4px); }
 
 /* ---- Hero ---- */
 .hero { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
@@ -150,8 +165,13 @@ html, body { height: 100%; font-family: "SF Pro Display", "Inter", "Segoe UI", A
 .rank-emblem { width: 64px; height: 64px; border-radius: 16px; flex: 0 0 auto; display: grid; place-items: center; color: var(--accent); font-weight: 900; font-size: 28px; background: linear-gradient(150deg, var(--accent-soft), transparent); border: 1px solid var(--accent-line); box-shadow: inset 0 0 18px color-mix(in srgb, var(--accent) 12%, transparent); }
 .rank-now { font-size: 22px; font-weight: 800; }
 .rank-next { font-size: 12px; color: var(--muted); margin: 1px 0 9px; }
-.lp-bar { width: 230px; max-width: 44vw; height: 8px; border-radius: 6px; background: var(--inset); overflow: hidden; }
-.lp-fill { height: 100%; width: 0%; border-radius: 6px; background: linear-gradient(90deg, var(--accent-2), var(--accent)); box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 50%, transparent); transition: width .7s cubic-bezier(.22,1,.36,1); }
+.lp-bar { width: 230px; max-width: 44vw; height: 8px; border-radius: 6px; background: rgba(0,0,0,0.4); overflow: hidden; }
+.lp-fill { height: 100%; width: 0%; border-radius: 6px;
+  background-image: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.3) 50%, rgba(255,255,255,0) 100%), linear-gradient(90deg, var(--accent-2), var(--accent));
+  background-size: 200% 100%, 100% 100%;
+  box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 50%, transparent); transition: width .7s cubic-bezier(.22,1,.36,1);
+  animation: gloss-slide 2.6s linear infinite; }
+@keyframes gloss-slide { from { background-position: 200% 0, 0 0; } to { background-position: -200% 0, 0 0; } }
 .lp-text { font-size: 12px; color: var(--muted); margin-top: 6px; font-variant-numeric: tabular-nums; }
 .hero-right { display: flex; gap: 10px; }
 .kpi { min-width: 80px; text-align: center; padding: 11px 13px; border-radius: 12px; background: var(--inset); border: 1px solid var(--card-bd); }
@@ -161,7 +181,7 @@ html, body { height: 100%; font-family: "SF Pro Display", "Inter", "Segoe UI", A
 
 /* ---- Dashboard: quick-stat strip ---- */
 .qstats { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--gap); }
-.qstat { background: var(--card); border: 1px solid var(--card-bd); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px 16px; text-align: center; }
+.qstat { background: var(--glass-card); border: 1px solid var(--glass-border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px 16px; text-align: center; }
 .qs-val { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .qs-val.pos { color: var(--good); } .qs-val.neg { color: var(--bad); }
 .qs-lbl { font-size: 9.5px; letter-spacing: .8px; text-transform: uppercase; color: var(--muted); margin-top: 4px; }
@@ -293,8 +313,8 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16p
 .match { transition: transform var(--anim-fast) var(--ease-out-expo), border-color var(--anim-fast) ease, box-shadow var(--anim-fast) ease; }
 .match:hover { transform: translateX(6px); border-color: color-mix(in srgb, var(--accent-dynamic) 45%, var(--card-bd)); box-shadow: var(--shadow), 0 0 12px var(--accent-dynamic-glow); }
 /* Reference layout: teal/cyan for Victory, red for Defeat. */
-.match.win { border-left-color: var(--good); background: color-mix(in srgb, var(--good) 8%, var(--card)); }
-.match.loss { border-left-color: var(--bad); background: color-mix(in srgb, var(--bad) 7%, var(--card)); }
+.match.win { border-left-color: var(--good); background: color-mix(in srgb, var(--good) 10%, var(--glass-card)); }
+.match.loss { border-left-color: var(--bad); background: color-mix(in srgb, var(--bad) 9%, var(--glass-card)); }
 .match.remake { opacity: .7; }
 .match.win .m-res { color: var(--good) !important; }
 
@@ -472,14 +492,14 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16p
 /* Dense match rows — 5 spreadsheet-aligned columns */
 .match-feed { list-style: none; display: flex; flex-direction: column; gap: 7px; }
 .match-row { display: grid; grid-template-columns: minmax(0, 1.7fr) 0.95fr 0.95fr 1fr auto; align-items: center; gap: 12px;
-  background: var(--card); border: 1px solid var(--card-bd); border-left: 4px solid var(--muted2); border-radius: 10px;
-  padding: 11px 14px 11px 13px; box-shadow: var(--shadow); transition: transform .12s, border-color .15s; cursor: pointer; }
+  background: var(--glass-card); border: 1px solid var(--glass-border); border-left: 4px solid var(--muted2); border-radius: 10px;
+  padding: 11px 14px 11px 13px; box-shadow: inset 0 1px 1px rgba(255,255,255,0.1), 0 6px 22px rgba(0,0,0,0.4); transition: transform .12s, border-color .15s; cursor: pointer; }
 .match-row { transition: transform var(--anim-fast) var(--ease-out-expo), border-color var(--anim-fast) ease, box-shadow var(--anim-fast) ease; }
-.match-row:hover { transform: translateX(6px); border-color: color-mix(in srgb, var(--accent) 40%, var(--card-bd)); box-shadow: var(--shadow), -6px 0 18px color-mix(in srgb, var(--accent) 14%, transparent); }
+.match-row:hover { transform: translateX(6px); border-color: color-mix(in srgb, var(--accent) 30%, var(--glass-border)); box-shadow: inset 0 1px 2px rgba(255,255,255,0.16), 0 12px 24px var(--neon-glow); }
 .mr-meta .mr-role { transition: color var(--anim-fast) ease; }
 .match-row:hover .mr-meta .mr-role { color: var(--accent); }
-.match-row.win { border-left-color: var(--good); background: linear-gradient(90deg, color-mix(in srgb, var(--good) 9%, var(--card)), var(--card) 60%); }
-.match-row.loss { border-left-color: var(--bad); background: linear-gradient(90deg, color-mix(in srgb, var(--bad) 9%, var(--card)), var(--card) 60%); }
+.match-row.win { border-left-color: var(--good); background: linear-gradient(90deg, color-mix(in srgb, var(--good) 12%, var(--glass-card)), var(--glass-card) 60%); }
+.match-row.loss { border-left-color: var(--bad); background: linear-gradient(90deg, color-mix(in srgb, var(--bad) 12%, var(--glass-card)), var(--glass-card) 60%); }
 .match-row.remake { opacity: .65; }
 /* col 1: status */
 .mr-status { display: flex; align-items: center; gap: 11px; min-width: 0; }
@@ -513,7 +533,7 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16p
 .setup { height: 100%; display: flex; flex-direction: column; background: var(--app-bg); zoom: var(--ui-scale); }
 .setup-bar { display: flex; align-items: center; justify-content: space-between; padding: 0 6px 0 14px; height: 40px; -webkit-app-region: drag; }
 .setup-wrap { flex: 1; display: grid; place-items: center; padding: 20px; }
-.setup-card { width: 100%; max-width: 460px; background: var(--card); border: 1px solid var(--card-bd); border-radius: 16px; padding: 26px 26px 22px; box-shadow: var(--shadow); }
+.setup-card { width: 100%; max-width: 460px; background: var(--glass-card); border: 1px solid var(--glass-border); border-radius: 16px; padding: 26px 26px 22px; backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); box-shadow: inset 0 1px 1px rgba(255,255,255,0.13), 0 8px 32px rgba(0,0,0,0.5); }
 .setup-mark { width: 52px; height: 52px; border-radius: 14px; margin-bottom: 14px; display: block; object-fit: contain; box-shadow: 0 6px 18px rgba(0,0,0,.45); }
 .setup-title { font-size: 21px; font-weight: 800; }
 .setup-sub { font-size: 13px; color: var(--muted); line-height: 1.6; margin: 6px 0 14px; }
@@ -521,9 +541,12 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16p
 /* ---- Riot Account Connection (RSO landing card — pending approval) ---- */
 .rso-sub { font-size: 9.5px; font-weight: 800; letter-spacing: 1.6px; text-transform: uppercase; color: var(--muted); margin: 4px 0 13px; }
 .rso-btn { -webkit-app-region: no-drag; display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%;
-  background: #14161d; border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); border-radius: 11px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.015)), rgba(20, 22, 29, 0.6);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--glass-border)); border-radius: 999px;
   color: #fff; font-family: inherit; font-size: 12.5px; font-weight: 800; letter-spacing: 1.2px; padding: 13px 16px;
-  cursor: not-allowed; opacity: .75; transition: box-shadow .2s, opacity .2s; }
+  box-shadow: inset 0 1px 1px rgba(255,255,255,0.12), 0 4px 18px var(--neon-glow);
+  cursor: not-allowed; opacity: .75; transition: box-shadow .2s, opacity .2s, transform var(--anim-fast) var(--ease-out-expo); }
+.rso-btn:not(:disabled):active { transform: scale(0.98); box-shadow: inset 0 1px 1px rgba(255,255,255,0.12), 0 2px 8px var(--neon-glow); }
 .rso-btn:not(:disabled) { cursor: pointer; opacity: 1; }
 .rso-btn:not(:disabled):hover { box-shadow: 0 0 22px color-mix(in srgb, var(--accent) 45%, transparent); }
 .rso-mark { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; flex: 0 0 auto;
@@ -753,7 +776,7 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16p
 .fr-rank-meta { display: flex; flex-direction: column; gap: 4px; min-width: 120px; flex: 1; }
 .fr-rank-tier { font-size: 13px; font-weight: 800; color: #c8aa6e; letter-spacing: .3px; }
 .fr-lp-row { display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); }
-.fr-lp-bar { height: 5px; border-radius: 999px; background: rgba(255,255,255,.08); overflow: hidden; }
+.fr-lp-bar { height: 5px; border-radius: 999px; background: rgba(0,0,0,0.4); overflow: hidden; }
 .fr-lp-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, #9c8350, #c8aa6e); width: 0%; transition: width .3s ease; }
 
 .fr-watch { -webkit-app-region: no-drag; display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto;
