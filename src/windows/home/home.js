@@ -40,6 +40,7 @@ const PAGE_META = {
   progress: ["Progress", "Climb history & trends"],
   tft: ["TFT", "Teamfight Tactics history"],
   friends: ["Friends", "Live status & recent games"],
+  learn: ["Learn", "Curated fundamentals — LoL & TFT"],
   settings: ["Settings", "Account, AI & appearance"],
 };
 document.querySelectorAll(".nav-item").forEach((b) => {
@@ -52,6 +53,7 @@ document.querySelectorAll(".nav-item").forEach((b) => {
     $("page-sub").textContent = meta[1];
     if (page === "progress" && !matchesLoaded) loadMatches();
     if (page === "tft" && !tftLoaded) loadTft();
+    if (page === "learn") renderLearn();
     friendsActive = page === "friends";
     if (friendsActive) startFriends();
   });
@@ -1170,6 +1172,7 @@ async function loadTft() {
   // Rank + recipes load independently of history (each fails soft).
   if (api.getTftRank) api.getTftRank().then(renderTftRank).catch(() => renderTftRank(null));
   if (api.getTftRecipes) api.getTftRecipes().then((d) => { if (d && !d.error) renderTftRecipes(d); }).catch(() => {});
+  if (api.getTftTraits) api.getTftTraits().then((d) => { if (d && !d.error) renderTftTraits(d); }).catch(() => {});
   let res; try { res = await api.getTftAnalytics(20); } catch (_) { res = null; }
   loading.classList.add("hidden");
   if (!res || !res.ok) {
@@ -1182,6 +1185,7 @@ async function loadTft() {
   if (!matches.length) { empty.classList.remove("hidden"); $("tft-empty").textContent = "No recent TFT matches found."; return; }
   grid.classList.remove("hidden");
   renderTftAnalytics(res.analytics);
+  drawTftRadar(res.analytics, matches);
   list.innerHTML = "";
   for (const m of matches) list.append(renderTftCard(m));
 }
@@ -1221,6 +1225,151 @@ function renderTftCard(m) {
     li.append(board);
   }
   return li;
+}
+
+// ===== Learn (curated onboarding education — static text, no live data) =====
+const LEARN_ROLES = [
+  ["Top", "Win your island, manage waves, and teleport to fights that matter. Split pressure is your macro lever."],
+  ["Jungle", "Path toward winnable lanes, trade camps for ganks deliberately, and own the objective timer map."],
+  ["Mid", "Shove and roam. Priority in mid converts into dragons, grubs, and tempo for your jungler."],
+  ["ADC", "Farm safely to your item spikes; positioning in fights matters more than flashy aggression."],
+  ["Support", "Control vision around the next objective, track enemy cooldowns mentally, and peel your carry."],
+];
+const LEARN_OBJECTIVES = [
+  ["Jungle camps", "1:30"], ["Scuttle crab", "3:30"], ["Void grubs", "6:00"],
+  ["Dragon", "5:00"], ["Rift Herald", "14:00"], ["Baron Nashor", "20:00"],
+  ["Inhib respawn", "5:00 after fall"],
+];
+const LEARN_SKILLS = [
+  ["Max your damage spell first", "Almost every champion maxes the spell they farm and trade with — check the build page for your pick."],
+  ["One point in utility", "CC and mobility spells usually stay at one point until last; ranks buy you damage, not utility."],
+  ["Ult on 6 / 11 / 16", "Take ultimate ranks the moment they unlock — the power jump is bigger than any basic ability."],
+];
+const LEARN_GLOSSARY = [
+  ["CS", "Creep score — minions and monsters killed. ~8/min is pro pace."],
+  ["Prio", "Lane priority: your wave is pushed, so you can move first."],
+  ["Tempo", "Having time to act while the enemy is forced to respond."],
+  ["Freeze", "Holding the wave near your tower so the enemy can't farm safely."],
+  ["Slow push", "Building a big wave that crashes later, buying you time elsewhere."],
+  ["Reset", "Backing at the right moment to spend gold without losing the wave."],
+  ["Spike", "A point where your champion suddenly gets stronger (level or item)."],
+  ["Peel", "Using abilities to keep divers off your carry instead of chasing kills."],
+  ["KP", "Kill participation — the share of your team's kills you helped with."],
+  ["Face-check", "Walking into unwarded fog. Don't."],
+];
+const LEARN_TFT_PACING = [
+  ["Stage 2-1", "Level 4 · keep streaking or start econ"],
+  ["Stage 2-5", "Level 5 on curve"],
+  ["Stage 3-2", "Level 6 · first big shop decision"],
+  ["Stage 4-1", "Level 7 · stabilize your board"],
+  ["Stage 4-5 / 5-1", "Level 8 · roll for your late-game carries"],
+  ["50 gold", "The interest cap — stay above it unless you're committing"],
+];
+const LEARN_TFT_CORE = [
+  ["Interest", "You earn +1 gold per 10 banked (max +5). Banked gold is a teammate."],
+  ["Streaking", "Win OR lose streaks pay bonus gold — commit to one, don't flip-flop."],
+  ["Board strength vs econ", "Every roll is a trade between health now and gold later. Know which you're buying."],
+  ["Item slamming", "A completed item now often beats a perfect item later — especially when your health is bleeding."],
+  ["Scouting", "Look at enemy boards every round; position your units against the boards you'll actually face."],
+];
+
+let learnRendered = false;
+function renderLearn() {
+  if (learnRendered) return;
+  learnRendered = true;
+  const fill = (id, rows, mode) => {
+    const ul = $(id); if (!ul) return;
+    for (const [k, v] of rows) {
+      const li = document.createElement("li");
+      li.className = mode === "kv" ? "lkv" : "lrow";
+      const b = document.createElement("b"); b.textContent = k;
+      const s = document.createElement("span"); s.textContent = v;
+      li.append(b, s);
+      ul.append(li);
+    }
+  };
+  fill("learn-roles", LEARN_ROLES);
+  fill("learn-objectives", LEARN_OBJECTIVES, "kv");
+  fill("learn-skills", LEARN_SKILLS);
+  fill("learn-glossary", LEARN_GLOSSARY);
+  fill("learn-tft-pacing", LEARN_TFT_PACING, "kv");
+  fill("learn-tft-core", LEARN_TFT_CORE);
+}
+
+// ===== TFT performance radar (own historical data only) =====
+const SVG_NS = "http://www.w3.org/2000/svg";
+function tftRadarAxes(analytics, matches) {
+  const dist = (analytics && analytics.distribution) || {};
+  if (!dist.total) return null;
+  const per = (analytics && analytics.perMatch) || [];
+  const places = (matches || []).map((m) => m.placement).filter((p) => p >= 1 && p <= 8);
+  const avg = (arr) => (arr.length ? arr.reduce((t, v) => t + v, 0) / arr.length : 0);
+  const goldLeft = avg(per.map((p) => (p.economy && p.economy.goldLeft) || 0));
+  const rounds = avg((matches || []).map((m) => m.lastRound || 0).filter(Boolean));
+  const mean = avg(places);
+  const std = places.length ? Math.sqrt(avg(places.map((p) => (p - mean) ** 2))) : 0;
+  const clamp = (v) => Math.max(4, Math.min(100, Math.round(v))); // floor 4 so the poly stays visible
+  return [
+    { label: "Top 4", v: clamp(dist.top4Rate) },
+    { label: "Wins", v: clamp(dist.winRate * 4) },
+    { label: "Econ", v: clamp(100 - goldLeft * 3.3) },
+    { label: "Tempo", v: clamp((rounds - 18) * 6) },
+    { label: "Steady", v: clamp(100 - std * 38) },
+  ];
+}
+function drawTftRadar(analytics, matches) {
+  const svg = $("tft-radar"), empty = $("tft-radar-empty");
+  if (!svg || !empty) return;
+  const axes = tftRadarAxes(analytics, matches);
+  if (!axes) { svg.classList.add("hidden"); empty.classList.remove("hidden"); return; }
+  empty.classList.add("hidden"); svg.classList.remove("hidden");
+  svg.textContent = "";
+  const cx = 110, cy = 98, R = 70;
+  const pt = (i, r) => {
+    const a = -Math.PI / 2 + (i * 2 * Math.PI) / axes.length;
+    return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+  };
+  const poly = (pts, cls) => {
+    const p = document.createElementNS(SVG_NS, "polygon");
+    p.setAttribute("points", pts.map(([x, y]) => x.toFixed(1) + "," + y.toFixed(1)).join(" "));
+    p.setAttribute("class", cls);
+    svg.append(p);
+  };
+  for (const ring of [1, 0.66, 0.33]) poly(axes.map((_, i) => pt(i, R * ring)), "radar-ring");
+  poly(axes.map((a, i) => pt(i, (R * a.v) / 100)), "radar-value");
+  axes.forEach((a, i) => {
+    const [x, y] = pt(i, R + 16);
+    const t = document.createElementNS(SVG_NS, "text");
+    t.setAttribute("x", x.toFixed(1)); t.setAttribute("y", y.toFixed(1));
+    t.setAttribute("class", "radar-label");
+    t.setAttribute("text-anchor", "middle");
+    t.textContent = `${a.label} ${a.v}`;
+    svg.append(t);
+  });
+}
+
+// ===== TFT trait breakpoints (static set data) =====
+const TRAIT_STYLE = { 1: "style-1", 2: "style-2", 3: "style-3", 4: "style-4", 5: "style-4", 6: "style-4" };
+function renderTftTraits(data) {
+  const grid = $("tft-traits-grid"), setEl = $("tft-traits-set"), empty = $("tft-traits-empty");
+  if (!grid) return;
+  if (!data || !Array.isArray(data.traits) || !data.traits.length) { if (empty) empty.classList.remove("hidden"); return; }
+  if (setEl) setEl.textContent = data.set ? "Set: " + data.set : "";
+  grid.innerHTML = "";
+  for (const t of data.traits) {
+    const cell = document.createElement("div"); cell.className = "trait-cell";
+    const head = document.createElement("div"); head.className = "trait-name"; head.textContent = t.name;
+    const bps = document.createElement("div"); bps.className = "trait-bps";
+    for (const b of t.breakpoints) {
+      const chip = document.createElement("span");
+      chip.className = "tft-trait " + (TRAIT_STYLE[b.style] || "style-1");
+      chip.textContent = b.units;
+      bps.append(chip);
+    }
+    cell.append(head, bps);
+    if (t.desc) cell.title = t.desc;
+    grid.append(cell);
+  }
 }
 
 // ===== Data loop =====

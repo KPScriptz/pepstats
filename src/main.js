@@ -1279,6 +1279,11 @@ ipcMain.handle("get-tft-recipes", async () => {
   try { return await riotApi.tftRecipes(); }
   catch (e) { return { error: e.message }; }
 });
+// Current set's trait breakpoints (same static CDN source, never live).
+ipcMain.handle("get-tft-traits", async () => {
+  try { return await riotApi.tftTraits(); }
+  catch (e) { return { error: e.message }; }
+});
 
 // Friends tracking (LCU presence + official Riot match digest).
 ipcMain.handle("get-friends", () => friendsEngine.getFriends());

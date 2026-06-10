@@ -64,13 +64,46 @@ async function tftRank(cfg) {
   }
 }
 
-// Item recipes from CommunityDragon's static TFT data (sanctioned CDN). Derived
-// per-patch so the table is always set-correct — never scraped, never live.
-// Returns { components: [name...], recipes: [{ name, parts: [name, name] }] }.
+// One cached download of CommunityDragon's static TFT data (sanctioned CDN);
+// recipes + trait breakpoints both derive from it, per-patch and set-correct.
+let _tftStatic = null;
+async function tftStatic() {
+  if (_tftStatic) return _tftStatic;
+  _tftStatic = await getJson("raw.communitydragon.org", "/latest/cdragon/tft/en_us.json", null, 20000);
+  return _tftStatic;
+}
+
+// Trait breakpoint sheet for the CURRENT set: each trait's unit thresholds and
+// tier style. Static set knowledge (the in-game trait tooltip), never live.
+let _tftTraits = null;
+async function tftTraits() {
+  if (_tftTraits) return _tftTraits;
+  const data = await tftStatic();
+  // setData carries one entry per set; the live set is the highest-numbered one
+  // that actually has champions.
+  const sets = (data && (data.setData || [])).filter((s) => s && Array.isArray(s.champions) && s.champions.length);
+  const cur = sets.sort((a, b) => (b.number || 0) - (a.number || 0))[0];
+  if (!cur) return { set: "", traits: [] };
+  const traits = (cur.traits || [])
+    .map((t) => ({
+      name: t.name || "",
+      desc: String(t.desc || "").replace(/<[^>]*>/g, " ").replace(/@[^@]*@/g, "…").replace(/\s+/g, " ").trim().slice(0, 220),
+      breakpoints: (t.effects || [])
+        .map((e) => ({ units: e.minUnits || 0, style: e.style || 1 }))
+        .filter((b) => b.units > 0),
+    }))
+    .filter((t) => t.name && t.breakpoints.length)
+    .sort((a, b) => a.name.localeCompare(b.name));
+  _tftTraits = { set: cur.name || String(cur.number || ""), setNumber: cur.number || 0, traits };
+  return _tftTraits;
+}
+
+// Item recipes from the same static data. Returns
+// { components: [name...], recipes: [{ name, parts: [name, name] }] }.
 let _tftRecipes = null;
 async function tftRecipes() {
   if (_tftRecipes) return _tftRecipes;
-  const data = await getJson("raw.communitydragon.org", "/latest/cdragon/tft/en_us.json", null, 20000);
+  const data = await tftStatic();
   const items = (data && data.items) || [];
   const nameByApi = {};
   for (const it of items) if (it && it.apiName && it.name) nameByApi[it.apiName] = it.name;
@@ -608,6 +641,6 @@ module.exports = {
   fetchProfile, parseRiotId, regionList, platformToRegion, REGIONS,
   getMatches, ddragonVersion, perkMaps, championIndex, itemGold, filterList, queueLabel, champKey,
   setCacheDir, clearCache, getJson, accountPuuid, matchTimeline, recentByPuuid,
-  tftRank, tftRecipes,
+  tftRank, tftRecipes, tftTraits,
   rankByPuuid, masteryTop, spectatorByPuuid,
 };
