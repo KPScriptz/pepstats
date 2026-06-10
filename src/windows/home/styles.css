@@ -493,6 +493,22 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16p
 .setup-title { font-size: 21px; font-weight: 800; }
 .setup-sub { font-size: 13px; color: var(--muted); line-height: 1.6; margin: 6px 0 14px; }
 
+/* ---- Riot Account Connection (RSO landing card — pending approval) ---- */
+.rso-sub { font-size: 9.5px; font-weight: 800; letter-spacing: 1.6px; text-transform: uppercase; color: var(--muted); margin: 4px 0 13px; }
+.rso-btn { -webkit-app-region: no-drag; display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%;
+  background: #14161d; border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); border-radius: 11px;
+  color: #fff; font-family: inherit; font-size: 12.5px; font-weight: 800; letter-spacing: 1.2px; padding: 13px 16px;
+  cursor: not-allowed; opacity: .75; transition: box-shadow .2s, opacity .2s; }
+.rso-btn:not(:disabled) { cursor: pointer; opacity: 1; }
+.rso-btn:not(:disabled):hover { box-shadow: 0 0 22px color-mix(in srgb, var(--accent) 45%, transparent); }
+.rso-mark { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; flex: 0 0 auto;
+  background: linear-gradient(150deg, var(--accent), var(--accent-2)); color: #fff; font-size: 12px; font-weight: 900; }
+.rso-pending { font-size: 11px; color: var(--muted); line-height: 1.55; margin-top: 10px; }
+.rso-pending b { color: var(--text); }
+.rso-checks { list-style: none; display: flex; flex-direction: column; gap: 7px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--card-bd); }
+.rso-checks li { font-size: 12px; font-weight: 600; color: var(--text); padding-left: 22px; position: relative; }
+.rso-checks li::before { content: "✓"; position: absolute; left: 2px; color: var(--good); font-weight: 900; }
+
 /* ---- One-click "connect via League client" ---- */
 .su-client-box { border: 1px solid var(--accent-line); background: var(--accent-soft); border-radius: 12px; padding: 12px; margin-bottom: 12px; }
 .su-client-row { display: flex; align-items: center; gap: 9px; margin-bottom: 10px; }

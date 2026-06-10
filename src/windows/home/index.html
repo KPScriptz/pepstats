@@ -24,12 +24,14 @@
           <img class="setup-mark" src="../logo.png" alt="PepStats" />
           <h1 class="setup-title">Connect your Riot account</h1>
           <p class="setup-sub">
-            Just open the League client — PepStats reads your account and saves it, so
-            it keeps working even when the client is closed. Or link a free Riot key
-            for live stats anytime. Everything stays on this PC.
+            Just open the League client — PepStats reads your account from it and
+            saves it. No sign-ups, no keys, nothing to type. Everything stays on
+            this PC.
           </p>
 
-          <!-- One-click: connect from the running client (no typing, no key) -->
+          <!-- One-click: connect from the running client. This is the ONLY
+               onboarding path — per Riot's developer policies, end users are
+               never asked for API keys. -->
           <div id="su-client-box" class="su-client-box hidden">
             <div class="su-client-row">
               <span class="su-client-dot"></span>
@@ -39,20 +41,13 @@
           </div>
           <div id="su-client-hint" class="su-client-hint">Open the League client and we'll connect you automatically — no typing needed.</div>
 
-          <div class="su-or"><span>or link a Riot key</span></div>
-
-          <label class="field"><span>Riot ID</span>
-            <input id="su-riotid" type="text" placeholder="Name#Tag" spellcheck="false" /></label>
-          <label class="field"><span>Region</span><select id="su-region"></select></label>
-          <label class="field"><span>Riot key <i>(optional — for live stats with the client closed)</i></span>
-            <input id="su-key" type="password" placeholder="RGAPI-…" spellcheck="false" /></label>
           <p class="setup-help">
-            Get a free key at <b>developer.riotgames.com</b> → sign in with Riot →
-            <b>Register Product → Personal key</b>. <i>(It doesn't expire.)</i>
+            Full online features with the client closed will arrive via official
+            <b>Riot Sign-On</b> once the product is approved — PepStats will never
+            ask you for an API key.
           </p>
           <div id="su-error" class="banner-error hidden"></div>
           <div class="row">
-            <button id="su-connect" class="btn btn-accent">Connect account</button>
             <button id="su-skip" class="btn btn-ghost">Skip for now</button>
           </div>
         </div>
@@ -387,7 +382,7 @@
             <div id="tft-loading" class="card muted hidden">Loading TFT match history…</div>
             <div id="tft-access" class="card hidden">
               <div class="card-title">TFT API access needed</div>
-              <p class="muted ai-note">Your Riot key works for League but doesn't have <b>TFT-Match-V1</b> access yet, so TFT history can't load. On <b>developer.riotgames.com</b>, enable the TFT APIs on your key (or use a Development key), re-link in Settings, and this fills in automatically.</p>
+              <p class="muted ai-note">The configured developer key doesn't have <b>TFT API</b> scopes, so online TFT history can't load this way. With the League client open, TFT history loads locally instead — no key needed.</p>
             </div>
             <div id="tft-empty" class="card muted hidden">No recent TFT matches found.</div>
 
@@ -546,11 +541,31 @@
                 <div class="card">
                   <div class="card-title">Account</div>
                   <ul class="kv">
-                    <li><span>Linked Riot ID</span><b id="set-riotid">—</b></li>
+                    <li><span>Connected Riot ID</span><b id="set-riotid">—</b></li>
                     <li><span>Region</span><b id="set-region">—</b></li>
                     <li><span>Account level</span><b id="set-level">—</b></li>
                   </ul>
-                  <div class="row"><button id="set-relink" class="btn btn-ghost">Re-link account</button></div>
+                  <div class="row"><button id="set-relink" class="btn btn-ghost">Reconnect via League client</button>
+                    <span id="set-relink-status" class="save-status"></span></div>
+                </div>
+
+                <!-- Riot Account Connection — RSO landing card. Honest state: real
+                     Riot Sign-On needs an APPROVED production app + a server-side
+                     proxy holding the credentials. Until then the button is a
+                     visible promise, not a fake OAuth flow. Per Riot's developer
+                     policies, PepStats never asks end users for API keys. -->
+                <div class="card rso-card">
+                  <div class="card-title">Riot Account Connection</div>
+                  <div class="rso-sub">Official Riot Sign-On · Secured</div>
+                  <button class="rso-btn" id="rso-btn" disabled>
+                    <span class="rso-mark">R</span> CONNECT VIA RIOT GAMES
+                  </button>
+                  <div class="rso-pending">Pending Riot production approval — coming in a future update. PepStats will <b>never</b> ask you to paste an API key.</div>
+                  <ul class="rso-checks">
+                    <li>Global match summaries — even with the client closed</li>
+                    <li>Full 10-player lobby historical scoreboards</li>
+                    <li>Deep historical damage-share &amp; KP% metrics</li>
+                  </ul>
                 </div>
 
                 <div class="card">

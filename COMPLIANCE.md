@@ -95,6 +95,27 @@ hotkeys, the IPC channels, and the `enemyRoster` helper were removed in 0.5.11.
 The rule going forward: a feature must clear **both** tests — technically clean
 (no memory/screen/input) *and* explicitly permitted by Riot's written policy.
 
+## API keys and end users (0.6.5)
+
+Riot's developer terms grant API keys to **developers** to identify their
+application — not to players. A distributed app must not ask end users to
+generate and paste personal/development keys (it spreads an unaudited product
+across thousands of individual keys and circumvents Riot's product review and
+rate-limit model). PepStats therefore:
+
+- **Never asks end users for a Riot API key.** Every key input, onboarding
+  field, and "get a key at developer.riotgames.com" instruction was removed
+  from the UI in 0.6.5. The advertised paths are: one-click connect via the
+  running League client, and the keyless LCU data layer (0.6.2).
+- **Developer mode:** a `riotApiKey` present in the developer's own config
+  file is still honored — that is the intended use of a development key (the
+  developer running their own app). Nothing in the UI solicits it.
+- **Riot Sign-On (RSO)** is the sanctioned path for distributed online
+  features. Real RSO requires an approved production application and a
+  server-side proxy holding the credentials — the Settings card ships as an
+  honest "pending Riot production approval" state, not a fake OAuth button.
+  No production key will ever be embedded in the client binary.
+
 ## Riot policy parse — feature-by-feature (2026-06-10, v0.6.0 "SwissCheese")
 
 Riot's written third-party rules (developer policies + the platform compliance

@@ -107,18 +107,9 @@ const SPELLS = {
 const spellImg = (ver, id) => (SPELLS[id] ? `https://ddragon.leagueoflegends.com/cdn/${ver}/img/spell/${SPELLS[id]}.png` : null);
 
 // ===== Setup =====
-let regionsLoaded = false;
-async function loadRegions() {
-  if (regionsLoaded || !api.getRiotRegions) return;
-  try {
-    const regions = await api.getRiotRegions();
-    const sel = $("su-region"); sel.innerHTML = "";
-    for (const r of regions || []) { const o = document.createElement("option"); o.value = r.code; o.textContent = r.label + " (" + r.code + ")"; sel.append(o); }
-    regionsLoaded = true;
-  } catch (_) {}
-}
-// Probe the running League client and surface the one-click connect option
-// (and pre-fill the manual fields) when an account is readable.
+// Probe the running League client and surface the one-click connect option.
+// This is the only onboarding path — per Riot's developer policies, end users
+// are never asked for API keys (a config-file key is a developer-only mode).
 let setupProbeTimer = null;
 async function probeClientAccount() {
   if (!api.clientAccount) return;
@@ -127,8 +118,6 @@ async function probeClientAccount() {
   if (res && res.available) {
     box.classList.remove("hidden"); hint.classList.add("hidden");
     $("su-client-name").textContent = res.riotId || res.name || "";
-    if (res.riotId && !$("su-riotid").value) $("su-riotid").value = res.riotId;
-    if (res.region) loadRegions().then(() => { if (res.region && !$("su-region").value) $("su-region").value = res.region; });
   } else {
     box.classList.add("hidden"); hint.classList.remove("hidden");
   }
@@ -137,7 +126,6 @@ function showSetup(show) {
   $("setup").classList.toggle("hidden", !show);
   $("app").classList.toggle("hidden", show);
   if (show) {
-    loadRegions();
     probeClientAccount();
     // Re-probe while the setup screen is open so opening League mid-setup updates it.
     if (!setupProbeTimer) setupProbeTimer = setInterval(probeClientAccount, 3500);
@@ -154,16 +142,6 @@ $("su-client").addEventListener("click", async () => {
     const res = await api.connectClient();
     if (res && res.ok) { showSetup(false); refresh(); }
     else { err.textContent = (res && res.error) || "Couldn't connect via the League client."; err.classList.remove("hidden"); }
-  } catch (e) { err.textContent = "Connection failed: " + (e && e.message ? e.message : "error"); err.classList.remove("hidden"); }
-  finally { btn.disabled = false; btn.textContent = prev; }
-});
-$("su-connect").addEventListener("click", async () => {
-  const btn = $("su-connect"), err = $("su-error");
-  err.classList.add("hidden"); btn.disabled = true; const prev = btn.textContent; btn.textContent = "Connecting…";
-  try {
-    const res = await api.connectRiot({ riotId: $("su-riotid").value, region: $("su-region").value, riotApiKey: $("su-key").value });
-    if (res && res.ok) { showSetup(false); refresh(); }
-    else { err.textContent = (res && res.error) || "Couldn't connect. Check your details, or use the League client above."; err.classList.remove("hidden"); }
   } catch (e) { err.textContent = "Connection failed: " + (e && e.message ? e.message : "error"); err.classList.remove("hidden"); }
   finally { btn.disabled = false; btn.textContent = prev; }
 });
@@ -962,7 +940,7 @@ async function loadSpectate(puuid) {
   $("fr-spec-loading").classList.add("hidden");
   if (!res || !res.ok || !res.inGame) {
     $("fr-spec-none").classList.remove("hidden");
-    $("fr-spec-none").textContent = res && res.ok && !res.inGame ? "Not in a game right now." : "Live game data unavailable (needs a linked Riot key).";
+    $("fr-spec-none").textContent = res && res.ok && !res.inGame ? "Not in a game right now." : "Live game data needs the full Riot connection — coming with Riot Sign-On.";
     return;
   }
   $("fr-spec-body").classList.remove("hidden");
@@ -1018,7 +996,7 @@ async function selectFriend(f) {
     loading.classList.add("hidden");
     tlEmpty.classList.remove("hidden");
     tlEmpty.textContent = !(lastSettings && lastSettings.hasRiotKey)
-      ? "Link a Riot API key in Settings to see ranks, recent form and live games."
+      ? "Rank and recent-form profiles need the full Riot connection — coming with Riot Sign-On."
       : "Profile unavailable for this friend.";
     matchLbl.textContent = "—";
     return;
@@ -1180,7 +1158,7 @@ async function loadTft() {
   loading.classList.add("hidden");
   if (!res || !res.ok) {
     if (res && res.error === "tft-access") { access.classList.remove("hidden"); }
-    else { empty.classList.remove("hidden"); $("tft-empty").textContent = (res && res.error === "link") ? "Open the League client (or link a Riot key in Settings) to load TFT history." : (res && res.error) || "Couldn't load TFT matches."; }
+    else { empty.classList.remove("hidden"); $("tft-empty").textContent = (res && res.error === "link") ? "Open the League client to load TFT history." : (res && res.error) || "Couldn't load TFT matches."; }
     return;
   }
   tftLoaded = true;
@@ -1556,10 +1534,18 @@ $("set-save").addEventListener("click", async () => {
     applyAiGate(!!aiKey);
   } catch (_) { st.textContent = "Save failed"; st.classList.add("show"); }
 });
-$("set-relink").addEventListener("click", () => {
-  if (lastSettings) { $("su-riotid").value = lastSettings.riotId || ""; }
-  loadRegions().then(() => { if (lastSettings && lastSettings.region) $("su-region").value = lastSettings.region; });
-  showSetup(true);
+// Reconnect straight from the running client (no setup screen, no keys).
+$("set-relink").addEventListener("click", async () => {
+  const btn = $("set-relink"), st = $("set-relink-status");
+  btn.disabled = true; const prev = btn.textContent; btn.textContent = "Connecting…";
+  try {
+    const res = await api.connectClient();
+    st.textContent = res && res.ok ? "Connected as " + (res.riotId || res.name) : ((res && res.error) || "Open the League client first.");
+    st.classList.add("show"); setTimeout(() => st.classList.remove("show"), 3500);
+    if (res && res.ok) refresh();
+  } catch (_) {
+    st.textContent = "Open the League client first."; st.classList.add("show"); setTimeout(() => st.classList.remove("show"), 3500);
+  } finally { btn.disabled = false; btn.textContent = prev; }
 });
 $("lm-review").addEventListener("click", () => api.openReview && api.openReview());
 

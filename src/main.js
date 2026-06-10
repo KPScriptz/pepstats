@@ -993,7 +993,7 @@ let _alliesCache = { key: "", ts: 0, data: null };
 async function getLobbyAllies() {
   const cfg = loadConfig();
   if (!(cfg.riotId && cfg.region && cfg.riotApiKey)) {
-    return { ok: false, error: "Link your Riot account in Settings to see teammates' recent form." };
+    return { ok: false, error: "Teammate recent-form needs the full Riot connection — coming with Riot Sign-On." };
   }
 
   let session = null;
@@ -1340,7 +1340,7 @@ ipcMain.handle("get-matches", async (_e, filter, count) => {
   // history locally (rows marked partial — no KP%/team-damage without the full
   // lobby, which only match-v5 provides).
   if (!hasKey) {
-    if (!clientUp) return { ok: false, error: "Open the League client (or link a Riot key in Settings) to see matches." };
+    if (!clientUp) return { ok: false, error: "Open the League client to see matches." };
     try {
       let matches = await lcuHistory.lolMatches(count || 20);
       const want = LOCAL_QUEUE_FILTER[filter];
