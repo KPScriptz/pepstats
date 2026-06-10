@@ -189,7 +189,14 @@ function render(data) {
   $("rank-next").textContent = p.next ? "Next: " + p.next : "Play ranked to start tracking";
   const div = p.division || { pct: 0, lp: 0, toNext: 100 };
   $("lp-fill").style.width = (solo ? div.pct : 0) + "%";
-  $("lp-text").textContent = solo ? `${div.lp} LP · ${div.toNext} to ${p.next || "promo"}` : "Unranked";
+  $("lp-text").textContent = solo ? `${div.lp} LP` : "Unranked";
+  // Circular progress ring around the emblem + the letter-spaced W-L-WR line.
+  const ring = $("rank-ring"); if (ring) ring.style.setProperty("--lp-pct", String(solo ? (div.pct || 0) : 0));
+  const wlEl = $("rank-wl");
+  if (wlEl) {
+    if (solo) wlEl.innerHTML = `<b>${solo.wins || 0}</b>W <b>${solo.losses || 0}</b>L · <b>${p.winRate != null ? p.winRate + "%" : "—"}</b>`;
+    else wlEl.textContent = "Play ranked to start tracking";
+  }
 
   // KPIs
   const wk = (summary && summary.weekly) || {};
@@ -284,45 +291,76 @@ async function loadDashboardExtras(force) {
   const champs = res.champs || [];
   const mainEl = $("qs-main"); if (mainEl) mainEl.textContent = champs.length ? champs[0].champion : "—";
 
-  // Recent matches (top 5)
+  // Recent matches — dense Blitz feed (up to 10), 5 aligned columns per row.
   const list = $("db-recent"), empty = $("db-recent-empty");
   if (list && empty) {
-    const recent = matches.slice(0, 5);
+    const recent = matches.slice(0, 10);
     if (!recent.length) { empty.classList.remove("hidden"); list.classList.add("hidden"); }
     else {
       empty.classList.add("hidden"); list.classList.remove("hidden"); list.innerHTML = "";
-      for (const m of recent) {
-        const li = document.createElement("li");
-        const res2 = m.remake ? "remake" : (m.win ? "win" : "loss");
-        li.className = "dbm " + res2;
-        li.append(mkImg(champImg(ver, m.champKey), "dbm-icon", function () { this.style.visibility = "hidden"; }));
-        const main = document.createElement("div"); main.className = "dbm-main";
-        const name = document.createElement("div"); name.className = "dbm-champ"; name.textContent = m.champion;
-        const sub = document.createElement("div"); sub.className = "dbm-sub"; sub.textContent = `${m.queue || "Game"} · ${timeAgo(m.endTs)}`;
-        main.append(name, sub);
-        const kda = document.createElement("div"); kda.className = "dbm-kda"; kda.textContent = `${m.k}/${m.d}/${m.a}`;
-        const pill = document.createElement("div"); pill.className = "dbm-res " + res2; pill.textContent = m.remake ? "RmK" : (m.win ? "Win" : "Loss");
-        li.append(main, kda, pill);
-        list.append(li);
-      }
+      for (const m of recent) list.append(buildMatchRow(m, ver));
     }
   }
 
-  // Champion pool (top 5)
+  // Performance — top champions (icon, name, KDA, WR, real W-L).
   const cpList = $("db-champs"), cpEmpty = $("db-champs-empty");
   if (cpList && cpEmpty) {
     if (!champs.length) { cpEmpty.classList.remove("hidden"); cpList.classList.add("hidden"); }
     else {
       cpEmpty.classList.add("hidden"); cpList.classList.remove("hidden"); cpList.innerHTML = "";
       for (const c of champs.slice(0, 5)) {
-        const li = document.createElement("li");
-        li.append(mkImg(champImg(ver, c.champKey), "cp-icon", function () { this.style.visibility = "hidden"; }));
-        const name = document.createElement("div"); name.className = "cp-name"; name.innerHTML = `${c.champion}<span class="cp-sub">${c.games} games · ${c.kda} KDA</span>`;
-        const wr = document.createElement("div"); wr.className = "cp-wr " + (c.wr >= 50 ? "pos" : "neg"); wr.textContent = c.wr + "%";
-        li.append(name, wr); cpList.append(li);
+        const w = Math.round((c.games * c.wr) / 100), l = Math.max(0, c.games - w);
+        const li = document.createElement("li"); li.className = "perf-row";
+        li.innerHTML =
+          `<span class="perf-ico-slot"></span>` +
+          `<div class="perf-meta"><span class="perf-name">${c.champion}</span><span class="perf-sub">${c.kda} KDA · ${c.games} games</span></div>` +
+          `<div class="perf-right"><div class="perf-wr ${c.wr >= 50 ? "pos" : "neg"}">${c.wr}%</div><div class="perf-rec">${w}W ${l}L</div></div>`;
+        const slot = li.querySelector(".perf-ico-slot");
+        if (slot) slot.replaceWith(mkImg(champImg(ver, c.champKey), "perf-ico", function () { this.style.visibility = "hidden"; }));
+        cpList.append(li);
       }
     }
   }
+}
+
+// A heuristic per-match performance grade (Riot exposes no official grade). Blends
+// KDA, kill participation, CS/min, damage share and vision into a letter tier.
+function matchGrade(m) {
+  let s = 34;
+  s += ((m.kda || 0) - 2.5) * 7;
+  s += ((m.kp || 0) - 50) * 0.35;
+  s += ((m.csPerMin || 0) - 6) * 3.5;
+  s += ((m.dmgShare || 0) - 20) * 0.5;
+  s += Math.min(12, (m.vision || 0) * 0.25);
+  s += m.win ? 6 : -3;
+  s = Math.max(0, Math.min(100, s));
+  const t = [[88, "S"], [80, "A+"], [72, "A"], [63, "A-"], [54, "B+"], [45, "B"], [36, "B-"], [27, "C+"], [18, "C"], [0, "D"]];
+  return (t.find((x) => s >= x[0]) || [0, "D"])[1];
+}
+const ROLE_LBL = { TOP: "TOP", JUNGLE: "JNG", MIDDLE: "MID", BOTTOM: "ADC", UTILITY: "SUP" };
+
+function buildMatchRow(m, ver) {
+  const li = document.createElement("li");
+  li.className = "match-row " + (m.remake ? "remake" : (m.win ? "win" : "loss"));
+  const durMin = Math.max(1, (m.durationSec || 0) / 60);
+  const visMin = (m.vision / durMin).toFixed(1);
+  const dmgMin = Math.round(m.dmg / durMin);
+  const grade = matchGrade(m);
+  const role = ROLE_LBL[m.position] || (m.position ? m.position.slice(0, 3) : "—");
+  const resTxt = m.remake ? "Remake" : (m.win ? "Victory" : "Defeat");
+  li.innerHTML =
+    `<div class="mr-status"><span class="mr-champ-slot"></span>` +
+      `<div class="mr-st"><span class="mr-res">${resTxt}</span>` +
+        `<span class="mr-kda"><b>${m.k}</b>/<b class="d">${m.d}</b>/<b>${m.a}</b></span>` +
+        `<span class="mr-kdar">${m.kda} KDA</span></div></div>` +
+    `<div class="mr-col"><span class="mr-k">Vis/Min</span><b>${visMin}</b><span class="mr-sub">${m.kp}% KP</span></div>` +
+    `<div class="mr-col"><span class="mr-k">CS/Min</span><b>${m.csPerMin}</b><span class="mr-sub">${m.cs} CS</span></div>` +
+    `<div class="mr-grade-col"><span class="mr-grade g-${grade[0]}">${grade}</span>` +
+      `<div class="mr-dmg"><span class="mr-k">Dmg/Min</span><b>${kFmt(dmgMin)}</b><span class="mr-sub">${m.dmgShare}% of team</span></div></div>` +
+    `<div class="mr-meta"><span class="mr-role">${role}</span><span>${m.queue || "Game"}</span><span>${timeAgo(m.endTs)}</span></div>`;
+  const slot = li.querySelector(".mr-champ-slot");
+  if (slot) slot.replaceWith(mkImg(champImg(ver, m.champKey), "mr-champ", function () { this.style.visibility = "hidden"; }));
+  return li;
 }
 
 // ===== Match history (Progress page) =====

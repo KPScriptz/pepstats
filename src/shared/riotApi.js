@@ -308,8 +308,13 @@ function processMatch(m, puuid) {
   const k = me.kills || 0, d = me.deaths || 0, a = me.assists || 0;
 
   const teamKills = { 100: 0, 200: 0 };
-  for (const p of parts) teamKills[p.teamId] = (teamKills[p.teamId] || 0) + (p.kills || 0);
+  let teamDmg = 0;
+  for (const p of parts) {
+    teamKills[p.teamId] = (teamKills[p.teamId] || 0) + (p.kills || 0);
+    if (p.teamId === me.teamId) teamDmg += p.totalDamageDealtToChampions || 0;
+  }
   const kp = teamKills[me.teamId] ? Math.round(((k + a) / teamKills[me.teamId]) * 100) : 0;
+  const dmgShare = teamDmg ? Math.round(((me.totalDamageDealtToChampions || 0) / teamDmg) * 100) : 0;
 
   return {
     id: m.metadata && m.metadata.matchId,
@@ -324,7 +329,7 @@ function processMatch(m, puuid) {
     kda: d ? +(((k + a) / d).toFixed(2)) : k + a,
     cs,
     csPerMin: durMin > 0 ? +(cs / durMin).toFixed(1) : 0,
-    kp, vision: me.visionScore || 0, dmg: me.totalDamageDealtToChampions || 0,
+    kp, vision: me.visionScore || 0, dmg: me.totalDamageDealtToChampions || 0, dmgShare,
     durationSec: durSec,
     endTs: info.gameEndTimestamp || info.gameCreation || 0,
     items: [me.item0, me.item1, me.item2, me.item3, me.item4, me.item5, me.item6],
