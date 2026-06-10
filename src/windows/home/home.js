@@ -1172,7 +1172,10 @@ async function loadTft() {
   // Rank + recipes load independently of history (each fails soft).
   if (api.getTftRank) api.getTftRank().then(renderTftRank).catch(() => renderTftRank(null));
   if (api.getTftRecipes) api.getTftRecipes().then((d) => { if (d && !d.error) renderTftRecipes(d); }).catch(() => {});
-  if (api.getTftTraits) api.getTftTraits().then((d) => { if (d && !d.error) renderTftTraits(d); }).catch(() => {});
+  if (api.getTftTraits) api.getTftTraits().then((d) => { if (d && !d.error) { renderTftTraits(d); if (tftLoaded) loadTftRefreshCards(); } }).catch(() => {});
+  if (api.getTftChampions) api.getTftChampions().then((d) => { if (d && !d.error) renderPlanner(d); }).catch(() => renderPlanner());
+  renderOddsTable();
+  renderPlanner();
   let res; try { res = await api.getTftAnalytics(20); } catch (_) { res = null; }
   loading.classList.add("hidden");
   if (!res || !res.ok) {
@@ -1186,8 +1189,19 @@ async function loadTft() {
   grid.classList.remove("hidden");
   renderTftAnalytics(res.analytics);
   drawTftRadar(res.analytics, matches);
+  lastTftMatches = matches;
   list.innerHTML = "";
   for (const m of matches) list.append(renderTftCard(m));
+}
+
+// Re-render the placement feed (e.g. when trait breakpoints arrive after the
+// cards did, so the over-cap audit can annotate them).
+let lastTftMatches = [];
+function loadTftRefreshCards() {
+  const list = $("tft-list");
+  if (!list || !lastTftMatches.length) return;
+  list.innerHTML = "";
+  for (const m of lastTftMatches) list.append(renderTftCard(m));
 }
 
 function renderTftCard(m) {
@@ -1207,6 +1221,15 @@ function renderTftCard(m) {
     for (const t of m.traits.slice(0, 6)) {
       const pill = document.createElement("span"); pill.className = "tft-trait style-" + (t.style || 1);
       pill.textContent = `${t.units} ${t.name}`;
+      // Post-game over-cap audit: units that sat between breakpoints on the
+      // final board were slots buying nothing — worth reflecting on.
+      const over = overcapOf(t);
+      if (over > 0) {
+        pill.classList.add("overcap");
+        const tag = document.createElement("i"); tag.className = "oc-tag"; tag.textContent = "+" + over;
+        pill.append(tag);
+        pill.title = `${t.name}: ${over} unit${over > 1 ? "s" : ""} above the last breakpoint — they added no trait tier.`;
+      }
       tr.append(pill);
     }
     li.append(tr);
@@ -1265,6 +1288,16 @@ const LEARN_TFT_PACING = [
   ["Stage 4-5 / 5-1", "Level 8 · roll for your late-game carries"],
   ["50 gold", "The interest cap — stay above it unless you're committing"],
 ];
+const LEARN_TFT_QUEUES = [
+  ["Hyper Roll", "No interest, faster rounds, free rerolls in bursts — board strength and tempo matter far more than econ discipline."],
+  ["Double Up", "Two-player teams sharing a health pool. You can gift units and items through the rune of allegiance — plan boards that complement, not copy, your partner."],
+];
+const LEARN_TFT_ITEMS = [
+  ["Carousel priority", "Flexible components first: B.F. Sword, Recurve Bow and Rod build the most carry items; Tear unlocks casters. Grab a contested component over a perfect one you can't use yet."],
+  ["Backline carry items", "Damage multipliers live here — Infinity Edge, Deathblade, Guinsoo's, Shojin-style mana items. Three on one carry beats six spread thin."],
+  ["Frontline tank items", "Vests and Belts become Bramble, Gargoyle, Warmog's-style armor. Your tank's job is buying seconds, not getting kills."],
+  ["When to slam", "If you're bleeding health, a complete item NOW is usually worth more than the perfect item two stages later."],
+];
 const LEARN_TFT_CORE = [
   ["Interest", "You earn +1 gold per 10 banked (max +5). Banked gold is a teammate."],
   ["Streaking", "Win OR lose streaks pay bonus gold — commit to one, don't flip-flop."],
@@ -1294,6 +1327,8 @@ function renderLearn() {
   fill("learn-glossary", LEARN_GLOSSARY);
   fill("learn-tft-pacing", LEARN_TFT_PACING, "kv");
   fill("learn-tft-core", LEARN_TFT_CORE);
+  fill("learn-tft-queues", LEARN_TFT_QUEUES);
+  fill("learn-tft-items", LEARN_TFT_ITEMS);
 }
 
 // ===== TFT performance radar (own historical data only) =====
@@ -1354,6 +1389,9 @@ function renderTftTraits(data) {
   const grid = $("tft-traits-grid"), setEl = $("tft-traits-set"), empty = $("tft-traits-empty");
   if (!grid) return;
   if (!data || !Array.isArray(data.traits) || !data.traits.length) { if (empty) empty.classList.remove("hidden"); return; }
+  // Feed the post-game over-cap audit (match cards re-annotate on next render).
+  traitBreakpoints = {};
+  for (const t of data.traits) traitBreakpoints[t.name] = t.breakpoints.map((b) => b.units).sort((a, b) => a - b);
   if (setEl) setEl.textContent = data.set ? "Set: " + data.set : "";
   grid.innerHTML = "";
   for (const t of data.traits) {
@@ -1370,6 +1408,85 @@ function renderTftTraits(data) {
     if (t.desc) cell.title = t.desc;
     grid.append(cell);
   }
+}
+
+// ===== TFT comp planner (manual checklist — the player's own notepad) =====
+const PLAN_KEY = "pep-tft-plan";
+let planRoster = [], planPicks = [], planQuery = "";
+function loadPlanPicks() { try { planPicks = JSON.parse(localStorage.getItem(PLAN_KEY) || "[]"); } catch (_) { planPicks = []; } }
+function savePlanPicks() { try { localStorage.setItem(PLAN_KEY, JSON.stringify(planPicks)); } catch (_) {} }
+function togglePlanPick(name) {
+  const i = planPicks.indexOf(name);
+  if (i >= 0) planPicks.splice(i, 1);
+  else if (planPicks.length < 12) planPicks.push(name);
+  savePlanPicks();
+  renderPlanner();
+}
+function champChip(c, picked) {
+  const b = document.createElement("button");
+  b.className = "plan-chip cost-" + Math.min(5, Math.max(1, c.cost)) + (picked ? " picked" : "");
+  b.textContent = c.name;
+  b.title = (c.traits || []).join(" · ");
+  b.addEventListener("click", () => togglePlanPick(c.name));
+  return b;
+}
+function renderPlanner(rosterData) {
+  if (rosterData && Array.isArray(rosterData.champions)) planRoster = rosterData.champions;
+  const picksEl = $("plan-picks"), rosterEl = $("plan-roster");
+  if (!picksEl || !rosterEl) return;
+  picksEl.innerHTML = "";
+  if (!planPicks.length) {
+    const hint = document.createElement("span"); hint.className = "muted"; hint.textContent = "No champions planned yet.";
+    picksEl.append(hint);
+  } else {
+    for (const name of planPicks) {
+      const c = planRoster.find((x) => x.name === name) || { name, cost: 1, traits: [] };
+      picksEl.append(champChip(c, true));
+    }
+  }
+  rosterEl.innerHTML = "";
+  if (!planRoster.length) { const m = document.createElement("span"); m.className = "muted"; m.textContent = "Set roster unavailable."; rosterEl.append(m); return; }
+  const q = planQuery.toLowerCase();
+  const visible = planRoster.filter((c) => !q || c.name.toLowerCase().includes(q) || (c.traits || []).some((t) => t.toLowerCase().includes(q)));
+  for (const c of visible) if (!planPicks.includes(c.name)) rosterEl.append(champChip(c, false));
+}
+(function wirePlanner() {
+  loadPlanPicks();
+  const search = $("plan-search"), clear = $("plan-clear");
+  if (search) search.addEventListener("input", () => { planQuery = search.value.trim(); renderPlanner(); });
+  if (clear) clear.addEventListener("click", () => { planPicks = []; savePlanPicks(); renderPlanner(); });
+})();
+
+// ===== Shop odds matrix (curated baseline — sets drift; shop tooltip wins) ====
+const ODDS_LEVELS = [
+  [4, [55, 30, 15, 0, 0]], [5, [45, 33, 20, 2, 0]], [6, [30, 40, 25, 5, 0]],
+  [7, [19, 30, 40, 10, 1]], [8, [18, 25, 32, 22, 3]], [9, [10, 20, 25, 35, 10]],
+  [10, [5, 10, 20, 40, 25]], [11, [1, 2, 12, 50, 35]],
+];
+function renderOddsTable() {
+  const t = $("odds-table");
+  if (!t || t.childElementCount) return;
+  const head = document.createElement("tr");
+  head.innerHTML = "<th>Lvl</th>" + [1, 2, 3, 4, 5].map((c) => `<th class="oc-${c}">${c}-cost</th>`).join("");
+  t.append(head);
+  for (const [lvl, odds] of ODDS_LEVELS) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td class="ol">${lvl}</td>` + odds.map((o, i) => `<td class="${o ? "" : "od"}">${o}%</td>`).join("");
+    t.append(tr);
+  }
+}
+
+// ===== Post-game trait over-cap audit (real breakpoints × your final boards) ==
+let traitBreakpoints = null; // name -> sorted unit thresholds
+function overcapOf(trait) {
+  if (!traitBreakpoints || !trait || !trait.units) return 0;
+  const bps = traitBreakpoints[trait.name];
+  if (!bps || !bps.length) return 0;
+  // Units above the highest reached threshold buy nothing until the next one —
+  // by construction they sit strictly between breakpoints, i.e. wasted slots.
+  let active = 0;
+  for (const u of bps) if (trait.units >= u) active = u;
+  return active ? trait.units - active : 0;
 }
 
 // ===== Data loop =====

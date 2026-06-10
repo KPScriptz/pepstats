@@ -637,6 +637,28 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16p
 .lkv span { color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
 .learn-gloss .lrow b { color: var(--cyan); }
 
+/* ---- TFT comp planner + shop odds + over-cap audit ---- */
+#tft-tools { margin-top: var(--gap); }
+.plan-picks { display: flex; flex-wrap: wrap; gap: 6px; margin: 11px 0; min-height: 30px; }
+.plan-roster { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 11px; max-height: 190px; overflow-y: auto; padding-right: 4px; }
+.plan-chip { font-family: inherit; font-size: 11px; font-weight: 700; padding: 5px 10px; border-radius: 999px; cursor: pointer;
+  background: var(--inset); color: var(--text); border: 1px solid var(--card-bd); border-left-width: 3px; transition: transform .1s; }
+.plan-chip:hover { transform: translateY(-1px); }
+.plan-chip.cost-1 { border-left-color: #808a99; } .plan-chip.cost-2 { border-left-color: #2ecc71; }
+.plan-chip.cost-3 { border-left-color: #3498db; } .plan-chip.cost-4 { border-left-color: #9b59b6; }
+.plan-chip.cost-5 { border-left-color: #f1c40f; }
+.plan-chip.picked { background: color-mix(in srgb, var(--cyan) 14%, var(--inset)); border-color: color-mix(in srgb, var(--cyan) 45%, var(--card-bd)); }
+.odds-table { width: 100%; border-collapse: collapse; margin-top: 11px; font-variant-numeric: tabular-nums; }
+.odds-table th { font-size: 9.5px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase; color: var(--muted); padding: 5px 6px; text-align: right; }
+.odds-table th:first-child { text-align: left; }
+.odds-table td { font-size: 12px; font-weight: 700; padding: 5px 6px; text-align: right; border-top: 1px solid var(--card-bd); }
+.odds-table .ol { color: var(--cyan); font-weight: 800; text-align: left; }
+.odds-table .od { color: var(--muted2); font-weight: 500; }
+.odds-table th.oc-1 { color: #808a99; } .odds-table th.oc-2 { color: #2ecc71; } .odds-table th.oc-3 { color: #3498db; }
+.odds-table th.oc-4 { color: #9b59b6; } .odds-table th.oc-5 { color: #f1c40f; }
+.tft-trait.overcap { border-style: dashed; }
+.oc-tag { font-style: normal; font-size: 9px; font-weight: 900; color: #ffcf5d; margin-left: 4px; }
+
 /* ---- TFT match history ---- */
 .tft-bar { display: flex; align-items: center; margin-bottom: var(--gap); }
 .tft-list { list-style: none; display: flex; flex-direction: column; gap: 10px; }

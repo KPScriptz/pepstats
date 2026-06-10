@@ -54,6 +54,7 @@ contextBridge.exposeInMainWorld("pepstats", {
   getTftRank: () => ipcRenderer.invoke("get-tft-rank"),
   getTftRecipes: () => ipcRenderer.invoke("get-tft-recipes"),
   getTftTraits: () => ipcRenderer.invoke("get-tft-traits"),
+  getTftChampions: () => ipcRenderer.invoke("get-tft-champions"),
 
   // Friends tracking
   getFriends: () => ipcRenderer.invoke("get-friends"),

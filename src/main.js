@@ -1284,6 +1284,11 @@ ipcMain.handle("get-tft-traits", async () => {
   try { return await riotApi.tftTraits(); }
   catch (e) { return { error: e.message }; }
 });
+// Current set's champion roster, for the manual comp planner (static).
+ipcMain.handle("get-tft-champions", async () => {
+  try { return await riotApi.tftChampions(); }
+  catch (e) { return { error: e.message }; }
+});
 
 // Friends tracking (LCU presence + official Riot match digest).
 ipcMain.handle("get-friends", () => friendsEngine.getFriends());

@@ -98,6 +98,23 @@ async function tftTraits() {
   return _tftTraits;
 }
 
+// Current set's champion roster (name/cost/traits) for the manual comp planner.
+// Same static source; never live.
+let _tftChampions = null;
+async function tftChampions() {
+  if (_tftChampions) return _tftChampions;
+  const data = await tftStatic();
+  const sets = (data && (data.setData || [])).filter((s) => s && Array.isArray(s.champions) && s.champions.length);
+  const cur = sets.sort((a, b) => (b.number || 0) - (a.number || 0))[0];
+  if (!cur) return { set: "", champions: [] };
+  const champions = (cur.champions || [])
+    .filter((c) => c && c.name && typeof c.cost === "number" && c.cost >= 1 && c.cost <= 5 && Array.isArray(c.traits) && c.traits.length)
+    .map((c) => ({ name: c.name, cost: c.cost, traits: c.traits.slice(0, 3) }))
+    .sort((a, b) => a.cost - b.cost || a.name.localeCompare(b.name));
+  _tftChampions = { set: cur.name || "", champions };
+  return _tftChampions;
+}
+
 // Item recipes from the same static data. Returns
 // { components: [name...], recipes: [{ name, parts: [name, name] }] }.
 let _tftRecipes = null;
@@ -641,6 +658,6 @@ module.exports = {
   fetchProfile, parseRiotId, regionList, platformToRegion, REGIONS,
   getMatches, ddragonVersion, perkMaps, championIndex, itemGold, filterList, queueLabel, champKey,
   setCacheDir, clearCache, getJson, accountPuuid, matchTimeline, recentByPuuid,
-  tftRank, tftRecipes, tftTraits,
+  tftRank, tftRecipes, tftTraits, tftChampions,
   rankByPuuid, masteryTop, spectatorByPuuid,
 };

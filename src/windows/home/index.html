@@ -460,6 +460,26 @@
               </div>
             </div>
 
+            <!-- Comp planner (manual checklist) + rolling odds (curated reference) -->
+            <div class="db2" id="tft-tools">
+              <div class="card">
+                <div class="card-head">
+                  <div class="card-title">Comp Planner <span class="curated-tag">manual</span></div>
+                  <button id="plan-clear" class="link-btn">Clear</button>
+                </div>
+                <div class="card-sub">Sketch a board before you queue — tick champions on or off. Nothing reads your game; this is your own notepad.</div>
+                <div id="plan-picks" class="plan-picks"></div>
+                <input id="plan-search" class="fr-search" type="text" placeholder="Search champions…" spellcheck="false" autocomplete="off" />
+                <div id="plan-roster" class="plan-roster"><span class="muted">Loading the set roster…</span></div>
+              </div>
+              <div class="card">
+                <div class="card-title">Shop Odds by Level <span class="curated-tag">curated</span></div>
+                <div class="card-sub">Baseline roll odds per cost tier. Values drift between sets — the in-game shop tooltip is always authoritative.</div>
+                <table class="odds-table" id="odds-table"></table>
+                <div class="card-sub" style="margin-top:8px;">Reading it: at level 8 roughly a fifth of shop slots are 4-costs — that's why Fast 8 rolls there.</div>
+              </div>
+            </div>
+
             <!-- Static item-recipe explorer (CommunityDragon static data; never live) -->
             <div class="card hidden" id="tft-recipes-card">
               <div class="card-head">
@@ -506,6 +526,15 @@
                 <div class="card">
                   <div class="card-title">TFT — Core Concepts <span class="curated-tag">curated</span></div>
                   <ul id="learn-tft-core" class="learn-list"></ul>
+                </div>
+                <div class="card">
+                  <div class="card-title">TFT — Alternative Queues <span class="curated-tag">curated</span></div>
+                  <ul id="learn-tft-queues" class="learn-list"></ul>
+                </div>
+                <div class="card">
+                  <div class="card-title">TFT — Items 101 <span class="curated-tag">curated</span></div>
+                  <div class="card-sub">Which way to lean at carousel and on early slams.</div>
+                  <ul id="learn-tft-items" class="learn-list"></ul>
                 </div>
               </div>
             </div>
