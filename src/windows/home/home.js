@@ -228,7 +228,8 @@ function render(data) {
   drawLpGraph(data.history || [], { empty: "db-lp-empty", svg: "db-lp-graph", line: "db-lp-line" });
 
   // Settings: account + AI fields
-  $("set-riotid").textContent = (settings && settings.riotId) || "Not linked";
+  $("set-riotid").textContent = (settings && settings.riotId) || "Not connected";
+  updateRsoCard(settings && settings.rso);
   $("set-region").textContent = (settings && settings.region) || "—";
   $("set-level").textContent = sm && sm.level ? sm.level : "—";
   if (!settingsDirty) {
@@ -1534,6 +1535,48 @@ $("set-save").addEventListener("click", async () => {
     applyAiGate(!!aiKey);
   } catch (_) { st.textContent = "Save failed"; st.classList.add("show"); }
 });
+
+// ---- Riot Sign-On card: pending -> ready -> connected ------------------------
+// "Pending" until the developer's proxy is configured (post-approval), then the
+// button goes live; once connected it shows the account and offers disconnect.
+function updateRsoCard(rsoState) {
+  const btn = $("rso-btn"), label = $("rso-btn-label"), note = $("rso-note"), row = $("rso-row");
+  if (!btn || !label || !note || !row) return;
+  const st = rsoState || {};
+  if (st.connected) {
+    btn.disabled = true;
+    label.textContent = st.riotId ? "CONNECTED — " + st.riotId.toUpperCase() : "CONNECTED";
+    note.innerHTML = "Signed in through official Riot Sign-On. Your credentials never touch this app.";
+    row.classList.remove("hidden");
+  } else if (st.configured) {
+    btn.disabled = false;
+    label.textContent = "CONNECT VIA RIOT GAMES";
+    note.innerHTML = "You'll sign in on Riot's own site — PepStats never sees your password and will <b>never</b> ask for an API key.";
+    row.classList.add("hidden");
+  } else {
+    btn.disabled = true;
+    label.textContent = "CONNECT VIA RIOT GAMES";
+    note.innerHTML = "Application submitted to Riot — pending production approval. PepStats will <b>never</b> ask you to paste an API key.";
+    row.classList.add("hidden");
+  }
+}
+$("rso-btn").addEventListener("click", async () => {
+  const btn = $("rso-btn"), label = $("rso-btn-label");
+  if (!api.rsoConnect) return;
+  btn.disabled = true; const prev = label.textContent; label.textContent = "WAITING FOR RIOT SIGN-IN…";
+  try {
+    const res = await api.rsoConnect();
+    if (res && res.ok) { refresh(); return; }
+    label.textContent = prev;
+    const note = $("rso-note"); if (note) note.textContent = (res && res.error) || "Sign-in failed — try again.";
+  } catch (_) { label.textContent = prev; }
+  finally { btn.disabled = false; }
+});
+$("rso-disconnect").addEventListener("click", async () => {
+  try { if (api.rsoDisconnect) await api.rsoDisconnect(); } catch (_) {}
+  refresh();
+});
+
 // Reconnect straight from the running client (no setup screen, no keys).
 $("set-relink").addEventListener("click", async () => {
   const btn = $("set-relink"), st = $("set-relink-status");

@@ -66,6 +66,8 @@ contextBridge.exposeInMainWorld("pepstats", {
   connectRiot: (s) => ipcRenderer.invoke("connect-riot", s),
   connectClient: () => ipcRenderer.invoke("connect-client"),
   clientAccount: () => ipcRenderer.invoke("client-account"),
+  rsoConnect: () => ipcRenderer.invoke("rso-connect"),
+  rsoDisconnect: () => ipcRenderer.invoke("rso-disconnect"),
   skipRiot: () => ipcRenderer.invoke("skip-riot"),
 
   // Theme / customization

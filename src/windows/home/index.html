@@ -558,9 +558,10 @@
                   <div class="card-title">Riot Account Connection</div>
                   <div class="rso-sub">Official Riot Sign-On · Secured</div>
                   <button class="rso-btn" id="rso-btn" disabled>
-                    <span class="rso-mark">R</span> CONNECT VIA RIOT GAMES
+                    <span class="rso-mark">R</span> <span id="rso-btn-label">CONNECT VIA RIOT GAMES</span>
                   </button>
-                  <div class="rso-pending">Pending Riot production approval — coming in a future update. PepStats will <b>never</b> ask you to paste an API key.</div>
+                  <div class="rso-pending" id="rso-note">Application submitted to Riot — pending production approval. PepStats will <b>never</b> ask you to paste an API key.</div>
+                  <div class="row hidden" id="rso-row"><button id="rso-disconnect" class="btn btn-ghost">Disconnect</button></div>
                   <ul class="rso-checks">
                     <li>Global match summaries — even with the client closed</li>
                     <li>Full 10-player lobby historical scoreboards</li>

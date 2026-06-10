@@ -21,6 +21,7 @@ const tftEngine = require("./utils/tftEngine");
 const tftAnalytics = require("./utils/tftAnalyticsEngine");
 const liveTelemetry = require("./utils/liveGameTelemetry");
 const lcuHistory = require("./shared/lcuHistory");
+const rso = require("./shared/rso");
 const deepCoach = require("./shared/deepCoach");
 const processWatch = require("./shared/process");
 const replays = require("./shared/replays");
@@ -782,6 +783,7 @@ async function buildHomeData() {
       riotId: cfg.riotId || "",
       region: cfg.region || "",
       hasRiotKey: !!cfg.riotApiKey,
+      rso: { configured: !!cfg.rsoBaseUrl, connected: !!cfg.rsoSession, riotId: cfg.rsoRiotId || "" },
     },
     lastMatch: lastSnapshot,
     history: rankProgress.history(app.getPath("userData")),
@@ -1479,6 +1481,28 @@ ipcMain.handle("client-account", async () => {
 // Connect by simply having League open: read the account from the client and save
 // it (Riot ID + region + puuid, no key required). The app then works live while the
 // client is open, and shows the saved snapshot when it's closed.
+// ---- Riot Sign-On (proxy-backed OAuth; the app never holds a credential) ----
+// Opens the system browser at the proxy's /auth/login; the player signs in on
+// Riot's own site; the proxy hands back a signed identity-only session token.
+ipcMain.handle("rso-connect", async () => {
+  const cfg = loadConfig();
+  const res = await rso.connect(cfg.rsoBaseUrl || "", (u) => shell.openExternal(u));
+  if (!res.ok) return res;
+  // The token is payload.mac; the payload half is readable (identity only).
+  let riotId = "", puuid = "";
+  try {
+    const payload = JSON.parse(Buffer.from(res.token.split(".")[0], "base64url").toString());
+    riotId = payload.riotId || "";
+    puuid = payload.puuid || "";
+  } catch (_) { /* token still works for the proxy even if we can't preview it */ }
+  saveConfig({ rsoSession: res.token, rsoRiotId: riotId, rsoPuuid: puuid });
+  return { ok: true, riotId };
+});
+ipcMain.handle("rso-disconnect", () => {
+  saveConfig({ rsoSession: "", rsoRiotId: "", rsoPuuid: "" });
+  return { ok: true };
+});
+
 ipcMain.handle("connect-client", async () => {
   if (!clientUp) return { ok: false, error: "Open the League client first, then try again." };
   try {

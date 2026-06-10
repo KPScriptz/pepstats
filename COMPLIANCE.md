@@ -111,10 +111,15 @@ rate-limit model). PepStats therefore:
   file is still honored — that is the intended use of a development key (the
   developer running their own app). Nothing in the UI solicits it.
 - **Riot Sign-On (RSO)** is the sanctioned path for distributed online
-  features. Real RSO requires an approved production application and a
-  server-side proxy holding the credentials — the Settings card ships as an
-  honest "pending Riot production approval" state, not a fake OAuth button.
-  No production key will ever be embedded in the client binary.
+  features. A production-app application has been **submitted to Riot**
+  (2026-06), and the full plumbing ships ready in this repo: the
+  `server/rso-proxy/` service (holds the client secret + production key
+  server-side, session-scoped data endpoints that serve only the signed-in
+  player's own data) and the desktop loopback handshake (`src/shared/rso.js` —
+  system-browser sign-in on Riot's site; the app stores an identity-only
+  signed session token). The Settings card is state-aware: pending approval →
+  connect-enabled once the proxy is configured → connected. No production key
+  will ever be embedded in the client binary.
 
 ## Riot policy parse — feature-by-feature (2026-06-10, v0.6.0 "SwissCheese")
 
