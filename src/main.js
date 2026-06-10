@@ -574,7 +574,7 @@ function loadLastSummary() {
 // ----- Theme / customization -------------------------------------------------
 const THEME_DEFAULTS = {
   theme: "dark", // "dark" | "light"
-  accent: "#36d6d6",
+  accent: "#ff004c", // Blitz neon crimson (was teal #36d6d6)
   density: "comfortable", // "comfortable" | "compact"
   fontScale: 1, // 0.9 .. 1.15
   championSync: true, // tint --accent-dynamic to the selected champion

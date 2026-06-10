@@ -19,8 +19,8 @@
 /* Design tokens. --accent (cyan data), --gold (frame), --skill-next (neon key)
    are customizable; theme.js also feeds --ov-scale/--ov-opacity. */
 :root {
-  --accent: #36d6d6;       /* cyan telemetry accent */
-  --gold: #c8aa6e;         /* razor-thin bronze/gold frame */
+  --accent: #00bfff;       /* Blitz electric-blue telemetry/data */
+  --gold: #ff004c;         /* Blitz razor-thin neon crimson frame (was gold #c8aa6e) */
   --skill-next: #00bfff;   /* neon-cyan "max next" key */
   --ov-scale: 1;
   --ov-opacity: 1;
@@ -120,7 +120,7 @@ body.design-mode .mod.mod-off .mod-toggle { opacity: 1; }
 .tc-toggle { display: none; }
 body.design-mode .timer-chip {
   pointer-events: auto; cursor: move;
-  background: rgba(18, 20, 28, 0.9); border: 1px dashed rgba(232, 237, 243, 0.85);
+  background: rgba(18, 20, 28, 0.9); border: 1px dashed color-mix(in srgb, var(--gold) 75%, #fff);
   border-radius: 8px; padding: 3px 8px;
 }
 body.design-mode .tc-label { display: inline; }
@@ -325,12 +325,12 @@ body.design-mode .timer-chip.tc-off { opacity: 0.4; }
 /* ---- Design Mode: each module placeable + resizable (vs Live click-through) ---- */
 /* A distinct light dashed boundary on every module while editing the layout. */
 body.design-mode .mod {
-  border: 1px dashed rgba(232, 237, 243, 0.85);
+  border: 1px dashed color-mix(in srgb, var(--gold) 75%, #fff);
   cursor: move;
 }
 /* The transparent toast module needs a faint placeholder box so it's grabbable. */
 body.design-mode .mod.mod-ghost {
-  border: 1px dashed rgba(232, 237, 243, 0.5);
+  border: 1px dashed color-mix(in srgb, var(--gold) 55%, transparent);
   min-width: 150px; min-height: 30px;
 }
 

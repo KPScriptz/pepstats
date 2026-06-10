@@ -1163,7 +1163,7 @@ $("set-openfolder").addEventListener("click", () => { try { api.openDataFolder &
 $("set-github").addEventListener("click", () => { try { api.openRepo && api.openRepo(); } catch (_) {} });
 
 // ===== Appearance (live theming) =====
-const ACCENTS = ["#36d6d6", "#4f9dff", "#a06bff", "#ff5d9e", "#46c98a", "#d9b35e", "#ff6b5d"];
+const ACCENTS = ["#ff004c", "#00bfff", "#4f9dff", "#a06bff", "#ff5d9e", "#46c98a", "#d9b35e"];
 const ROWS = [["csm", "CSM"], ["gpm", "GPM"], ["vision", "VIS"], ["kp", "KP%"], ["kda", "KDA"], ["lvl", "LVL"]];
 
 // Build swatches + row chips once
@@ -1194,7 +1194,7 @@ $("rng-ovscale").addEventListener("input", (e) => saveTheme({ overlay: { scale: 
 $("rng-ovop").addEventListener("input", (e) => saveTheme({ overlay: { opacity: parseFloat(e.target.value) } }));
 
 let _theme = null;
-const currentTheme = () => _theme || { theme: "dark", accent: "#36d6d6", density: "comfortable", fontScale: 1, overlay: { scale: 1, opacity: 1, rows: {} } };
+const currentTheme = () => _theme || { theme: "dark", accent: "#ff004c", density: "comfortable", fontScale: 1, overlay: { scale: 1, opacity: 1, rows: {} } };
 async function saveTheme(patch) { try { _theme = await api.saveTheme(patch); syncAppearance(_theme); } catch (_) {} }
 
 function syncAppearance(t) {
@@ -1210,7 +1210,7 @@ function syncAppearance(t) {
   // Don't overwrite the picker's value while the user is actively picking — that
   // writeback is what made it glitch.
   const ac = $("accent-custom");
-  if (document.activeElement !== ac) ac.value = /^#[0-9a-fA-F]{6}$/.test(t.accent) ? t.accent : "#36d6d6";
+  if (document.activeElement !== ac) ac.value = /^#[0-9a-fA-F]{6}$/.test(t.accent) ? t.accent : "#ff004c";
   $("rng-font").value = t.fontScale; $("val-font").textContent = Math.round(t.fontScale * 100) + "%";
   $("rng-ovscale").value = t.overlay.scale; $("val-ovscale").textContent = Math.round(t.overlay.scale * 100) + "%";
   $("rng-ovop").value = t.overlay.opacity; $("val-ovop").textContent = Math.round(t.overlay.opacity * 100) + "%";

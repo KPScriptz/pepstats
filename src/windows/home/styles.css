@@ -4,9 +4,9 @@
 
 :root {
   /* User-chosen accent (nav, rank chips, swatches). */
-  --accent: #36d6d6;
-  --accent-2: color-mix(in srgb, var(--accent) 70%, #000);
-  --accent-ink: color-mix(in srgb, var(--accent) 30%, #04211d);
+  --accent: #ff004c; /* Blitz neon crimson (was teal #36d6d6) */
+  --accent-2: color-mix(in srgb, var(--accent) 78%, #000);
+  --accent-ink: #ffffff; /* white text on the crimson accent */
   --accent-soft: color-mix(in srgb, var(--accent) 15%, transparent);
   --accent-line: color-mix(in srgb, var(--accent) 38%, transparent);
 
@@ -17,7 +17,7 @@
 
   --ui-scale: 1;
   --gap: 14px; --pad: 16px; --radius: 12px; --rail-w: 220px;
-  --good: #2ec28b; --bad: #ff5d6c;
+  --good: #00e676; --bad: #ff5d6c; /* Blitz win-green */
 }
 [data-density="compact"] { --gap: 9px; --pad: 12px; --radius: 10px; --rail-w: 200px; }
 
@@ -276,10 +276,10 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16p
 .match { display: flex; flex-wrap: wrap; align-items: center; gap: 11px; padding: 10px 13px; border-radius: 12px; background: var(--card); border: 1px solid var(--card-bd); border-left: 4px solid var(--muted2); box-shadow: var(--shadow); transition: transform .12s; cursor: pointer; }
 .match:hover { transform: translateY(-1px); border-color: color-mix(in srgb, var(--accent-dynamic) 45%, var(--card-bd)); box-shadow: var(--shadow), 0 0 12px var(--accent-dynamic-glow); }
 /* Reference layout: teal/cyan for Victory, red for Defeat. */
-.match.win { border-left-color: #22c3a6; background: color-mix(in srgb, #22c3a6 8%, var(--card)); }
+.match.win { border-left-color: var(--good); background: color-mix(in srgb, var(--good) 8%, var(--card)); }
 .match.loss { border-left-color: var(--bad); background: color-mix(in srgb, var(--bad) 7%, var(--card)); }
 .match.remake { opacity: .7; }
-.match.win .m-res { color: #22c3a6 !important; }
+.match.win .m-res { color: var(--good) !important; }
 
 /* champ + level + spells */
 .m-id { display: flex; align-items: center; gap: 5px; flex: 0 0 auto; }
@@ -505,11 +505,11 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16p
 }
 .tft-card:hover { transform: translateY(-1px); border-color: color-mix(in srgb, var(--accent-dynamic) 45%, var(--card-bd)); box-shadow: var(--shadow), 0 0 14px var(--accent-dynamic-glow); }
 .tft-card.first { border-left-color: #f1c40f; background: linear-gradient(100deg, color-mix(in srgb, #f1c40f 9%, var(--bg-card)), var(--bg-card) 60%); }
-.tft-card.top { border-left-color: #22c3a6; }
+.tft-card.top { border-left-color: var(--good); }
 .tft-card.bot { border-left-color: var(--bad); }
 .tft-head { display: flex; align-items: center; gap: 12px; }
 .tft-place { font-size: 18px; font-weight: 900; min-width: 52px; }
-.tft-place.first { color: #f1c40f; } .tft-place.top { color: #22c3a6; } .tft-place.bot { color: var(--bad); }
+.tft-place.first { color: #f1c40f; } .tft-place.top { color: var(--good); } .tft-place.bot { color: var(--bad); }
 .tft-meta { flex: 1; min-width: 0; }
 .tft-q { font-size: 13px; font-weight: 700; }
 .tft-sub { font-size: 11px; color: var(--muted); margin-top: 1px; }

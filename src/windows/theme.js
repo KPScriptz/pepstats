@@ -15,7 +15,7 @@
     const r = document.documentElement;
     r.setAttribute("data-theme", t.theme === "light" ? "light" : "dark");
     r.setAttribute("data-density", t.density === "compact" ? "compact" : "comfortable");
-    r.style.setProperty("--accent", t.accent || "#36d6d6");
+    r.style.setProperty("--accent", t.accent || "#ff004c");
     r.style.setProperty("--ui-scale", String(t.fontScale || 1));
     if (t.overlay) {
       r.style.setProperty("--ov-scale", String(t.overlay.scale || 1));
