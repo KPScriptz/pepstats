@@ -594,6 +594,30 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16p
 .fr-tl-i { font-size: 14px; text-align: center; }
 .fr-tl-x { font-size: 12.5px; }
 
+/* ---- TFT dashboard (Blitz dual-column) ---- */
+.tft-ring { background: conic-gradient(var(--cyan) calc(var(--lp-pct, 0) * 1%), color-mix(in srgb, var(--text) 12%, transparent) 0); }
+.tft-lp { color: var(--cyan) !important; }
+.curated-tag { font-size: 8.5px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; color: var(--cyan);
+  background: color-mix(in srgb, var(--cyan) 12%, transparent); border: 1px solid color-mix(in srgb, var(--cyan) 35%, transparent);
+  border-radius: 999px; padding: 2px 7px; margin-left: 7px; vertical-align: middle; }
+.mycomps { list-style: none; display: flex; flex-direction: column; gap: 7px; margin-top: 10px; }
+.mycomp-row { display: grid; grid-template-columns: 1fr auto auto; align-items: baseline; gap: 9px; }
+.mycomp-name { font-size: 12.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mycomp-sub { font-size: 10px; color: var(--muted); }
+.mycomp-right { font-size: 11.5px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.mycomp-right.pos { color: var(--good); } .mycomp-right.neg { color: var(--muted); }
+.playbook { list-style: none; display: flex; flex-direction: column; gap: 9px; margin-top: 10px; }
+.pb-row { background: var(--inset); border: 1px solid var(--card-bd); border-radius: 9px; padding: 9px 11px; }
+.pb-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 3px; }
+.pb-name { font-size: 12.5px; font-weight: 700; }
+.pb-kind { font-size: 8.5px; font-weight: 900; letter-spacing: .7px; color: var(--cyan); }
+.pb-plan { font-size: 11px; color: var(--muted); line-height: 1.5; }
+.comp-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 11px 0; }
+.recipe-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 7px; }
+.recipe-cell { background: var(--inset); border: 1px solid var(--card-bd); border-radius: 8px; padding: 8px 10px; }
+.recipe-item { font-size: 12px; font-weight: 700; }
+.recipe-parts { font-size: 10px; color: var(--muted); margin-top: 2px; }
+
 /* ---- TFT match history ---- */
 .tft-bar { display: flex; align-items: center; margin-bottom: var(--gap); }
 .tft-list { list-style: none; display: flex; flex-direction: column; gap: 10px; }

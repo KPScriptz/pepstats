@@ -34,6 +34,69 @@ function regionList() {
   return Object.keys(REGIONS).map((k) => ({ code: k, label: REGIONS[k].label }));
 }
 
+// ----- TFT (official tft-league-v1 + CommunityDragon static data) -----------
+
+// Ranked TFT entry for the configured account. Official API, read-only; returns
+// null when unranked, { error: "tft-access" } when the key lacks TFT scopes.
+async function tftRank(cfg) {
+  const reg = REGIONS[((cfg && cfg.region) || "").toUpperCase()];
+  if (!reg || !cfg.riotApiKey) return null;
+  try {
+    const puuid = await accountPuuid(cfg);
+    const entries = await getJson(
+      reg.platform + ".api.riotgames.com",
+      `/tft/league/v1/by-puuid/${encodeURIComponent(puuid)}`,
+      cfg.riotApiKey, 7000
+    );
+    const e = (Array.isArray(entries) ? entries : []).find((x) => x.queueType === "RANKED_TFT");
+    if (!e) return { ranked: false };
+    return {
+      ranked: true,
+      tier: (e.tier || "").toUpperCase(),
+      division: e.rank && e.rank !== "NA" ? e.rank : "",
+      lp: typeof e.leaguePoints === "number" ? e.leaguePoints : 0,
+      wins: e.wins || 0,   // top-4 finishes
+      losses: e.losses || 0,
+    };
+  } catch (err) {
+    if (err && err.status === 403) return { error: "tft-access" };
+    return null;
+  }
+}
+
+// Item recipes from CommunityDragon's static TFT data (sanctioned CDN). Derived
+// per-patch so the table is always set-correct — never scraped, never live.
+// Returns { components: [name...], recipes: [{ name, parts: [name, name] }] }.
+let _tftRecipes = null;
+async function tftRecipes() {
+  if (_tftRecipes) return _tftRecipes;
+  const data = await getJson("raw.communitydragon.org", "/latest/cdragon/tft/en_us.json", null, 20000);
+  const items = (data && data.items) || [];
+  const nameByApi = {};
+  for (const it of items) if (it && it.apiName && it.name) nameByApi[it.apiName] = it.name;
+  // The core craftable components every set shares (Spatula/Frying Pan included).
+  const CORE = new Set([
+    "TFT_Item_BFSword", "TFT_Item_RecurveBow", "TFT_Item_NeedlesslyLargeRod",
+    "TFT_Item_TearOfTheGoddess", "TFT_Item_ChainVest", "TFT_Item_NegatronCloak",
+    "TFT_Item_GiantsBelt", "TFT_Item_SparringGloves", "TFT_Item_Spatula", "TFT_Item_FryingPan",
+  ]);
+  const seen = new Set();
+  const recipes = [];
+  for (const it of items) {
+    if (!it || !it.name || !Array.isArray(it.composition) || it.composition.length !== 2) continue;
+    if (!it.composition.every((c) => CORE.has(c))) continue; // core combos only
+    if (seen.has(it.apiName || it.name)) continue;
+    seen.add(it.apiName || it.name);
+    recipes.push({
+      name: it.name,
+      parts: it.composition.map((c) => nameByApi[c] || c.replace("TFT_Item_", "")),
+    });
+  }
+  const components = [...CORE].filter((c) => nameByApi[c]).map((c) => nameByApi[c]);
+  _tftRecipes = { components, recipes };
+  return _tftRecipes;
+}
+
 // Normalize whatever the League client reports — a region code ("NA"), a webRegion
 // ("OC1"), or a platformId ("NA1") — into one of our REGIONS keys, or "" if unknown.
 function platformToRegion(p) {
@@ -545,5 +608,6 @@ module.exports = {
   fetchProfile, parseRiotId, regionList, platformToRegion, REGIONS,
   getMatches, ddragonVersion, perkMaps, championIndex, itemGold, filterList, queueLabel, champKey,
   setCacheDir, clearCache, getJson, accountPuuid, matchTimeline, recentByPuuid,
+  tftRank, tftRecipes,
   rankByPuuid, masteryTop, spectatorByPuuid,
 };

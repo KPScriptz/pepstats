@@ -77,8 +77,10 @@
             <svg viewBox="0 0 24 24" class="ic"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
             <span>Friends</span>
           </button>
-          <!-- TFT tab still gated until v0.6.0 (TFT-Match-V1 access pending live
-               verification). Code remains in the repo; nav entry hidden. -->
+          <button class="nav-item" data-page="tft" title="Teamfight Tactics">
+            <svg viewBox="0 0 24 24" class="ic"><path d="M12 2l8.66 5v10L12 22l-8.66-5V7L12 2zm0 2.31L5.34 8.16v7.68L12 19.69l6.66-3.85V8.16L12 4.31zM12 7l4.33 2.5v5L12 17l-4.33-2.5v-5L12 7z"/></svg>
+            <span>TFT</span>
+          </button>
           <button class="nav-item" data-page="settings" title="Settings">
             <svg viewBox="0 0 24 24" class="ic"><path d="M19.14 12.94a7.49 7.49 0 000-1.88l2.03-1.58a.5.5 0 00.12-.64l-1.92-3.32a.5.5 0 00-.61-.22l-2.39.96a7.3 7.3 0 00-1.62-.94l-.36-2.54a.5.5 0 00-.5-.42h-3.84a.5.5 0 00-.5.42l-.36 2.54c-.58.24-1.12.56-1.62.94l-2.39-.96a.5.5 0 00-.61.22L2.74 8.84a.5.5 0 00.12.64l2.03 1.58a7.49 7.49 0 000 1.88l-2.03 1.58a.5.5 0 00-.12.64l1.92 3.32c.14.24.42.34.68.22l2.39-.96c.5.38 1.04.7 1.62.94l.36 2.54c.05.24.26.42.5.42h3.84c.24 0 .45-.18.5-.42l.36-2.54c.58-.24 1.12-.56 1.62-.94l2.39.96c.26.12.54.02.68-.22l1.92-3.32a.5.5 0 00-.12-.64l-2.03-1.58zM12 15.5A3.5 3.5 0 1112 8.5a3.5 3.5 0 010 7z"/></svg>
             <span>Settings</span>
@@ -378,16 +380,73 @@
 
           <!-- ===== TFT ===== -->
           <section class="page hidden" id="page-tft">
-            <div class="tft-bar">
-              <div class="seg-sum" id="tft-summary">Teamfight Tactics</div>
-            </div>
             <div id="tft-loading" class="card muted hidden">Loading TFT match history…</div>
             <div id="tft-access" class="card hidden">
               <div class="card-title">TFT API access needed</div>
               <p class="muted ai-note">Your Riot key works for League but doesn't have <b>TFT-Match-V1</b> access yet, so TFT history can't load. On <b>developer.riotgames.com</b>, enable the TFT APIs on your key (or use a Development key), re-link in Settings, and this fills in automatically.</p>
             </div>
             <div id="tft-empty" class="card muted hidden">No recent TFT matches found.</div>
-            <ul id="tft-list" class="tft-list hidden"></ul>
+
+            <!-- Blitz-style TFT dual-column: tactician profile (left) + placement feed (right) -->
+            <div class="db2 hidden" id="tft-grid">
+              <aside class="db-left">
+                <div class="card db-rankcard">
+                  <div class="rankshow">
+                    <div class="rank-ring tft-ring" id="tftr-ring">
+                      <div class="rank-emblem"><span id="tftr-emblem">?</span></div>
+                    </div>
+                    <div class="rankshow-meta">
+                      <div class="rank-now" id="tftr-tier">Unranked</div>
+                      <div class="rank-lp"><b id="tftr-lp" class="tft-lp">—</b><span class="rank-next">Ranked TFT</span></div>
+                      <div class="rank-wl" id="tftr-wl">Play ranked TFT to start tracking</div>
+                    </div>
+                  </div>
+                  <div class="rank-kpis">
+                    <div class="rk"><b id="tftk-top4">—</b><span>Top 4 rate</span></div>
+                    <div class="rk"><b id="tftk-avg">—</b><span>Avg place</span></div>
+                    <div class="rk"><b id="tftk-games">—</b><span>Games</span></div>
+                  </div>
+                </div>
+
+                <div class="card">
+                  <div class="card-title">Your Comps</div>
+                  <div class="card-sub">How your own boards performed (last 20 games).</div>
+                  <div id="tft-mycomps-empty" class="muted hidden">Play a few games to populate this.</div>
+                  <ul id="tft-mycomps" class="mycomps"></ul>
+                </div>
+
+                <div class="card">
+                  <div class="card-title">Comp Playbook <span class="curated-tag">curated</span></div>
+                  <div class="card-sub">Evergreen lines — hand-written, not live stats.</div>
+                  <ul id="tft-playbook" class="playbook"></ul>
+                </div>
+              </aside>
+
+              <section class="db-right">
+                <div class="card feed-head">
+                  <div class="fh-main">
+                    <div class="fh-title">Tactician History</div>
+                    <div class="fh-sub"><b id="tfth-record" class="fh-record">—</b><span class="fh-recsub">last 20 games</span></div>
+                  </div>
+                  <div class="fh-stats">
+                    <div class="fh-stat"><b id="tfth-wins">—</b><span>1st places</span></div>
+                    <div class="fh-stat"><b id="tfth-best">—</b><span>Best comp</span></div>
+                  </div>
+                </div>
+                <ul id="tft-list" class="tft-list"></ul>
+              </section>
+            </div>
+
+            <!-- Static item-recipe explorer (CommunityDragon static data; never live) -->
+            <div class="card hidden" id="tft-recipes-card">
+              <div class="card-head">
+                <div class="card-title">Item Recipes <span class="curated-tag">static reference</span></div>
+                <span class="fr-count" id="tft-recipes-count"></span>
+              </div>
+              <div class="card-sub">Click a component to filter its combines. Data comes from the current patch's static files — nothing is read from a live game.</div>
+              <div id="tft-comp-chips" class="comp-chips"></div>
+              <div id="tft-recipe-grid" class="recipe-grid"></div>
+            </div>
           </section>
 
           <!-- ===== Settings ===== -->

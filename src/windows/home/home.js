@@ -1047,11 +1047,122 @@ let tftLoaded = false;
 const PLACE_SUFFIX = { 1: "st", 2: "nd", 3: "rd" };
 const ordinal = (n) => n + (PLACE_SUFFIX[n] || "th");
 
+// TFT round -> "stage-round" label (stage 1 = 4 rounds, stages 2+ = 7 each).
+function tftStage(r) {
+  if (!r || r < 1) return "";
+  if (r <= 4) return "1-" + r;
+  return (2 + Math.floor((r - 5) / 7)) + "-" + (((r - 5) % 7) + 1);
+}
+
+const TFT_TIER_LETTER = { IRON: "I", BRONZE: "B", SILVER: "S", GOLD: "G", PLATINUM: "P", EMERALD: "E", DIAMOND: "D", MASTER: "M", GRANDMASTER: "GM", CHALLENGER: "C" };
+const cap1 = (t) => (t ? t[0] + t.slice(1).toLowerCase() : "");
+
+function renderTftRank(rank) {
+  const tierEl = $("tftr-tier"), lpEl = $("tftr-lp"), wlEl = $("tftr-wl"), em = $("tftr-emblem"), ring = $("tftr-ring");
+  if (rank && rank.ranked) {
+    tierEl.textContent = cap1(rank.tier) + (rank.division ? " " + rank.division : "");
+    lpEl.textContent = rank.lp + " LP";
+    const g = rank.wins + rank.losses;
+    wlEl.innerHTML = `<b>${rank.wins}</b> top-4 · <b>${rank.losses}</b> bot-4` + (g ? ` · <b>${Math.round((rank.wins / g) * 100)}%</b>` : "");
+    em.textContent = TFT_TIER_LETTER[rank.tier] || "?";
+    if (ring) ring.style.setProperty("--lp-pct", String(Math.max(0, Math.min(100, rank.lp))));
+  } else {
+    tierEl.textContent = "Unranked";
+    lpEl.textContent = "—";
+    wlEl.textContent = rank && rank.error === "tft-access" ? "Enable the TFT APIs on your key to see rank." : "Play ranked TFT to start tracking";
+    em.textContent = "?";
+    if (ring) ring.style.setProperty("--lp-pct", "0");
+  }
+}
+
+function renderTftAnalytics(analytics) {
+  const dist = (analytics && analytics.distribution) || {};
+  $("tftk-top4").textContent = dist.total ? dist.top4Rate + "%" : "—";
+  $("tftk-avg").textContent = dist.total ? dist.avgPlacement.toFixed ? dist.avgPlacement.toFixed(2) : dist.avgPlacement : "—";
+  $("tftk-games").textContent = dist.total || "—";
+  $("tfth-record").textContent = dist.total ? `${dist.top4Rate}% top-4 · ${dist.avgPlacement} avg` : "—";
+  $("tfth-wins").textContent = dist.total ? Math.round((dist.winRate / 100) * dist.total) : "—";
+  const comps = (analytics && analytics.comps) || [];
+  $("tfth-best").textContent = comps.length ? comps.slice().sort((a, b) => a.avgPlacement - b.avgPlacement)[0].archetype : "—";
+
+  const ul = $("tft-mycomps"), cEmpty = $("tft-mycomps-empty");
+  ul.innerHTML = "";
+  if (!comps.length) { cEmpty.classList.remove("hidden"); return; }
+  cEmpty.classList.add("hidden");
+  for (const c of comps.slice(0, 5)) {
+    const li = document.createElement("li"); li.className = "mycomp-row";
+    const name = document.createElement("span"); name.className = "mycomp-name"; name.textContent = c.archetype;
+    const games = document.createElement("span"); games.className = "mycomp-sub"; games.textContent = c.games + " games";
+    const right = document.createElement("span"); right.className = "mycomp-right " + (c.top4Rate >= 50 ? "pos" : "neg");
+    right.textContent = `${c.top4Rate}% · ${c.avgPlacement} avg`;
+    li.append(name, games, right);
+    ul.append(li);
+  }
+}
+
+// Curated, set-agnostic strategy lines — hand-written knowledge like the draft
+// coach. Deliberately NOT set-specific trait comps and NOT live stats: Riot has
+// no comps API and scraping stat sites is off-limits, so this stays editorial.
+const TFT_PLAYBOOK = [
+  { name: "Standard Tempo", kind: "FLEX", plan: "Level on curve (6 at 3-2, 7 at 4-1, 8 at 5-1) and always play your strongest board." },
+  { name: "Fast 8", kind: "TEMPO", plan: "Greed econ to 50 by 3-2, push level 8 at 4-2/4-5, then roll for 4-cost carries." },
+  { name: "3-Cost Reroll", kind: "REROLL", plan: "Level 6 at 3-2 and slow-roll above 50 gold for your three-star 3-cost carry." },
+  { name: "1-Cost Slow Roll", kind: "REROLL", plan: "Hold level 4 and roll above 50 gold from stage 3 for three-star 1-costs." },
+  { name: "Hyper Roll", kind: "ALL-IN", plan: "Preserve gold breakpoints, then roll to zero at 3-1 — stabilize hard or accept the top-6 exit." },
+];
+function renderTftPlaybook() {
+  const ul = $("tft-playbook");
+  if (!ul || ul.childElementCount) return;
+  for (const p of TFT_PLAYBOOK) {
+    const li = document.createElement("li"); li.className = "pb-row";
+    const head = document.createElement("div"); head.className = "pb-head";
+    const nm = document.createElement("span"); nm.className = "pb-name"; nm.textContent = p.name;
+    const kind = document.createElement("span"); kind.className = "pb-kind"; kind.textContent = p.kind;
+    head.append(nm, kind);
+    const plan = document.createElement("div"); plan.className = "pb-plan"; plan.textContent = p.plan;
+    li.append(head, plan);
+    ul.append(li);
+  }
+}
+
+// Static item-recipe explorer (CommunityDragon static table; chips filter it).
+let tftRecipeData = null, tftRecipeFilter = "";
+function renderTftRecipes(data) {
+  if (data) tftRecipeData = data;
+  const card = $("tft-recipes-card"), chips = $("tft-comp-chips"), grid = $("tft-recipe-grid");
+  if (!tftRecipeData || !Array.isArray(tftRecipeData.recipes) || !tftRecipeData.recipes.length) return;
+  card.classList.remove("hidden");
+  const visible = tftRecipeFilter
+    ? tftRecipeData.recipes.filter((r) => r.parts.includes(tftRecipeFilter))
+    : tftRecipeData.recipes;
+  $("tft-recipes-count").textContent = visible.length + " combines";
+  chips.innerHTML = "";
+  for (const c of tftRecipeData.components) {
+    const b = document.createElement("button");
+    b.className = "chip" + (tftRecipeFilter === c ? " on" : "");
+    b.textContent = c;
+    b.addEventListener("click", () => { tftRecipeFilter = tftRecipeFilter === c ? "" : c; renderTftRecipes(); });
+    chips.append(b);
+  }
+  grid.innerHTML = "";
+  for (const r of visible) {
+    const cell = document.createElement("div"); cell.className = "recipe-cell";
+    const nm = document.createElement("div"); nm.className = "recipe-item"; nm.textContent = r.name;
+    const parts = document.createElement("div"); parts.className = "recipe-parts"; parts.textContent = r.parts.join(" + ");
+    cell.append(nm, parts);
+    grid.append(cell);
+  }
+}
+
 async function loadTft() {
   if (!api.getTftMatches) return;
-  const loading = $("tft-loading"), access = $("tft-access"), empty = $("tft-empty"), list = $("tft-list");
-  loading.classList.remove("hidden"); access.classList.add("hidden"); empty.classList.add("hidden"); list.classList.add("hidden");
-  let res; try { res = await api.getTftMatches(10); } catch (_) { res = null; }
+  const loading = $("tft-loading"), access = $("tft-access"), empty = $("tft-empty"), grid = $("tft-grid"), list = $("tft-list");
+  loading.classList.remove("hidden"); access.classList.add("hidden"); empty.classList.add("hidden"); grid.classList.add("hidden");
+  renderTftPlaybook();
+  // Rank + recipes load independently of history (each fails soft).
+  if (api.getTftRank) api.getTftRank().then(renderTftRank).catch(() => renderTftRank(null));
+  if (api.getTftRecipes) api.getTftRecipes().then((d) => { if (d && !d.error) renderTftRecipes(d); }).catch(() => {});
+  let res; try { res = await api.getTftAnalytics(20); } catch (_) { res = null; }
   loading.classList.add("hidden");
   if (!res || !res.ok) {
     if (res && res.error === "tft-access") { access.classList.remove("hidden"); }
@@ -1061,7 +1172,9 @@ async function loadTft() {
   tftLoaded = true;
   const matches = res.matches || [];
   if (!matches.length) { empty.classList.remove("hidden"); $("tft-empty").textContent = "No recent TFT matches found."; return; }
-  list.classList.remove("hidden"); list.innerHTML = "";
+  grid.classList.remove("hidden");
+  renderTftAnalytics(res.analytics);
+  list.innerHTML = "";
   for (const m of matches) list.append(renderTftCard(m));
 }
 
@@ -1074,7 +1187,7 @@ function renderTftCard(m) {
   head.innerHTML =
     `<span class="tft-place ${tier}">${m.placement ? ordinal(m.placement) : "—"}</span>` +
     `<div class="tft-meta"><div class="tft-q">${m.queue}${m.set ? " · Set " + m.set : ""}</div>` +
-    `<div class="tft-sub">Lvl ${m.level} · ${Math.floor(m.length / 60)}m · ${timeAgo(m.endTs)}</div></div>`;
+    `<div class="tft-sub">Lvl ${m.level}${m.lastRound ? " · out " + tftStage(m.lastRound) : ""} · ${Math.floor(m.length / 60)}m · ${timeAgo(m.endTs)}</div></div>`;
   li.append(head);
 
   if (m.traits && m.traits.length) {

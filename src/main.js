@@ -1252,6 +1252,17 @@ ipcMain.handle("get-tft-analytics", async (_e, count) => {
   if (!res.ok) return res; // propagate tft-access / link / error
   return { ok: true, matches: res.matches, analytics: tftAnalytics.analyze(res.matches) };
 });
+// Ranked TFT entry (official tft-league-v1, read-only).
+ipcMain.handle("get-tft-rank", async () => {
+  const cfg = loadConfig();
+  try { return await riotApi.tftRank({ riotId: cfg.riotId, region: cfg.region, riotApiKey: cfg.riotApiKey }); }
+  catch (_) { return null; }
+});
+// Static item-recipe table from CommunityDragon (per-patch, never live data).
+ipcMain.handle("get-tft-recipes", async () => {
+  try { return await riotApi.tftRecipes(); }
+  catch (e) { return { error: e.message }; }
+});
 
 // Friends tracking (LCU presence + official Riot match digest).
 ipcMain.handle("get-friends", () => friendsEngine.getFriends());
