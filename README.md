@@ -1,72 +1,76 @@
-# PepStats — Your League of Legends Companion & AI Coach
+# PepStats — League of Legends & TFT Companion
 
 **Climb smarter. PepStats follows you from champ select to the post-game screen —
-giving you the right stats at the right moment, measured against your _rank_, not
-a random opponent.**
+the right stats at the right moment, measured against your rank, not a random
+opponent.**
 
-PepStats is a lightweight Windows companion for League of Legends that runs
-alongside the game with near-zero performance impact. It links to your Riot
-account, surfaces a clean in-game overlay, and turns every match into a coaching
-opportunity — all while staying fully within Riot's Terms of Service.
+A lightweight Windows companion for League of Legends and Teamfight Tactics in a
+Blitz-style obsidian + neon-crimson liquid-glass interface. **Works out of the
+box**: install, open the League client, click *Connect with League client* — no
+sign-ups, no API keys, nothing to type.
 
-## What it does
-
-- 🎮 **In-Game Overlay** — A sleek, click-through HUD showing your CS/min, KP%,
-  KDA, and level **compared to the average player at your rank**, so you always
-  know if you're ahead or behind for your elo. Objective timers (Grubs, Herald,
-  Dragon, Baron) are computed from the live game clock.
-- 🧭 **Game-Mode Aware** — Detects Summoner's Rift vs. ARAM and adapts: no
-  phantom jungle objectives in ARAM, role-appropriate stats everywhere.
-- 🏠 **Home Client** — A desktop hub showing your rank progression to the next
-  tier, weekly LP gain, account level, win rate, and recent form — even when the
-  League client is closed.
-- 🤖 **AI Rank-Up Forecast** — Powered by Claude: a realistic estimate of how
-  fast you can climb (e.g. Silver → Gold) at your current pace, plus the win rate
-  you'd need to go faster.
-- 📊 **AI Post-Game Coach** — After every match, a concise tactical review of
-  _your own_ play: wave management, recall timing, objective routing, with
-  specific fixes.
-- 🔗 **Riot Account Linking** — Connect once with your Riot ID and a free
-  personal API key; your stats sync automatically.
-
-## Safe by design — Vanguard compliant
-
-PepStats reads **only Riot-sanctioned data** — the official Live Client Data API,
-the LCU, and the Riot Games API. **No screen capture. No minimap vision. No enemy
-tracking. No memory reading, injection, or input automation.** It's a normal
-desktop app that never touches the League process, so it runs safely alongside
-**Riot Vanguard**. The overlay is a separate transparent window (like OBS or
-Discord's overlay), not injected into the game. Full audit: [COMPLIANCE.md](COMPLIANCE.md).
-
----
-
-## Download & run (Windows)
-
-1. Open the **[Releases](../../releases)** page → **Latest build**.
-2. Download **`PepStats-Setup-x.y.z.exe`** and run it.
+➡️ **[Download the latest release](../../releases/latest)**
 
 > Builds are currently **unsigned**, so SmartScreen shows *"Windows protected
-> your PC / unknown publisher"* → **More info → Run anyway**. (See
-> [SIGNING.md](SIGNING.md) for the code-signing roadmap.)
+> your PC"* → **More info → Run anyway**. (See [SIGNING.md](SIGNING.md).)
 
-## First run — connect your Riot account
+## League of Legends
 
-On first launch PepStats asks you to link your account so it can show your stats
-even when the League client is closed:
+- 🎮 **In-game overlay** — independent, draggable modules (stats, skill hint,
+  highlight toasts, gold diff, jungle path) plus per-objective timer chips you
+  place anywhere by eye. Click-through during play; `Ctrl+Shift+D` opens Design
+  Mode with per-module visibility toggles and persistent layouts.
+- 📐 **Rank-baseline HUD** — your CS/min, KP%, KDA, vision and level compared
+  live against the average for *your* rank, with a CSM sparkline and pro-pace
+  pip. Game-mode aware (no phantom jungle timers in ARAM).
+- ⚔️ **Lane dossier** — you vs. your lane opponent (CSM / KDA / level), from the
+  same data the Tab scoreboard shows.
+- ⏱️ **Objective timers** — camps, scuttle, grubs, Herald, dragon, Baron and
+  inhibitor respawns from the live game clock and event feed.
+- 🏠 **Dashboard** — rank showcase with LP ring and sparkline, weekly LP, and a
+  dense last-10 feed: KDA, Vis/Min, KP%, CS/Min, a performance grade, damage
+  share, role/queue/time.
+- 📜 **Match history** — filterable, expandable 10-player scoreboards with
+  items, runes, damage bars and achievement badges.
+- 🧠 **Champ select** — curated situational builds, one-click rune + item-set
+  import, a hand-authored Draft Coach, and ally recent-form (allies display as
+  "Ally 1–4" per Riot's champ-select anonymity rules).
+- 🔍 **Post-game** — tactical dashboard with the team gold graph, badges, and a
+  death-by-death deep coach built from your own match timeline.
+- 👥 **Friends** — live presence with search, premium profiles (rank medal, win
+  rate, top mastery) and a spectator draft view.
 
-1. Open **developer.riotgames.com** → **Sign in with Riot**.
-2. **Register Product → Personal API Key** (a personal key does **not** expire).
-3. In PepStats: enter your **Riot ID** (`Name#Tag`), pick your **region**, paste
-   the **key**, and click **Connect account**.
+## Teamfight Tactics
 
-Prefer not to link? Choose **Use League client only** — PepStats will read your
-signed-in account locally whenever the League client is open.
+- 👑 **TFT dashboard** — ranked card with LP ring, top-4 / avg-place / games
+  KPIs, your own comp performance trends, and a placement feed with traits,
+  board, star levels and your real exit stage.
+- 🕸️ **Performance radar** — a five-axis profile of your recent games (Top 4,
+  Wins, Econ, Tempo, Consistency).
+- 🧩 **Set-correct references** — trait breakpoints and a full item-recipe
+  explorer, derived from the current patch's static data files.
+- 📝 **Comp planner** — a manual pre-queue checklist built from the live set's
+  roster, persisted between sessions.
+- 🎲 **Shop odds + over-cap audit** — the per-level roll table, plus a post-game
+  flag on trait units that sat between breakpoints buying nothing.
+
+## Learn
+
+A curated fundamentals hub for both games: role macro responsibilities, the
+objective spawn cheat-sheet, skill-leveling basics, a glossary, TFT econ and
+leveling pacing, queue guides (Hyper Roll / Double Up), and itemization 101.
+
+## AI coaching (optional — your own Anthropic key)
+
+Add your own Claude API key in **Settings → AI** to unlock the rank-up forecast,
+champion picks and a streaming post-game coach. Without a key, every AI surface
+stays hidden. PepStats ships with **no keys of any kind**.
 
 ## Controls
 
 | Shortcut | Action |
 | --- | --- |
-| **Ctrl + Shift + D** | Overlay: toggle Design Mode (drag to reposition) ⇄ Live Mode (click-through) |
+| **Ctrl + Shift + D** | Overlay: Design Mode (drag/resize/toggle) ⇄ Live Mode (click-through) |
 | **Ctrl + Shift + H** | Show the Home client window |
 | **Ctrl + Shift + 1 / 2 / 3** | Manually show Pre-Game / In-Game / Post-Game (testing) |
 | **Ctrl + Shift + Q** | Quit |
@@ -74,59 +78,48 @@ signed-in account locally whenever the League client is open.
 PepStats switches automatically: champ select → Pre-Game, live match → In-Game
 overlay, match end → Post-Game review, otherwise → the Home client.
 
-## What it reads (and what it deliberately does NOT)
+## Safe by design — Vanguard compliant
 
-- ✅ **Live Client Data API** (`https://127.0.0.1:2999`) — Riot-sanctioned.
-  Powers CS, CS/min, gold, and objective timers (from the game clock + events).
-- ✅ **Riot Games API** — your rank, summoner level, and ranked record via your
-  own personal API key (Riot ID → PUUID → summoner → league).
-- 🟡 **LCU API** — champ-select detection, the signed-in account's live data, and
-  rune import. Tolerated by Riot but not officially supported; reads + standard
-  rune-page writes only.
-- ❌ **No screen capture, no minimap computer vision, no enemy tracking.** That
-  category is a map-hack under Riot's ToS, gives an unfair advantage, and is
-  detected by Vanguard → account bans.
+PepStats reads **only Riot-sanctioned data**: the Live Client Data API
+(`127.0.0.1:2999`), the local League client (LCU — reads plus the two tolerated
+writes, rune pages and item sets), official Riot APIs, and static data CDNs
+(Data Dragon / CommunityDragon).
 
-## AI setup
+- ❌ No screen capture, computer vision, or minimap reading
+- ❌ No memory reading, injection, or input automation
+- ❌ No enemy cooldown timers — not even manual ones (Riot policy)
+- ❌ No action-dictating alerts, no TFT augment stats, no scraped stat sites
+- ❌ **No API keys requested from users, ever** — full online features arrive
+  via official **Riot Sign-On** (production application submitted; the
+  server-side proxy lives in [`server/rso-proxy/`](server/rso-proxy/))
 
-The Post-Game coach and the Rank-Up Forecast use the Claude API. Add your
-Anthropic API key in the app's **Settings** card (or copy `config.example.json`
-to `config.json` and fill it in). Your match summary is sent to Claude and the
-response is shown in-app.
+The overlay is a separate transparent window (like Discord's), never injected.
+Every feature is audited against Riot's written third-party policy — the full
+feature-by-feature record lives in [COMPLIANCE.md](COMPLIANCE.md).
 
 ## Project structure
 
 ```
 pepstats/
-├── build/icon.ico               # app icon (window, taskbar, installer)
-├── package.json                 # electron-builder: nsis installer + extraResources
-├── .github/workflows/build.yml  # builds the Windows installer, publishes to Releases
-├── SIGNING.md                   # code-signing options (env-var / Azure / self-signed)
-├── config.example.json          # copy to config.json for the AI key
+├── .github/workflows/build.yml  # Windows installer CI → rolling `latest` release
+├── COMPLIANCE.md                # the standing policy audit record
+├── server/rso-proxy/            # Riot Sign-On proxy (server-side; NOT in the exe)
 ├── src/
-│   ├── main.js                  # window state machine, shortcuts, AI, IPC
+│   ├── main.js                  # window state machine, poll loop, IPC
 │   ├── preload.js               # contextBridge API (role-aware)
-│   ├── shared/
-│   │   ├── liveClient.js        # Live Client Data API + rank-baseline comparison
-│   │   ├── rankBaseline.js      # per-rank stat baselines (external API + fallback)
-│   │   ├── rankProgress.js      # rank/LP math + local weekly-LP tracking
-│   │   ├── riotApi.js           # official Riot Games API client
-│   │   ├── lcu.js               # LCU connector (gray area)
-│   │   └── timers.js            # mode-aware objective timers
-│   └── windows/
-│       ├── home/                # the desktop client (ranked progress, AI, settings)
-│       ├── ingame/              # transparent click-through overlay
-│       ├── pregame/             # champ-select dashboard
-│       └── postgame/            # review + AI coach
-└── backend/                     # OPTIONAL compliant Python sidecar
+│   ├── shared/                  # liveClient, riotApi, lcu, lcuHistory, rso, timers…
+│   ├── utils/                   # post-game, TFT, friends, telemetry engines
+│   └── windows/                 # home / pregame / ingame / postgame renderers
+└── config.example.json          # optional developer config (gitignored config.json)
 ```
 
-## Local development (needs Node.js)
+## Local development (Node.js)
 
 ```bash
 npm install
-npm start        # launches PepStats
-npm run dist     # builds the Windows installer (run on Windows)
+npm start        # run PepStats locally
+npm run check    # syntax-check all sources
+npm run dist     # build the Windows installer (run on Windows)
 ```
 
 ## License
