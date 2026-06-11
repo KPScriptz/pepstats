@@ -1,6 +1,6 @@
 {
   "name": "pepstats",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "description": "PepStats — League of Legends companion, overlay, and AI coach",
   "main": "src/main.js",
   "scripts": {
@@ -12,6 +12,7 @@
   "author": "KPScriptz",
   "license": "MIT",
   "dependencies": {
+    "electron-updater": "^6.8.9",
     "ws": "^8.18.0"
   },
   "devDependencies": {
@@ -21,6 +22,12 @@
   "build": {
     "appId": "com.kylepeper.pepstats",
     "productName": "PepStats",
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "https://github.com/KPScriptz/pepstats/releases/download/latest"
+      }
+    ],
     "directories": {
       "buildResources": "build",
       "output": "dist"

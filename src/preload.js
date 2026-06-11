@@ -80,6 +80,11 @@ contextBridge.exposeInMainWorld("pepstats", {
   // App info / general settings / data
   getAppInfo: () => ipcRenderer.invoke("get-app-info"),
   setStartup: (on) => ipcRenderer.invoke("set-startup", on),
+  onUpdateReady: (cb) => ipcRenderer.on("update-ready", (_e, d) => cb(d)),
+  installUpdate: () => ipcRenderer.send("install-update"),
+  openReplaysFolder: () => ipcRenderer.invoke("open-replays-folder"),
+  openErrorLog: () => ipcRenderer.invoke("open-error-log"),
+  reportIssue: () => ipcRenderer.invoke("report-issue"),
   clearMatchCache: () => ipcRenderer.invoke("clear-match-cache"),
   openDataFolder: () => ipcRenderer.invoke("open-data-folder"),
   openRepo: () => ipcRenderer.invoke("open-repo"),

@@ -827,3 +827,60 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16p
 .ai-locked .card-sub { margin: 6px 0 12px; }
 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* ---- Roadmap batch (0.7.2): queue menu, session, what's-new, champ drawer,
+       update chip, colorblind palette ---- */
+[data-cb="on"] { --good: #4f9dff; --bad: #ff9f43; } /* blue / orange */
+
+.qp-wrap { position: relative; align-self: flex-start; }
+.qp-menu { position: absolute; top: calc(100% + 6px); left: 0; z-index: 30; min-width: 170px;
+  background: var(--glass-card); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border); border-radius: 11px; padding: 5px;
+  box-shadow: inset 0 1px 1px rgba(255,255,255,.1), 0 14px 34px rgba(0,0,0,.55); }
+.qp-item { display: block; width: 100%; text-align: left; background: transparent; border: 0; color: var(--text);
+  font: inherit; font-size: 12.5px; font-weight: 600; padding: 8px 11px; border-radius: 8px; cursor: pointer; }
+.qp-item:hover { background: var(--hover); color: var(--accent); }
+
+.sess-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 11px; }
+.sess { text-align: center; }
+.sess b { display: block; font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.sess b.pos { color: var(--good); } .sess b.neg { color: var(--bad); }
+.sess span { font-size: 8.5px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: var(--muted); }
+
+.wn-list { list-style: none; display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.wn-list li { font-size: 12.5px; color: var(--text); padding-left: 18px; position: relative; }
+.wn-list li::before { content: "✦"; position: absolute; left: 2px; color: var(--accent); }
+
+.update-chip { -webkit-app-region: no-drag; border: 1px solid color-mix(in srgb, var(--good) 45%, transparent);
+  background: color-mix(in srgb, var(--good) 14%, transparent); color: var(--good);
+  font: inherit; font-size: 11.5px; font-weight: 800; padding: 6px 12px; border-radius: 999px; cursor: pointer;
+  animation: wave-none 0s; transition: box-shadow var(--anim-fast) ease; }
+.update-chip:hover { box-shadow: 0 0 14px color-mix(in srgb, var(--good) 40%, transparent); }
+
+.champ-drawer { position: fixed; top: 0; right: 0; bottom: 0; width: 320px; z-index: 60;
+  background: var(--glass-card); backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px);
+  border-left: 1px solid var(--glass-border); box-shadow: -18px 0 50px rgba(0,0,0,.55);
+  padding: 18px; overflow-y: auto; animation: drawerIn var(--anim-normal) var(--ease-out-expo) both; }
+@keyframes drawerIn { from { opacity: 0; transform: translateX(30px); } to { opacity: 1; transform: none; } }
+.cd-head { display: flex; align-items: center; gap: 11px; margin-bottom: 14px; }
+.cd-icon { width: 46px; height: 46px; border-radius: 12px; background: var(--inset); object-fit: cover; }
+.cd-meta { flex: 1; min-width: 0; }
+.cd-name { font-size: 17px; font-weight: 800; }
+.cd-sub { font-size: 11px; color: var(--muted); }
+.cd-kpis { border-top: 0 !important; padding-top: 0 !important; }
+.cd-sec { margin-top: 16px; }
+.cd-items { display: flex; gap: 6px; margin-top: 9px; }
+.cd-item { width: 30px; height: 30px; border-radius: 7px; background: var(--inset); border: 1px solid var(--card-bd); }
+.cd-games { list-style: none; display: flex; flex-direction: column; gap: 6px; margin-top: 9px; }
+.cd-game { display: grid; grid-template-columns: 18px 1fr auto auto; align-items: baseline; gap: 9px;
+  background: var(--inset); border: 1px solid var(--card-bd); border-radius: 8px; padding: 7px 10px;
+  font-size: 12px; font-variant-numeric: tabular-nums; }
+.cd-game b { font-weight: 900; }
+.cd-game.win b { color: var(--good); } .cd-game.loss b { color: var(--bad); }
+.cd-game i { font-style: normal; font-weight: 800; color: var(--cyan); }
+.cd-game em { font-style: normal; font-size: 10px; color: var(--muted); }
+
+.tft-augs { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+.tft-augs-lbl { font-size: 8.5px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; color: var(--muted); margin-right: 2px; }
+.tft-aug { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px;
+  background: color-mix(in srgb, var(--cyan) 10%, var(--inset)); border: 1px solid color-mix(in srgb, var(--cyan) 30%, transparent); color: var(--cyan); }

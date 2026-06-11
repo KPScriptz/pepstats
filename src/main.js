@@ -22,6 +22,30 @@ const tftAnalytics = require("./utils/tftAnalyticsEngine");
 const liveTelemetry = require("./utils/liveGameTelemetry");
 const lcuHistory = require("./shared/lcuHistory");
 const rso = require("./shared/rso");
+
+// ----- Auto-updater (Windows, packaged builds only) ---------------------------
+// electron-updater "generic" provider pointed at the rolling `latest` release,
+// where CI publishes the installer + latest.yml feed. Update downloads happen in
+// the background; the user chooses when to restart.
+let updateReadyVersion = "";
+function initAutoUpdater() {
+  if (!app.isPackaged || process.platform !== "win32") return;
+  let autoUpdater;
+  try { ({ autoUpdater } = require("electron-updater")); } catch (_) { return; }
+  try {
+    autoUpdater.autoDownload = true;
+    autoUpdater.autoInstallOnAppQuit = true;
+    autoUpdater.on("update-downloaded", (info) => {
+      updateReadyVersion = (info && info.version) || "new";
+      sendTo("home", "update-ready", { version: updateReadyVersion });
+    });
+    autoUpdater.on("error", () => {}); // offline / first-run without feed: silent
+    const check = () => autoUpdater.checkForUpdates().catch(() => {});
+    setTimeout(check, 15000);                  // shortly after boot
+    setInterval(check, 4 * 60 * 60 * 1000);    // then every 4 hours
+    ipcMain.on("install-update", () => { try { autoUpdater.quitAndInstall(); } catch (_) {} });
+  } catch (_) { /* updater is best-effort */ }
+}
 const deepCoach = require("./shared/deepCoach");
 const processWatch = require("./shared/process");
 const replays = require("./shared/replays");
@@ -493,6 +517,18 @@ function saveConfig(patch) {
 // Riot API) we cache it to disk. When the client is later closed AND no Riot key
 // is set, we serve this snapshot so the app still shows the user's saved account
 // instead of an empty screen.
+// ----- Local error log (nothing leaves the machine) ---------------------------
+function errorLogFile() { return path.join(app.getPath("userData"), "error.log"); }
+function logError(kind, err) {
+  try {
+    const f = errorLogFile();
+    try { if (fs.existsSync(f) && fs.statSync(f).size > 200 * 1024) fs.truncateSync(f, 0); } catch (_) {}
+    fs.appendFileSync(f, `[${new Date().toISOString()}] ${kind}: ${(err && err.stack) || err}\n`);
+  } catch (_) { /* never let logging crash the app */ }
+}
+process.on("uncaughtException", (e) => logError("uncaught", e));
+process.on("unhandledRejection", (e) => logError("unhandledRejection", e));
+
 function lastSummaryFile() {
   return path.join(app.getPath("userData"), "last-summary.json");
 }
@@ -518,6 +554,7 @@ const THEME_DEFAULTS = {
   density: "comfortable", // "comfortable" | "compact"
   fontScale: 1, // 0.9 .. 1.15
   championSync: true, // tint --accent-dynamic to the selected champion
+  colorblind: false, // swap win/loss green-red for blue-orange
   overlay: {
     scale: 1, // 0.8 .. 1.3
     opacity: 1, // 0.5 .. 1
@@ -541,6 +578,7 @@ function resolveTheme() {
     density: ui.density === "compact" ? "compact" : "comfortable",
     fontScale: num(ui.fontScale, 1, 0.85, 1.2),
     championSync: ui.championSync !== false,
+    colorblind: ui.colorblind === true,
     overlay: {
       scale: num(ov.scale, 1, 0.8, 1.3),
       opacity: num(ov.opacity, 1, 0.4, 1),
@@ -1425,6 +1463,20 @@ ipcMain.handle("clear-match-cache", () => {
   try { riotApi.clearCache(); buildDataEngine.clearCache(); return { ok: true }; }
   catch (e) { return { ok: false, error: e.message }; }
 });
+ipcMain.handle("open-replays-folder", () => {
+  try { return shell.openPath(replays.replaysDir()); } catch (e) { return e.message; }
+});
+ipcMain.handle("open-error-log", () => {
+  try {
+    const f = errorLogFile();
+    if (!fs.existsSync(f)) fs.writeFileSync(f, "(no errors logged)\n");
+    return shell.openPath(f);
+  } catch (e) { return e.message; }
+});
+ipcMain.handle("report-issue", () => {
+  shell.openExternal("https://github.com/KPScriptz/pepstats/issues/new");
+  return true;
+});
 ipcMain.handle("open-data-folder", () => {
   try { shell.openPath(app.getPath("userData")); return { ok: true }; }
   catch (e) { return { ok: false, error: e.message }; }
@@ -1578,6 +1630,7 @@ app.whenReady().then(() => {
   globalShortcut.register("CommandOrControl+Shift+H", () => showHome());
   globalShortcut.register("CommandOrControl+Shift+Q", () => app.quit());
 
+  initAutoUpdater();
   lcu.init();           // resolve the (possibly non-default) install dir
   startLcuSocket();
   pollProcess();

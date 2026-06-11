@@ -342,3 +342,14 @@ body.design-mode .mod.mod-ghost {
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
+
+/* ---- Design-mode layout profile bar ---- */
+#profile-bar { position: fixed; left: 50%; transform: translateX(-50%); bottom: 46px; z-index: 60;
+  display: none; align-items: center; gap: 7px; padding: 7px 11px; border-radius: 999px;
+  background: rgba(18, 20, 28, 0.92); border: 1px dashed color-mix(in srgb, var(--gold) 70%, #fff); }
+body.design-mode #profile-bar { display: flex; }
+.pb-tag { font-size: 9px; font-weight: 700; color: #8b94a3; letter-spacing: .3px; }
+.pb-slot { width: 24px; height: 24px; border-radius: 50%; border: 1px solid #3a4150; background: #12141c;
+  color: #8b94a3; font-family: inherit; font-size: 11px; font-weight: 800; cursor: pointer; }
+.pb-slot.has { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
+.pb-slot:hover { color: #fff; }

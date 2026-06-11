@@ -450,9 +450,14 @@ function onMove(e) {
     scheduleApply();
   }
 }
+const SNAP = 8; // design-mode drop grid (px)
+function snapLayouts() {
+  for (const id of MODULES) if (layouts[id]) { layouts[id].x = Math.round(layouts[id].x / SNAP) * SNAP; layouts[id].y = Math.round(layouts[id].y / SNAP) * SNAP; }
+  for (const k of Object.keys(timerLayouts)) { const L = timerLayouts[k]; if (L && typeof L.x === "number") { L.x = Math.round(L.x / SNAP) * SNAP; L.y = Math.round(L.y / SNAP) * SNAP; } }
+}
 function onUp() {
   const a = drag || resize;
-  if (a) { a.apply(); drag = null; resize = null; a.save(); } // apply final drop, then persist
+  if (a) { snapLayouts(); a.apply(); drag = null; resize = null; a.save(); } // snap, apply final drop, persist
   window.removeEventListener("mousemove", onMove);
   window.removeEventListener("mouseup", onUp);
 }
@@ -566,6 +571,49 @@ function applyOverlay({ scores, compare, timers, skill, dossier, goldDiff, mode:
   }, 7000);
   render();
 }
+
+// ---- Design-mode layout profiles (A/B/C) -------------------------------------
+// Click = load a saved layout; Ctrl+click (or Cmd) = save the current one.
+const PROFILES_KEY = "pep-overlay-profiles";
+(function buildProfileBar() {
+  const bar = document.createElement("div");
+  bar.id = "profile-bar";
+  const tag = document.createElement("span");
+  tag.className = "pb-tag";
+  tag.textContent = "Layouts · click load · Ctrl+click save";
+  bar.append(tag);
+  let store = {};
+  try { store = JSON.parse(localStorage.getItem(PROFILES_KEY) || "{}") || {}; } catch (_) {}
+  for (const slot of ["A", "B", "C"]) {
+    const b = document.createElement("button");
+    b.className = "pb-slot" + (store[slot] ? " has" : "");
+    b.textContent = slot;
+    b.addEventListener("mousedown", (e) => e.stopPropagation());
+    b.addEventListener("click", (e) => {
+      e.preventDefault(); e.stopPropagation();
+      let st = {};
+      try { st = JSON.parse(localStorage.getItem(PROFILES_KEY) || "{}") || {}; } catch (_) {}
+      if (e.ctrlKey || e.metaKey) {
+        st[slot] = { modules: localStorage.getItem(MODULES_KEY) || "", timers: localStorage.getItem(TIMERS_KEY) || "" };
+        try { localStorage.setItem(PROFILES_KEY, JSON.stringify(st)); } catch (_) {}
+        b.classList.add("has");
+        tag.textContent = "Saved layout " + slot;
+        setTimeout(() => (tag.textContent = "Layouts · click load · Ctrl+click save"), 1600);
+      } else if (st[slot]) {
+        try {
+          if (st[slot].modules) localStorage.setItem(MODULES_KEY, st[slot].modules);
+          if (st[slot].timers) localStorage.setItem(TIMERS_KEY, st[slot].timers);
+        } catch (_) {}
+        location.reload(); // re-read layouts cleanly; main re-pushes data next tick
+      } else {
+        tag.textContent = "Slot " + slot + " is empty — Ctrl+click to save";
+        setTimeout(() => (tag.textContent = "Layouts · click load · Ctrl+click save"), 1600);
+      }
+    });
+    bar.append(b);
+  }
+  document.body.append(bar);
+})();
 
 // ---- Wire to main, or fall back to a static demo for standalone preview ------
 if (window.pepstats && typeof window.pepstats.onOverlay === "function") {

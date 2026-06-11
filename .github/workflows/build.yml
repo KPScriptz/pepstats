@@ -49,4 +49,8 @@ jobs:
         with:
           tag_name: latest
           name: Latest build
-          files: dist/*.exe
+          # latest.yml is the auto-updater feed (electron-updater generic
+          # provider points at this release's download URL).
+          files: |
+            dist/*.exe
+            dist/latest.yml

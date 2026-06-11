@@ -254,6 +254,52 @@ function setSeg(id, value) {
 // ===== Dashboard extras =====
 let dashLoaded = false;
 let dashLastTry = 0;
+let dashFilter = "all";
+let allLoadedMatches = []; // latest fetched set — feeds the champ drawer + RPW
+
+// Queue dropdown on the dashboard pill.
+(async function wireQueuePill() {
+  const pill = $("queue-pill"), menu = $("queue-menu"), label = $("queue-pill-label");
+  if (!pill || !menu) return;
+  let filters = [{ key: "all", label: "All games" }];
+  try { const f = api.getMatchFilters && await api.getMatchFilters(); if (Array.isArray(f) && f.length) filters = f; } catch (_) {}
+  for (const f of filters) {
+    const b = document.createElement("button");
+    b.className = "qp-item"; b.textContent = f.label;
+    b.addEventListener("click", () => {
+      dashFilter = f.key; label.textContent = f.label;
+      menu.classList.add("hidden");
+      loadDashboardExtras(true);
+    });
+    menu.append(b);
+  }
+  pill.addEventListener("click", (e) => { e.stopPropagation(); menu.classList.toggle("hidden"); });
+  document.addEventListener("click", () => menu.classList.add("hidden"));
+})();
+
+// "Today's session": record + LP delta + best grade, all from data already here.
+function renderSession(matches) {
+  const card = $("session-card");
+  if (!card) return;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const todays = (matches || []).filter((m) => m.endTs >= today.getTime() && !m.remake);
+  if (!todays.length) { card.classList.add("hidden"); return; }
+  card.classList.remove("hidden");
+  const w = todays.filter((m) => m.win).length, l = todays.length - w;
+  const rec = $("sess-record"); rec.textContent = `${w}W ${l}L`; rec.className = w >= l ? "pos" : "neg";
+  // LP today = today's snapshot score minus the previous day's (daily snapshots).
+  const hist = (lastHome && lastHome.history) || [];
+  const lpEl = $("sess-lp");
+  if (hist.length >= 2 && hist[hist.length - 1].day !== hist[hist.length - 2].day &&
+      new Date(hist[hist.length - 1].ts).setHours(0,0,0,0) === today.getTime()) {
+    const d = hist[hist.length - 1].score - hist[hist.length - 2].score;
+    lpEl.textContent = (d > 0 ? "+" : "") + d + " LP";
+    lpEl.className = d > 0 ? "pos" : d < 0 ? "neg" : "";
+  } else { lpEl.textContent = "—"; lpEl.className = ""; }
+  const best = todays.slice().sort((a, b) => b.kda - a.kda)[0];
+  $("sess-best").textContent = best ? `${matchGrade(best)} · ${best.champion}` : "—";
+}
+
 async function loadDashboardExtras(force) {
   if ((dashLoaded && !force) || !api.getMatches) return;
   // Throttle retries (the render loop ticks every 5s; don't hammer the API while
@@ -262,11 +308,13 @@ async function loadDashboardExtras(force) {
   if (!force && now - dashLastTry < 30000) return;
   dashLastTry = now;
   let res;
-  try { res = await api.getMatches("all", 10); } catch (_) { return; }
+  try { res = await api.getMatches(dashFilter, 20); } catch (_) { return; }
   if (!res || !res.ok) return;
   dashLoaded = true;
   const ver = res.version;
   const matches = res.matches || [];
+  allLoadedMatches = matches;
+  renderSession(matches);
 
   // Quick stats
   const s = res.summary || {};
@@ -303,6 +351,9 @@ async function loadDashboardExtras(force) {
           `<div class="perf-right"><div class="perf-wr ${c.wr >= 50 ? "pos" : "neg"}">${c.wr}%</div><div class="perf-rec">${w}W ${l}L</div></div>`;
         const slot = li.querySelector(".perf-ico-slot");
         if (slot) slot.replaceWith(mkImg(champImg(ver, c.champKey), "perf-ico", function () { this.style.visibility = "hidden"; }));
+        li.style.cursor = "pointer";
+        li.title = "Open champion details";
+        li.addEventListener("click", () => openChampDrawer(c.champion, c.champKey, ver));
         cpList.append(li);
       }
     }
@@ -350,6 +401,47 @@ function buildMatchRow(m, ver) {
   if (slot) slot.replaceWith(mkImg(champImg(ver, m.champKey), "mr-champ", function () { this.style.visibility = "hidden"; }));
   return li;
 }
+
+// ===== Champion deep-dive drawer (your own matches on one champion) =====
+function openChampDrawer(champion, champKey, ver) {
+  const games = allLoadedMatches.filter((m) => m.champion === champion && !m.remake);
+  const d = $("champ-drawer");
+  if (!d || !games.length) return;
+  d.classList.remove("hidden");
+  $("cd-name").textContent = champion;
+  $("cd-sub").textContent = `${games.length} game${games.length > 1 ? "s" : ""} in your loaded history`;
+  const icon = $("cd-icon");
+  if (ver && champKey) { icon.src = champImg(ver, champKey); icon.style.visibility = "visible"; }
+  else icon.style.visibility = "hidden";
+  const w = games.filter((g) => g.win).length;
+  let k = 0, dd = 0, a = 0, cs = 0;
+  for (const g of games) { k += g.k; dd += g.d; a += g.a; cs += g.csPerMin; }
+  $("cd-wr").textContent = Math.round((w / games.length) * 100) + "%";
+  $("cd-kda").textContent = dd ? ((k + a) / dd).toFixed(2) : (k + a).toFixed(0);
+  $("cd-cs").textContent = (cs / games.length).toFixed(1);
+  // Most-built items across these games (your own builds only).
+  const freq = new Map();
+  for (const g of games) for (const it of g.items || []) if (it) freq.set(it, (freq.get(it) || 0) + 1);
+  const items = $("cd-items"); items.innerHTML = "";
+  [...freq.entries()].sort((x, y) => y[1] - x[1]).slice(0, 6).forEach(([id]) => {
+    items.append(mkImg(itemImg(ver, id), "cd-item", function () { this.style.visibility = "hidden"; }));
+  });
+  const ul = $("cd-games"); ul.innerHTML = "";
+  for (const g of games.slice(0, 10)) {
+    const li = document.createElement("li");
+    li.className = "cd-game " + (g.win ? "win" : "loss");
+    const res = document.createElement("b"); res.textContent = g.win ? "W" : "L";
+    const kda = document.createElement("span"); kda.textContent = `${g.k}/${g.d}/${g.a}`;
+    const grade = document.createElement("i"); grade.textContent = matchGrade(g);
+    const when = document.createElement("em"); when.textContent = timeAgo(g.endTs);
+    li.append(res, kda, grade, when);
+    ul.append(li);
+  }
+}
+(function wireChampDrawer() {
+  const close = $("cd-close"), d = $("champ-drawer");
+  if (close && d) close.addEventListener("click", () => d.classList.add("hidden"));
+})();
 
 // ===== Match history (Progress page) =====
 let progressSummary = null;
@@ -731,7 +823,40 @@ function friendDuration(since) {
   return `${m}:${ss}`;
 }
 
+// "Recently played with": recurring teammates across YOUR loaded matches.
+// Needs full lobbies (Riot-key/RSO data) — keyless LCU rows have no rosters.
+function renderRpw() {
+  const card = $("rpw-card"), ul = $("rpw-list");
+  if (!card || !ul) return;
+  const mates = new Map();
+  for (const m of allLoadedMatches) {
+    const me = (m.participants || []).find((p) => p.me);
+    if (!me) continue;
+    for (const p of m.participants || []) {
+      if (p.me || p.teamId !== me.teamId || !p.name) continue;
+      const e = mates.get(p.name) || { name: p.name, games: 0, wins: 0 };
+      e.games++; if (m.win) e.wins++;
+      mates.set(p.name, e);
+    }
+  }
+  const rec = [...mates.values()].filter((e) => e.games >= 2).sort((a, b) => b.games - a.games).slice(0, 6);
+  if (!rec.length) { card.classList.add("hidden"); return; }
+  card.classList.remove("hidden");
+  ul.innerHTML = "";
+  for (const e of rec) {
+    const li = document.createElement("li"); li.className = "mycomp-row";
+    const nm = document.createElement("span"); nm.className = "mycomp-name"; nm.textContent = e.name;
+    const g = document.createElement("span"); g.className = "mycomp-sub"; g.textContent = e.games + " games";
+    const wr = Math.round((e.wins / e.games) * 100);
+    const right = document.createElement("span"); right.className = "mycomp-right " + (wr >= 50 ? "pos" : "neg");
+    right.textContent = wr + "% together";
+    li.append(nm, g, right);
+    ul.append(li);
+  }
+}
+
 function startFriends() {
+  renderRpw();
   loadFriends();
   if (!friendsTimer) friendsTimer = setInterval(() => { if (friendsActive) loadFriends(); }, 5000);
   if (!friendsTick) friendsTick = setInterval(() => {
@@ -1214,6 +1339,17 @@ function renderTftCard(m) {
     li.append(tr);
   }
 
+  if (m.augments && m.augments.length) {
+    const ag = document.createElement("div"); ag.className = "tft-augs";
+    const lbl = document.createElement("span"); lbl.className = "tft-augs-lbl"; lbl.textContent = "Augments";
+    ag.append(lbl);
+    for (const a of m.augments.slice(0, 3)) {
+      const chip = document.createElement("span"); chip.className = "tft-aug"; chip.textContent = a;
+      ag.append(chip);
+    }
+    li.append(ag);
+  }
+
   if (m.units && m.units.length) {
     const board = document.createElement("div"); board.className = "tft-board";
     for (const u of m.units) {
@@ -1627,6 +1763,9 @@ $("set-clearcache").addEventListener("click", async () => {
   } catch (_) { dataStatus("Couldn't clear cache"); }
 });
 $("set-openfolder").addEventListener("click", () => { try { api.openDataFolder && api.openDataFolder(); } catch (_) {} });
+$("set-replays").addEventListener("click", () => { try { api.openReplaysFolder && api.openReplaysFolder(); } catch (_) {} });
+$("set-errorlog").addEventListener("click", () => { try { api.openErrorLog && api.openErrorLog(); } catch (_) {} });
+$("set-report").addEventListener("click", () => { try { api.reportIssue && api.reportIssue(); } catch (_) {} });
 $("set-github").addEventListener("click", () => { try { api.openRepo && api.openRepo(); } catch (_) {} });
 
 // ===== Appearance (live theming) =====
@@ -1656,6 +1795,7 @@ $("accent-custom").addEventListener("change", (e) => { clearTimeout(_accentTimer
 $("seg-theme").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => saveTheme({ theme: b.dataset.v })));
 $("seg-champsync").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => saveTheme({ championSync: b.dataset.v === "on" })));
 $("seg-density").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => saveTheme({ density: b.dataset.v })));
+$("seg-cb").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => saveTheme({ colorblind: b.dataset.v === "on" })));
 $("rng-font").addEventListener("input", (e) => saveTheme({ fontScale: parseFloat(e.target.value) }));
 $("rng-ovscale").addEventListener("input", (e) => saveTheme({ overlay: { scale: parseFloat(e.target.value) } }));
 $("rng-ovop").addEventListener("input", (e) => saveTheme({ overlay: { opacity: parseFloat(e.target.value) } }));
@@ -1673,6 +1813,7 @@ function syncAppearance(t) {
   // Hextech-blue dynamic accent; the live tint applies in pre-game / overlay.
   if (window.syncAppTheme) window.syncAppTheme("", false);
   $("seg-density").querySelectorAll("button").forEach((b) => b.classList.toggle("active", b.dataset.v === t.density));
+  $("seg-cb").querySelectorAll("button").forEach((b) => b.classList.toggle("active", (b.dataset.v === "on") === (t.colorblind === true)));
   document.querySelectorAll("#swatches .sw").forEach((s) => s.classList.toggle("active", s.dataset.c.toLowerCase() === (t.accent || "").toLowerCase()));
   // Don't overwrite the picker's value while the user is actively picking — that
   // writeback is what made it glitch.
@@ -1682,6 +1823,45 @@ function syncAppearance(t) {
   $("rng-ovscale").value = t.overlay.scale; $("val-ovscale").textContent = Math.round(t.overlay.scale * 100) + "%";
   $("rng-ovop").value = t.overlay.opacity; $("val-ovop").textContent = Math.round(t.overlay.opacity * 100) + "%";
   document.querySelectorAll("#row-toggles .chip").forEach((c) => c.classList.toggle("on", !!(t.overlay.rows || {})[c.dataset.row]));
+}
+
+// ===== What's-new (once per version) =====
+const WHATS_NEW = [
+  "Auto-updates: PepStats now updates itself from GitHub releases.",
+  "Dashboard queue filter, Today's Session tracker, and a champion deep-dive drawer.",
+  "Recently Played With on the Friends tab (full-lobby data).",
+  "Colorblind-safe win/loss palette (Settings → Appearance).",
+  "Overlay: snap-to-grid dragging + three saveable layout profiles in Design Mode.",
+  "TFT: your per-game augments shown on match cards; quality-of-life buttons in Settings → Data.",
+];
+(async function whatsNew() {
+  try {
+    if (!api.getAppInfo) return;
+    const info = await api.getAppInfo();
+    const v = info && info.version;
+    if (!v) return;
+    const seen = localStorage.getItem("pep-last-version");
+    if (seen === v) return;
+    $("wn-version").textContent = "v" + v;
+    const ul = $("wn-list");
+    for (const t of WHATS_NEW) { const li = document.createElement("li"); li.textContent = t; ul.append(li); }
+    $("whatsnew-card").classList.remove("hidden");
+    $("wn-dismiss").addEventListener("click", () => {
+      localStorage.setItem("pep-last-version", v);
+      $("whatsnew-card").classList.add("hidden");
+    });
+  } catch (_) {}
+})();
+
+// ===== Update-ready chip =====
+if (api.onUpdateReady) {
+  api.onUpdateReady((d) => {
+    const chip = $("update-chip");
+    if (!chip) return;
+    chip.textContent = `Update ${d && d.version ? "v" + d.version + " " : ""}ready — Restart`;
+    chip.classList.remove("hidden");
+    chip.onclick = () => api.installUpdate && api.installUpdate();
+  });
 }
 
 // ===== Boot =====

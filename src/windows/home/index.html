@@ -95,6 +95,7 @@
         <header class="topbar">
           <div class="tb-titles"><h1 id="page-title">Dashboard</h1><div class="page-sub" id="page-sub">Your ranked snapshot</div></div>
           <div class="topbar-right">
+            <button class="update-chip hidden" id="update-chip">Update ready — Restart</button>
             <span class="conn"><i id="conn-dot" class="conn-dot off"></i><span id="conn-tx">Offline</span></span>
             <div class="winctl">
               <button id="tb-min" class="wc" aria-label="Minimize">&#xE921;</button>
@@ -106,11 +107,23 @@
         <div class="scroll">
           <!-- ===== Dashboard ===== -->
           <section class="page" id="page-dashboard">
+            <!-- What's-new (shows once per version) -->
+            <div class="card hidden" id="whatsnew-card">
+              <div class="card-head">
+                <div class="card-title">What's new <span id="wn-version" class="fr-count"></span></div>
+                <button class="link-btn" id="wn-dismiss">Dismiss</button>
+              </div>
+              <ul id="wn-list" class="wn-list"></ul>
+            </div>
+
             <!-- ===== Blitz dual-column: profile (left) + match feed (right) ===== -->
             <div class="db2">
               <!-- LEFT: profile identity + performance -->
               <aside class="db-left">
-                <button class="queue-pill" type="button">All Queues <span class="qp-caret">▾</span></button>
+                <div class="qp-wrap">
+                  <button class="queue-pill" id="queue-pill" type="button"><span id="queue-pill-label">All games</span> <span class="qp-caret">▾</span></button>
+                  <div class="qp-menu hidden" id="queue-menu"></div>
+                </div>
 
                 <div class="card db-rankcard">
                   <div class="rankshow">
@@ -132,6 +145,15 @@
                     <div class="rk"><b id="kpi-weekly">—</b><span>Weekly LP</span></div>
                     <div class="rk"><b id="kpi-wr">—</b><span>Win Rate</span></div>
                     <div class="rk"><b id="kpi-level">—</b><span>Level</span></div>
+                  </div>
+                </div>
+
+                <div class="card hidden" id="session-card">
+                  <div class="card-title">Today's Session</div>
+                  <div class="sess-row">
+                    <div class="sess"><b id="sess-record">—</b><span>Record</span></div>
+                    <div class="sess"><b id="sess-lp">—</b><span>LP today</span></div>
+                    <div class="sess"><b id="sess-best">—</b><span>Best game</span></div>
                   </div>
                 </div>
 
@@ -305,6 +327,11 @@
               </aside>
 
               <div class="fr-detail">
+                <div class="card hidden" id="rpw-card">
+                  <div class="card-title">Recently Played With</div>
+                  <div class="card-sub">Recurring teammates from your own loaded matches.</div>
+                  <ul id="rpw-list" class="mycomps"></ul>
+                </div>
                 <div id="fr-empty" class="card muted">Select a friend to see their profile.</div>
                 <div id="fr-panel" class="hidden">
 
@@ -488,6 +515,24 @@
           </section>
 
           <!-- ===== Settings ===== -->
+          <!-- Champion deep-dive drawer (your own matches on one champion) -->
+          <aside class="champ-drawer hidden" id="champ-drawer">
+            <div class="cd-head">
+              <img id="cd-icon" class="cd-icon" alt="" />
+              <div class="cd-meta"><div id="cd-name" class="cd-name">—</div><div id="cd-sub" class="cd-sub">from your loaded matches</div></div>
+              <button id="cd-close" class="wc" aria-label="Close">✕</button>
+            </div>
+            <div class="rank-kpis cd-kpis">
+              <div class="rk"><b id="cd-wr">—</b><span>Win rate</span></div>
+              <div class="rk"><b id="cd-kda">—</b><span>KDA</span></div>
+              <div class="rk"><b id="cd-cs">—</b><span>CS/min</span></div>
+            </div>
+            <div class="card-title cd-sec">Most-built items</div>
+            <div id="cd-items" class="cd-items"></div>
+            <div class="card-title cd-sec">Games</div>
+            <ul id="cd-games" class="cd-games"></ul>
+          </aside>
+
           <!-- ===== Learn (curated onboarding education — all static, no live data) ===== -->
           <section class="page hidden" id="page-learn">
             <div class="db2">
@@ -593,6 +638,9 @@
                     <button id="set-clearcache" class="btn btn-ghost">Clear cache</button></div>
                   <div class="row">
                     <button id="set-openfolder" class="btn btn-ghost">Open data folder</button>
+                    <button id="set-replays" class="btn btn-ghost">Open replays folder</button>
+                    <button id="set-errorlog" class="btn btn-ghost">Error log</button>
+                    <button id="set-report" class="btn btn-ghost">Report an issue</button>
                     <button id="set-github" class="btn btn-ghost">View on GitHub</button>
                   </div>
                   <span id="set-data-status" class="save-status"></span>
@@ -640,6 +688,10 @@
                     <div class="swatches" id="swatches"></div>
                     <input id="accent-custom" type="color" class="accent-custom" value="#ff004c" title="Custom accent" /></div>
 
+                  <div class="opt"><span class="opt-lbl">Win/Loss colors</span>
+                    <div class="seg" id="seg-cb">
+                      <button data-v="off" class="active">Default</button><button data-v="on">Colorblind</button>
+                    </div></div>
                   <div class="opt"><span class="opt-lbl">Density</span>
                     <div class="seg" id="seg-density">
                       <button data-v="comfortable" class="active">Comfortable</button><button data-v="compact">Compact</button>
