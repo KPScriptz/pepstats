@@ -6,6 +6,7 @@ node_modules/
 /build/*
 !/build/icon.ico
 !/build/icon.png
+!/build/icon.icns
 *.log
 
 # macOS
