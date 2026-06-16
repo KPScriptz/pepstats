@@ -53,10 +53,15 @@ async function pathExists(p) {
   }
 }
 
-// A directory is a valid install if it holds the client exe OR a live lockfile.
+// macOS install marker (the client app bundle inside Contents/LoL).
+const CLIENT_APP_MAC = "LeagueClient.app";
+
+// A directory is a valid install if it holds the client (exe on Windows, the
+// .app bundle on macOS) OR a live lockfile.
 async function isInstallRoot(dir) {
   if (!dir) return false;
   if (await pathExists(path.join(dir, CLIENT_EXE))) return true;
+  if (process.platform === "darwin" && (await pathExists(path.join(dir, CLIENT_APP_MAC)))) return true;
   if (await pathExists(path.join(dir, LOCKFILE_NAME))) return true;
   return false;
 }
@@ -98,6 +103,17 @@ function parseRegPaths(stdout, valueName) {
 
 // ----- discovery -------------------------------------------------------------
 function candidateRoots() {
+  // macOS: League installs as a single .app; the LCU lockfile + game files live
+  // under Contents/LoL. (lcu.js also reads this path directly as a fallback, so
+  // the client connects even if findInstallDir is skipped.)
+  if (process.platform === "darwin") {
+    const home = process.env.HOME || "";
+    return [
+      "/Applications/League of Legends.app/Contents/LoL",
+      home ? path.join(home, "Applications/League of Legends.app/Contents/LoL") : null,
+    ].filter(Boolean);
+  }
+  if (process.platform !== "win32") return [];
   const roots = [];
   for (const drive of PROBE_DRIVES) {
     for (const sub of DEFAULT_SUBPATHS) {

@@ -4,15 +4,19 @@
 the right stats at the right moment, measured against your rank, not a random
 opponent.**
 
-A lightweight Windows companion for League of Legends and Teamfight Tactics in a
+A lightweight companion for League of Legends and Teamfight Tactics in a
 Blitz-style obsidian + neon-crimson liquid-glass interface. **Works out of the
 box**: install, open the League client, click *Connect with League client* — no
 sign-ups, no API keys, nothing to type.
 
-➡️ **[Download the latest release](../../releases/latest)**
+➡️ **[Download the latest release](../../releases/latest)** — `PepStats-Setup-x.y.z.exe` (Windows) or `PepStats-x.y.z-mac.dmg` (macOS).
 
-> Builds are currently **unsigned**, so SmartScreen shows *"Windows protected
-> your PC"* → **More info → Run anyway**. (See [SIGNING.md](SIGNING.md).)
+> **Windows:** unsigned, so SmartScreen shows *"Windows protected your PC"* →
+> **More info → Run anyway**.
+> **macOS:** unsigned, so Gatekeeper shows *"unidentified developer"* →
+> **right-click the app → Open**. (See [SIGNING.md](SIGNING.md).) Mac support is
+> new — most useful for the TFT and dashboard tabs; the in-game overlay and
+> auto-update are Windows-only for now.
 
 ## League of Legends
 
@@ -117,10 +121,16 @@ pepstats/
 
 ```bash
 npm install
-npm start        # run PepStats locally
+npm start        # run PepStats locally (Windows or macOS)
 npm run check    # syntax-check all sources
 npm run dist     # build the Windows installer (run on Windows)
+npm run dist:mac # build the macOS .dmg/.zip (run on macOS)
 ```
+
+> **macOS notes.** Connect via the running League client just like Windows —
+> the LCU lockfile is read from `/Applications/League of Legends.app`. The
+> in-game overlay and auto-updater are currently Windows-only; everything in the
+> Dashboard, Progress, TFT, Friends and Learn tabs works cross-platform.
 
 ## License
 

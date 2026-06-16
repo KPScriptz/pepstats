@@ -1,4 +1,4 @@
-name: Build Windows Installer
+name: Build Installers
 
 on:
   push:
@@ -54,3 +54,41 @@ jobs:
           files: |
             dist/*.exe
             dist/latest.yml
+
+  build-mac:
+    # Serialize after the Windows job so both don't race to create the rolling
+    # `latest` release. The Mac app is unsigned (Gatekeeper: right-click → Open)
+    # and does not auto-update — auto-update stays Windows-only.
+    needs: build-windows
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build macOS app (unsigned)
+        run: npm run dist:mac
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false # don't attempt signing on CI
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PepStats-mac
+          path: |
+            dist/*.dmg
+            dist/*.zip
+
+      - name: Publish to "latest" release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Latest build
+          files: |
+            dist/*.dmg
+            dist/*.zip

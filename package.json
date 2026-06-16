@@ -1,11 +1,12 @@
 {
   "name": "pepstats",
-  "version": "0.7.2",
+  "version": "0.7.3",
   "description": "PepStats — League of Legends companion, overlay, and AI coach",
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
     "dist": "electron-builder --win nsis --publish never",
+    "dist:mac": "electron-builder --mac --publish never",
     "check": "node -e \"const{execSync}=require('child_process');const fs=require('fs');const walk=d=>fs.readdirSync(d,{withFileTypes:true}).flatMap(e=>e.isDirectory()?walk(d+'/'+e.name):(e.name.endsWith('.js')?[d+'/'+e.name]:[]));for(const f of [...walk('src'),...walk('scripts')]){execSync('node --check '+JSON.stringify(f));}console.log('All source files OK');\"",
     "release": "node scripts/release.js"
   },
@@ -57,6 +58,15 @@
       "installerIcon": "build/icon.ico",
       "uninstallerIcon": "build/icon.ico",
       "installerHeaderIcon": "build/icon.ico"
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "icon": "build/icon.icns",
+      "category": "public.app-category.utilities",
+      "artifactName": "PepStats-${version}-mac-${arch}.${ext}"
     }
   }
 }

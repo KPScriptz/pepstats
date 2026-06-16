@@ -16,8 +16,11 @@ function checkProcess(name) {
       // /NH = no header, /FI filter. Output contains the image name when present.
       cmd = `tasklist /FI "IMAGENAME eq ${name}" /NH`;
     } else {
-      // Dev convenience on macOS/Linux; the real target is Windows.
-      cmd = `pgrep -x ${JSON.stringify(name)}`;
+      // macOS/Linux. Substring match (no -x) so the client is detected whether
+      // the running process is "LeagueClient" or "LeagueClientUx" — both mean
+      // the LCU is up. The patterns ("LeagueClient" / "League of Legends") have
+      // no regex specials, so a bare pgrep is safe.
+      cmd = `pgrep ${JSON.stringify(name)}`;
     }
     exec(cmd, { timeout: 1500, windowsHide: true }, (err, stdout) => {
       if (err) {
